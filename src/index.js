@@ -5,23 +5,46 @@ import { envs } from './config/env.js';
 import { Server } from 'socket.io';
 import sensorRoutes from './server/server.js';
 import { WebSocketServer } from 'ws';
+import { v4 as uuidv4 } from 'uuid';
+import { insertNewFlight, insertSensorData, printLastSensorData } from './server/questdb.js';
 
 const app = express();
 const server = createServer(app);
 
 // Configuración de IP fija esperada del ESP32
-const ESP32_IP = '192.168.1.200'; // Debe coincidir con la IP fija del ESP32
-
+const ESP32_IP = '192.168.1.200';
+let recordingTimeout;
 const wss = new WebSocketServer({ server, path: '/esp32' });
 
+app.get('/connections', (req, res) => {
+    res.json({
+        esp32: {
+            connected: !!esp32Socket,
+            ip: ESP32_IP
+        },
+        webSockets: {
+            clients: wss.clients.size,
+            path: '/esp32'
+        },
+        socketIO: {
+            connections: io.engine.clientsCount
+        }
+    });
+});
 wss.on('connection', (ws, req) => {
-    console.log('✅ ESP32 conectado');
-    ws.on('message', (message) => {
-        //console.log('📩 Mensaje recibido del ESP32:', message.toString());
+    const clientIP = req.socket.remoteAddress.replace('::ffff:', '');
+    console.log(`✅ Dispositivo conectado desde IP: ${clientIP}`);
+
+    if (clientIP === ESP32_IP) {
+        console.log('✔️ Conexión ESP32 confirmada');
+        esp32Socket = ws;
+    }
+    ws.on('message', async (message) => {
         try {
+            //console.log('📩 Mensaje recibido del ESP32:', message.toString());
             const data = JSON.parse(message.toString());
             if (data.type === "telemetria" && data.payload) {
-                // Reenviar a todos los clientes de Socket.IO
+                // 1. Reenviar a todos los clientes de Socket.IO
                 io.emit("datosCompleto", {
                     AngleRoll: data.payload.AngleRoll,
                     AnglePitch: data.payload.AnglePitch,
@@ -29,7 +52,6 @@ wss.on('connection', (ws, req) => {
                     roll: data.payload.AngleRoll,
                     pitch: data.payload.AnglePitch,
                     yaw: data.payload.AngleYaw,
-                    Yaw: data.payload.AngleYaw, // Añadido explícitamente para compatibilidad
                     RateRoll: data.payload.RateRoll,
                     RatePitch: data.payload.RatePitch,
                     RateYaw: data.payload.RateYaw,
@@ -71,10 +93,15 @@ wss.on('connection', (ws, req) => {
                     error_theta: data.payload.error_theta,
                     ...data.payload
                 });
+                // 2. Guardar en QuestDB si hay grabación activa
+                if (currentFlightId) {
+                    await insertSensorData(data.payload, currentFlightId);
+                } else {
+                    //console.log('⚠️ Datos recibidos pero no hay grabación activa');
+                }
             }
-            // Puedes agregar aquí otros tipos de mensajes si lo necesitas
         } catch (err) {
-            console.error("Error procesando mensaje del ESP32:", err);
+            console.error('❌ Error procesando mensaje:', err);
         }
     });
     ws.on('close', () => {
@@ -88,6 +115,14 @@ app.use(cors({
     methods: ['GET', 'POST'],
 }));
 app.use(json());
+
+// Log all requests and their status codes for debugging (MOVER ARRIBA)
+app.use((req, res, next) => {
+    res.on('finish', () => {
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - ${res.statusCode}`);
+    });
+    next();
+});
 
 // Rutas
 app.use('/api/sensor', sensorRoutes);
@@ -109,11 +144,15 @@ const checkESP32IP = (socket, next) => {
 // Inicializar Socket.IO con opción adicional de transporte
 const io = new Server(server, {
     cors: {
-        origin: '*', // Permitir todos los orígenes
-        methods: ['GET', 'POST'],
+        origin: "*",
+        methods: ["GET", "POST"]
     },
-    path: '/socket.io', // Ruta por defecto para clientes web
-    transports: ['websocket', 'polling'], // Explícitamente permitir WebSocket
+    // Añade estas configuraciones:
+    serveClient: false,
+    pingTimeout: 30000,  // 30 segundos
+    pingInterval: 5000,  // 5 segundos
+    cookie: false,
+    transports: ['websocket', 'polling']
 });
 
 // Configurar namespace específico para ESP32
@@ -125,6 +164,7 @@ const PORT = envs.PORT || 3002;
 let modo = 1;
 let latestData = {};
 let esp32Socket = null; // Para mantener referencia al socket del ESP32
+let currentFlightId = null; // Para rastrear el vuelo activo
 
 // Configurar middleware de verificación IP para el namespace ESP32
 espNamespace.use(checkESP32IP);
@@ -146,6 +186,7 @@ io.on('connection', (socket) => {
         latestData = data;
         modo = data.modo ?? modo;
         broadcastData(data);
+        handleTelemetry(data); // Guardar datos de telemetría en QuestDB
     });
 
     // También manejar formato de mensajes del ESP32 aquí
@@ -160,6 +201,7 @@ io.on('connection', (socket) => {
                 latestData = sensorData;
                 modo = sensorData.modo ?? modo;
                 broadcastData(sensorData);
+                handleTelemetry(sensorData); // Guardar datos de telemetría en QuestDB
             }
         } catch (error) {
             console.error('Error procesando datos en socket principal:', error);
@@ -187,6 +229,7 @@ espNamespace.on('connection', (socket) => {
                 modo = sensorData.modo ?? modo;
 
                 broadcastData(sensorData);
+                handleTelemetry(sensorData); // Guardar datos de telemetría en QuestDB
             } else if (parsedData.type === 'state') {
                 console.log('🔄 Estado del ESP32 recibido:', parsedData.payload);
                 if (parsedData.payload && parsedData.payload.mode !== undefined) {
@@ -338,19 +381,143 @@ app.get('/modo/:numero', (req, res) => {
     res.json({ message: `Modo actual: ${modo}` });
 });
 
-// Resto de endpoints y manejo de errores...
-app.get('/modo/actual', (req, res) => {
-    res.json({ modo });
-});
+app.post('/start-recording', async (req, res) => {
+    try {
+        // Limpiar timeout anterior si existe
+        if (recordingTimeout) clearTimeout(recordingTimeout);
 
-app.get('/accion', (req, res) => {
-    switch (modo) {
-        case 0: return res.json({ message: 'Modo 0: Activando motores' });
-        case 1: return res.json({ message: 'Modo 1: En espera' });
-        case 2: return res.json({ message: 'Modo 2: Apagando motores' });
+        const { Kc, Ki, mass, armLength } = req.body || {};
+        const flightId = await insertNewFlight(Kc, Ki, mass, armLength);
+        currentFlightId = flightId;
+
+        // Configurar timeout (20 segundos)
+        recordingTimeout = setTimeout(() => {
+            console.log('⏱️ Grabación detenida por timeout');
+            currentFlightId = null;
+        }, 20000); // 20,000 ms = 20 segundos
+
+        res.json({
+            message: 'Grabación iniciada',
+            flightId,
+            recordingDuration: '30 segundos'
+        });
+
+    } catch (err) {
+        console.error('Error:', err);
+        res.status(500).json({ error: err.message });
     }
 });
 
+// Endpoint para detener la grabación
+app.post('/stop-recording', (req, res) => {
+    currentFlightId = null;
+    res.json({ message: 'Grabación detenida' });
+});
+
+// En cada recepción de telemetría, guardar en QuestDB si hay un vuelo activo
+function handleTelemetry(sensorData) {
+    if (!currentFlightId) {
+        console.log('⚠️ Telemetría recibida SIN grabación activa');
+        return;
+    }
+    insertSensorData(sensorData, currentFlightId)
+        //.then(() => console.log('✅ Datos guardados en QuestDB'))
+        .catch(err => console.error('❌ Error guardando datos:', err));
+}
+
+// Endpoint temporal para depuración: ver últimos datos guardados
+app.get('/debug/latest-data', (req, res) => {
+    res.json({
+        currentFlightId,
+        latestData,
+        modo
+    });
+});
+
+// Endpoint temporal para depuración: ver últimos datos guardados (JSON)
+app.get('/debug/sensor-data/json', async (req, res) => {
+    try {
+        const result = await printLastSensorData(10, true); // true = return rows
+        res.json({ data: result });
+    } catch (err) {
+        res.status(500).json({ error: 'Error al consultar sensor_data' });
+    }
+});
+
+// Manejar datos de telemetría y guardar en QuestDB si hay un vuelo activo
+io.on('connection', (socket) => {
+    socket.on('telemetria', (data) => {
+        //console.log('[DEBUG] Evento telemetria recibido (io.on):', data);
+        latestData = data;
+        modo = data.modo ?? modo;
+        broadcastData(data);
+        handleTelemetry(data);
+    });
+
+    socket.on('message', (data) => {
+        try {
+            const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+            if (parsedData.type === 'telemetria' && parsedData.payload) {
+                //console.log('[DEBUG] Evento telemetria recibido (io.on message):', parsedData.payload);
+                const sensorData = parsedData.payload;
+                latestData = sensorData;
+                modo = sensorData.modo ?? modo;
+                broadcastData(sensorData);
+                handleTelemetry(sensorData);
+            }
+        } catch (error) {
+            console.error('Error procesando datos en socket principal:', error);
+        }
+    });
+});
+
+// Manejar conexiones ESP32 y guardar en QuestDB si hay un vuelo activo
+espNamespace.on('connection', (socket) => {
+    socket.on('message', (data) => {
+        try {
+            const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
+            if (parsedData.type === 'telemetria' && parsedData.payload) {
+                //console.log('[DEBUG] Evento telemetria recibido (espNamespace):', parsedData.payload);
+                const sensorData = parsedData.payload;
+                latestData = sensorData;
+                modo = sensorData.modo ?? modo;
+                broadcastData(sensorData);
+                handleTelemetry(sensorData);
+            } else if (parsedData.type === 'state') {
+                if (parsedData.payload && parsedData.payload.mode !== undefined) {
+                    modo = parsedData.payload.mode;
+                    io.emit('modo', modo);
+                }
+            }
+        } catch (error) {
+            console.error('Error procesando datos del ESP32:', error);
+            console.error('Mensaje original:', data);
+        }
+    });
+});
+
+app.get('/recording-status', (req, res) => {
+    res.json({
+        isRecording: !!currentFlightId,
+        flightId: currentFlightId,
+        lastDataReceived: latestData ? new Date() : null,
+        esp32Connected: !!esp32Socket,
+        wsConnections: wss.clients.size
+    });
+});
+
+// Resto de endpoints y manejo de errores...
+app.get('/modo/actual', (req, res) => {
+    console.log('🔎 [DEBUG] GET /modo/actual called');
+    res.json({ modo });
+});
+
+// Catch-all 404 handler for unknown routes
+app.use((req, res, next) => {
+    res.status(404).json({ error: 'Not found' });
+});
+
+// Global error handler (should be last)
 app.use((err, req, res, next) => {
     console.error('❌ Error del servidor:', err);
     res.status(500).json({ error: 'Error interno del servidor' });

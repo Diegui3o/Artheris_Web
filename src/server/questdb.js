@@ -9,8 +9,19 @@ const pool = new pg.Pool({
     database: 'qdb',
 });
 
+// Verificar conexión a QuestDB al iniciar
+pool.query('SELECT 1')
+    .then(() => console.log('✅ Conexión a QuestDB establecida'))
+    .catch(err => {
+        console.error('❌ No se pudo conectar a QuestDB');
+        process.exit(1);
+    });
+
 function safe(value) {
-    return value === undefined || value === null ? 'NULL' : value;
+    if (value === undefined || value === null || isNaN(value)) {
+        return 'NULL';
+    }
+    return typeof value === 'string' ? `'${value.replace(/'/g, "''")}'` : value;
 }
 
 async function executeQueryWithRetry(query, retries = 5, delay = 1000) {
@@ -78,10 +89,13 @@ export async function insertNewFlight(Kc, Ki, mass = null, armLength = null) {
 
 // Inserta datos de sensores asociados al vuelo
 export async function insertSensorData(sensor, flightId) {
+    //console.log('[DEBUG] insertSensorData called with flightId:', flightId, 'sensor:', sensor);
     const time = new Date().toISOString();
 
     const {
+        AngleRoll, AnglePitch, AngleYaw,
         RateRoll, RatePitch, RateYaw,
+        AccX, AccY, AccZ,
         tau_x, tau_y, tau_z,
         KalmanAngleRoll, KalmanAnglePitch,
         error_phi, error_theta,
@@ -94,16 +108,20 @@ export async function insertSensorData(sensor, flightId) {
     const query = `
         INSERT INTO sensor_data (
             flight_id, time,
+            angle_roll, angle_pitch, angle_yaw,
             rate_roll, rate_pitch, rate_yaw,
+            acc_x, acc_y, acc_z,
             tau_x, tau_y, tau_z,
             kalman_angle_roll, kalman_angle_pitch,
             error_phi, error_theta,
-            input_throttle, input_roll, input_pitch, input_yaw, -- Añadido input_throttle
+            input_throttle, input_roll, input_pitch, input_yaw,
             motor_1, motor_2, motor_3, motor_4,
             altura
         ) VALUES (
             '${flightId}', '${time}',
+            ${safe(AngleRoll)}, ${safe(AnglePitch)}, ${safe(AngleYaw)},
             ${safe(RateRoll)}, ${safe(RatePitch)}, ${safe(RateYaw)},
+            ${safe(AccX)}, ${safe(AccY)}, ${safe(AccZ)},
             ${safe(tau_x)}, ${safe(tau_y)}, ${safe(tau_z)},
             ${safe(KalmanAngleRoll)}, ${safe(KalmanAnglePitch)},
             ${safe(error_phi)}, ${safe(error_theta)},
@@ -112,6 +130,13 @@ export async function insertSensorData(sensor, flightId) {
             ${safe(Altura)}
         )
     `;
+    const requiredFields = ['AngleRoll', 'AnglePitch', 'AngleYaw', 'RateRoll', 'RatePitch', 'RateYaw'];
+    for (const field of requiredFields) {
+        if (sensor[field] === undefined) {
+            console.error(`❌ Campo requerido faltante: ${field}`);
+            return;
+        }
+    }
     try {
         await executeQueryWithRetry(query);
     } catch (err) {
@@ -130,5 +155,29 @@ export async function insertControlState(modo, ledStatus, motorStatus) {
         await executeQueryWithRetry(query);
     } catch (err) {
         console.error("❌ Insert error:", err.message);
+    }
+}
+
+// Función para imprimir los últimos N registros de sensor_data
+export async function printLastSensorData(n = 10, returnRows = false) {
+    try {
+        const result = await pool.query(`SELECT * FROM sensor_data ORDER BY time DESC LIMIT ${n}`);
+        if (returnRows) return result.rows;
+        console.log('Últimos registros de sensor_data:');
+        console.table(result.rows);
+    } catch (err) {
+        console.error('❌ Error al consultar sensor_data:', err.message);
+        if (returnRows) return [];
+    }
+}
+
+export async function checkQuestDBConnection() {
+    try {
+        const res = await pool.query('SELECT 1');
+        console.log('✅ Conexión a QuestDB verificada correctamente');
+        return true;
+    } catch (err) {
+        console.error('❌ Error al conectar con QuestDB:', err);
+        return false;
     }
 }

@@ -171,9 +171,9 @@ espNamespace.use(checkESP32IP);
 
 // Manejar conexiones de clientes web
 io.on('connection', (socket) => {
-    const clientIP = socket.handshake.address;
-    console.log(`🛰️ Cliente WebSocket conectado desde ${clientIP}`);
+    console.log('🔗 Nuevo cliente Socket.IO conectado:', socket.id, 'IP:', socket.handshake.address);
 
+    const clientIP = socket.handshake.address;
     // Verificar si es posiblemente el ESP32 por su IP
     if (clientIP === `::ffff:${ESP32_IP}` || clientIP === ESP32_IP) {
         console.log('👍 Posible conexión de ESP32 detectada en socket.io principal');

@@ -14,7 +14,7 @@ pool.query('SELECT 1')
     .then(() => console.log('✅ Conexión a QuestDB establecida'))
     .catch(err => {
         console.error('❌ No se pudo conectar a QuestDB');
-        process.exit(1);
+        // NO process.exit(1); Solo warning, el backend sigue funcionando
     });
 
 function safe(value) {

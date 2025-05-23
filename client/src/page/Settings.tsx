@@ -8,18 +8,18 @@ export default function Settings() {
   const [armLength] = useState(0.445);
 
   const [kc, setKc] = useState<{ [key: string]: number }>({
-    "Kc_at[0][0]": 7.3882,
-    "Kc_at[1][1]": 7.4022,
+    "Kc_at[0][0]": 5.99,
+    "Kc_at[1][1]": 5.99,
     "Kc_at[2][2]": 1.97864,
-    "Kc_at[0][3]": 3.2,
-    "Kc_at[1][4]": 3.2,
+    "Kc_at[0][3]": 3.58,
+    "Kc_at[1][4]": 3.58,
     "Kc_at[2][5]": 1.0,
   });
 
   const [ki, setKi] = useState<{ [key: string]: number }>({
-    "Ki_at[0][0]": 15.1623,
-    "Ki_at[1][1]": 15.1623,
-    "Ki_at[2][2]": 15.1623,
+    "Ki_at[0][0]": 1,
+    "Ki_at[1][1]": 1,
+    "Ki_at[2][2]": 0.1,
   });
 
   const [recording, setRecording] = useState(false);

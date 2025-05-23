@@ -10,6 +10,7 @@ import {
   Search,
   Wrench,
   AirVent,
+  Cpu,
 } from "lucide-react";
 import {
   Drawer,
@@ -108,6 +109,11 @@ export default function Layout() {
                 to: "/motor-simulation",
                 icon: <AirVent size={24} />,
                 text: "Motors",
+              },
+              {
+                to: "/simulation",
+                icon: <Cpu size={24} />,
+                text: "Simulación",
               },
               {
                 to: "/settings",

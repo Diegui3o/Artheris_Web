@@ -67,7 +67,9 @@ const MotorDashboard = () => {
       dispatch({ type: "ADD_DATA", payload: [datoFormateado] });
     };
 
-    socket.on("datosCompleto", handler);
+    socket.on("datosCompleto", (data) => {
+      handler(data);
+    });
 
     return () => {
       socket.off("datosCompleto", handler);

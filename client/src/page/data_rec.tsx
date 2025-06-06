@@ -138,14 +138,20 @@ const MultiSensorDashboard = () => {
         error_theta: Number(nuevoDato.error_theta),
         time: new Date(nuevoDato.time).toLocaleTimeString(),
       };
-
       dispatch({ type: "ADD_DATA", payload: [datoFormateado] });
     };
-
-    socket.on("datosCompleto", handler);
+    // Escucha ambos eventos posibles
+    socket.on("sensorUpdate", (data) => {
+      handler(data);
+    });
+    socket.on("datosSimulacion", (data) => {
+      console.log("[data_rec] Datos recibidos en 'datosSimulacion':", data); // <-- Debug log
+      handler(data);
+    });
 
     return () => {
-      socket.off("datosCompleto", handler);
+      socket.off("sensorUpdate", handler);
+      socket.off("datosSimulacion", handler);
     };
   }, []);
 

@@ -44,9 +44,10 @@ const ModeSwitch = () => {
 
       const data = await response.json();
 
-      // Verifica si la respuesta es un objeto y si tiene la propiedad "message"
-      if (data && typeof data === "object" && "message" in data) {
-        console.log("Respuesta del servidor:", data.message);
+      // Verifica si la respuesta es un objeto y si tiene la propiedad "modo"
+      if (data && typeof data === "object" && "modo" in data) {
+        setModo(data.modo);
+        //console.log("Modo actualizado por respuesta del servidor:", data.modo);
       } else {
         throw new Error("Respuesta del servidor no válida");
       }
@@ -62,7 +63,7 @@ const ModeSwitch = () => {
     socket.on("modo", (nuevoModo: number | null) => {
       // Verifica si el nuevoModo es un número válido (0, 1 o 2)
       if (nuevoModo !== null && [0, 1, 2].includes(nuevoModo)) {
-        console.log("✅ Modo actualizado desde el servidor:", nuevoModo);
+        //console.log("✅ Modo actualizado desde el servidor:", nuevoModo);
         setModo(nuevoModo);
       } else {
         console.warn("⚠️ Se recibió un modo inválido o null, ignorando...");

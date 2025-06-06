@@ -53,6 +53,29 @@ const Simulator: React.FC = () => {
     inputs?: number[][];
   }>({ time: [], states: [] });
 
+  // --- NUEVO: Historial de ángulos del ESP32 (crudo y Kalman) ---
+  const [esp32Angles, setEsp32Angles] = useState<{
+    time: number[];
+    roll: number[];
+    pitch: number[];
+    yaw: number[];
+    kalmanRoll: number[];
+    kalmanPitch: number[];
+    rawRoll: number[];
+    rawPitch: number[];
+    rawYaw: number[];
+  }>({
+    time: [],
+    roll: [],
+    pitch: [],
+    yaw: [],
+    kalmanRoll: [],
+    kalmanPitch: [],
+    rawRoll: [],
+    rawPitch: [],
+    rawYaw: [],
+  });
+
   // Socket.IO connection for simulation
   useEffect(() => {
     // Consultar al backend si la simulación sigue activa al cargar la página
@@ -99,6 +122,35 @@ const Simulator: React.FC = () => {
           inputs: prev.inputs ? [...prev.inputs, data.inputs] : [data.inputs],
         }));
       }
+    });
+    // --- NUEVO: Escuchar ángulos del ESP32 por socket ---
+    socket.on("sensorUpdate", (data) => {
+      setEsp32Angles((prev) => ({
+        time: [...prev.time, Date.now() / 1000],
+        roll: [...prev.roll, typeof data.roll === "number" ? data.roll : 0],
+        pitch: [...prev.pitch, typeof data.pitch === "number" ? data.pitch : 0],
+        yaw: [...prev.yaw, typeof data.yaw === "number" ? data.yaw : 0],
+        kalmanRoll: [
+          ...prev.kalmanRoll,
+          typeof data.KalmanAngleRoll === "number" ? data.KalmanAngleRoll : 0,
+        ],
+        kalmanPitch: [
+          ...prev.kalmanPitch,
+          typeof data.KalmanAnglePitch === "number" ? data.KalmanAnglePitch : 0,
+        ],
+        rawRoll: [
+          ...prev.rawRoll,
+          typeof data.AngleRoll === "number" ? data.AngleRoll : 0,
+        ],
+        rawPitch: [
+          ...prev.rawPitch,
+          typeof data.AnglePitch === "number" ? data.AnglePitch : 0,
+        ],
+        rawYaw: [
+          ...prev.rawYaw,
+          typeof data.AngleYaw === "number" ? data.AngleYaw : 0,
+        ],
+      }));
     });
     return () => {
       socket.disconnect();
@@ -537,6 +589,209 @@ const Simulator: React.FC = () => {
     );
   };
 
+  // --- Utilidades para limitar y sincronizar tiempo de las gráficas ---
+  const getLimited = (arr: number[], min = -Math.PI, max = Math.PI) =>
+    arr.map((v) => (isFinite(v) ? Math.max(min, Math.min(max, v)) : 0));
+
+  const getEsp32Time = () => {
+    // Si los datos tienen timestamp, úsalo (en segundos)
+    if (
+      esp32Angles.time.length > 1 &&
+      esp32Angles.time[1] - esp32Angles.time[0] < 100
+    ) {
+      // Ya es tiempo en segundos
+      return esp32Angles.time.map((t) => t - esp32Angles.time[0]);
+    }
+    // Si no, usa el índice como tiempo
+    return esp32Angles.time.map((_, i) => i * 0.03);
+  };
+  const esp32Time = getEsp32Time();
+
+  // El tiempo del modelo ya está en 'time', que viene del backend
+
+  // --- Gráficas separadas de ángulos sincronizadas ---
+  const RollChart = () => (
+    <Plot
+      data={[
+        {
+          x: time,
+          y: getLimited(states.map((s) => s[6])),
+          type: "scatter",
+          mode: "lines",
+          name: "Roll Modelo",
+          line: { color: "#6366f1" },
+        },
+        {
+          x: esp32Time,
+          y: getLimited(esp32Angles.kalmanRoll),
+          type: "scatter",
+          mode: "lines",
+          name: "Roll Kalman (ESP32)",
+          line: { color: "#f43f5e" },
+        },
+        {
+          x: esp32Time,
+          y: getLimited(esp32Angles.rawRoll),
+          type: "scatter",
+          mode: "lines",
+          name: "Roll Crudo (ESP32)",
+          line: { color: "#facc15" },
+        },
+      ]}
+      layout={{
+        title: { text: "Roll (φ)", font: { color: "#6366f1", size: 20 } },
+        xaxis: {
+          title: { text: "Tiempo (s)", font: { color: "#6366f1" } },
+          tickfont: { color: "#222" },
+          color: "#222",
+          range: [
+            0,
+            Math.max(
+              time[time.length - 1] || 1,
+              esp32Time[esp32Time.length - 1] || 1
+            ),
+          ],
+        },
+        yaxis: {
+          title: { text: "Ángulo (rad)", font: { color: "#6366f1" } },
+          tickfont: { color: "#222" },
+          color: "#222",
+          range: [-Math.PI, Math.PI],
+        },
+        font: {
+          color: "#6366f1",
+          family: "Inter, Arial, sans-serif",
+          size: 15,
+        },
+        legend: { font: { color: "#6366f1" } },
+        paper_bgcolor: "#f8fafc",
+        plot_bgcolor: "#f8fafc",
+        autosize: true,
+      }}
+      style={{ width: "100%", height: "300px" }}
+    />
+  );
+
+  const PitchChart = () => (
+    <Plot
+      data={[
+        {
+          x: time,
+          y: getLimited(states.map((s) => s[7])),
+          type: "scatter",
+          mode: "lines",
+          name: "Pitch Modelo",
+          line: { color: "#0ea5e9" },
+        },
+        {
+          x: esp32Time,
+          y: getLimited(esp32Angles.kalmanPitch),
+          type: "scatter",
+          mode: "lines",
+          name: "Pitch Kalman (ESP32)",
+          line: { color: "#a3e635" },
+        },
+        {
+          x: esp32Time,
+          y: getLimited(esp32Angles.rawPitch),
+          type: "scatter",
+          mode: "lines",
+          name: "Pitch Crudo (ESP32)",
+          line: { color: "#fbbf24" },
+        },
+      ]}
+      layout={{
+        title: { text: "Pitch (θ)", font: { color: "#0ea5e9", size: 20 } },
+        xaxis: {
+          title: { text: "Tiempo (s)", font: { color: "#0ea5e9" } },
+          tickfont: { color: "#222" },
+          color: "#222",
+          range: [
+            0,
+            Math.max(
+              time[time.length - 1] || 1,
+              esp32Time[esp32Time.length - 1] || 1
+            ),
+          ],
+        },
+        yaxis: {
+          title: { text: "Ángulo (rad)", font: { color: "#0ea5e9" } },
+          tickfont: { color: "#222" },
+          color: "#222",
+          range: [-Math.PI, Math.PI],
+        },
+        font: {
+          color: "#0ea5e9",
+          family: "Inter, Arial, sans-serif",
+          size: 15,
+        },
+        legend: { font: { color: "#0ea5e9" } },
+        paper_bgcolor: "#f8fafc",
+        plot_bgcolor: "#f8fafc",
+        autosize: true,
+      }}
+      style={{ width: "100%", height: "300px" }}
+    />
+  );
+
+  const YawChart = () => (
+    <Plot
+      data={[
+        {
+          x: time,
+          y: getLimited(
+            states.map((s) => s[8]),
+            -Math.PI,
+            Math.PI
+          ),
+          type: "scatter",
+          mode: "lines",
+          name: "Yaw Modelo",
+          line: { color: "#14b8a6" },
+        },
+        {
+          x: esp32Time,
+          y: getLimited(esp32Angles.rawYaw, -Math.PI, Math.PI),
+          type: "scatter",
+          mode: "lines",
+          name: "Yaw Crudo (ESP32)",
+          line: { color: "#818cf8" },
+        },
+      ]}
+      layout={{
+        title: { text: "Yaw (ψ)", font: { color: "#14b8a6", size: 20 } },
+        xaxis: {
+          title: { text: "Tiempo (s)", font: { color: "#14b8a6" } },
+          tickfont: { color: "#222" },
+          color: "#222",
+          range: [
+            0,
+            Math.max(
+              time[time.length - 1] || 1,
+              esp32Time[esp32Time.length - 1] || 1
+            ),
+          ],
+        },
+        yaxis: {
+          title: { text: "Ángulo (rad)", font: { color: "#14b8a6" } },
+          tickfont: { color: "#222" },
+          color: "#222",
+          range: [-Math.PI, Math.PI],
+        },
+        font: {
+          color: "#14b8a6",
+          family: "Inter, Arial, sans-serif",
+          size: 15,
+        },
+        legend: { font: { color: "#14b8a6" } },
+        paper_bgcolor: "#f8fafc",
+        plot_bgcolor: "#f8fafc",
+        autosize: true,
+      }}
+      style={{ width: "100%", height: "300px" }}
+    />
+  );
+
   return (
     <div className="min-h-screen bg-gray-900 text-white py-8 px-2">
       <div className="max-w-7xl mx-auto">
@@ -684,323 +939,19 @@ const Simulator: React.FC = () => {
                   label: "Ángulos",
                   content: (
                     <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
-                      {/* Columna izquierda: modelo */}
                       <div className="flex-1 flex flex-col gap-8">
-                        <div>
-                          <h2 className="text-2xl font-bold mb-4 text-pink-400 text-center">
-                            φ (roll) Modelo
-                          </h2>
-                          <div className="bg-gray-900 rounded-xl p-4 shadow flex-1">
-                            <Plot
-                              data={[
-                                {
-                                  x: time,
-                                  y: states.map(
-                                    (s: number[]) => (s[6] * 180) / Math.PI
-                                  ),
-                                  type: "scatter",
-                                  mode: "lines",
-                                  name: "φ (roll) modelo",
-                                  line: { color: "#f472b6" },
-                                },
-                              ]}
-                              layout={{
-                                title: undefined,
-                                xaxis: {
-                                  title: {
-                                    text: "Time (s)",
-                                    font: { color: "#f472b6" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                yaxis: {
-                                  title: {
-                                    text: "φ (deg)",
-                                    font: { color: "#f472b6" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                font: {
-                                  color: "#f472b6",
-                                  family: "Inter, Arial, sans-serif",
-                                  size: 18,
-                                },
-                                legend: { font: { color: "#f472b6" } },
-                                paper_bgcolor: "#f8fafc",
-                                plot_bgcolor: "#f8fafc",
-                                autosize: true,
-                              }}
-                              style={{ width: "100%", height: "350px" }}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <h2 className="text-2xl font-bold mb-4 text-yellow-400 text-center">
-                            θ (pitch) Modelo
-                          </h2>
-                          <div className="bg-gray-900 rounded-xl p-4 shadow flex-1">
-                            <Plot
-                              data={[
-                                {
-                                  x: time,
-                                  y: states.map(
-                                    (s: number[]) => (s[7] * 180) / Math.PI
-                                  ),
-                                  type: "scatter",
-                                  mode: "lines",
-                                  name: "θ (pitch) modelo",
-                                  line: { color: "#facc15" },
-                                },
-                              ]}
-                              layout={{
-                                title: undefined,
-                                xaxis: {
-                                  title: {
-                                    text: "Time (s)",
-                                    font: { color: "#facc15" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                yaxis: {
-                                  title: {
-                                    text: "θ (deg)",
-                                    font: { color: "#facc15" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                font: {
-                                  color: "#facc15",
-                                  family: "Inter, Arial, sans-serif",
-                                  size: 18,
-                                },
-                                legend: { font: { color: "#facc15" } },
-                                paper_bgcolor: "#f8fafc",
-                                plot_bgcolor: "#f8fafc",
-                                autosize: true,
-                              }}
-                              style={{ width: "100%", height: "350px" }}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <h2 className="text-2xl font-bold mb-4 text-blue-400 text-center">
-                            ψ (yaw) Modelo
-                          </h2>
-                          <div className="bg-gray-900 rounded-xl p-4 shadow flex-1">
-                            <Plot
-                              data={[
-                                {
-                                  x: time,
-                                  y: states.map(
-                                    (s: number[]) => (s[8] * 180) / Math.PI
-                                  ),
-                                  type: "scatter",
-                                  mode: "lines",
-                                  name: "ψ (yaw) modelo",
-                                  line: { color: "#38bdf8" },
-                                },
-                              ]}
-                              layout={{
-                                title: undefined,
-                                xaxis: {
-                                  title: {
-                                    text: "Time (s)",
-                                    font: { color: "#38bdf8" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                yaxis: {
-                                  title: {
-                                    text: "ψ (deg)",
-                                    font: { color: "#38bdf8" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                font: {
-                                  color: "#38bdf8",
-                                  family: "Inter, Arial, sans-serif",
-                                  size: 18,
-                                },
-                                legend: { font: { color: "#38bdf8" } },
-                                paper_bgcolor: "#f8fafc",
-                                plot_bgcolor: "#f8fafc",
-                                autosize: true,
-                              }}
-                              style={{ width: "100%", height: "350px" }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      {/* Columna derecha: ESP32 */}
-                      <div className="flex-1 flex flex-col gap-8">
-                        <div>
-                          <h2 className="text-2xl font-bold mb-4 text-pink-400 text-center">
-                            φ (roll) ESP32
-                          </h2>
-                          <div className="bg-gray-900 rounded-xl p-4 shadow flex-1">
-                            <Plot
-                              data={[
-                                simData.inputs &&
-                                simData.inputs[0] &&
-                                simData.inputs[0].length >= 7
-                                  ? {
-                                      x: time,
-                                      y: simData.inputs.map(
-                                        (input: number[]) => input[4]
-                                      ),
-                                      type: "scatter",
-                                      mode: "lines",
-                                      name: "φ (roll) ESP32",
-                                      line: { color: "#a3e635" },
-                                    }
-                                  : undefined,
-                              ].filter(Boolean)}
-                              layout={{
-                                title: undefined,
-                                xaxis: {
-                                  title: {
-                                    text: "Time (s)",
-                                    font: { color: "#a3e635" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                yaxis: {
-                                  title: {
-                                    text: "φ (deg)",
-                                    font: { color: "#a3e635" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                font: {
-                                  color: "#a3e635",
-                                  family: "Inter, Arial, sans-serif",
-                                  size: 18,
-                                },
-                                legend: { font: { color: "#a3e635" } },
-                                paper_bgcolor: "#f8fafc",
-                                plot_bgcolor: "#f8fafc",
-                                autosize: true,
-                              }}
-                              style={{ width: "100%", height: "350px" }}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <h2 className="text-2xl font-bold mb-4 text-yellow-400 text-center">
-                            θ (pitch) ESP32
-                          </h2>
-                          <div className="bg-gray-900 rounded-xl p-4 shadow flex-1">
-                            <Plot
-                              data={[
-                                simData.inputs &&
-                                simData.inputs[0] &&
-                                simData.inputs[0].length >= 7
-                                  ? {
-                                      x: time,
-                                      y: simData.inputs.map(
-                                        (input: number[]) => input[5]
-                                      ),
-                                      type: "scatter",
-                                      mode: "lines",
-                                      name: "θ (pitch) ESP32",
-                                      line: { color: "#34d399" },
-                                    }
-                                  : undefined,
-                              ].filter(Boolean)}
-                              layout={{
-                                title: undefined,
-                                xaxis: {
-                                  title: {
-                                    text: "Time (s)",
-                                    font: { color: "#34d399" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                yaxis: {
-                                  title: {
-                                    text: "θ (deg)",
-                                    font: { color: "#34d399" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                font: {
-                                  color: "#34d399",
-                                  family: "Inter, Arial, sans-serif",
-                                  size: 18,
-                                },
-                                legend: { font: { color: "#34d399" } },
-                                paper_bgcolor: "#f8fafc",
-                                plot_bgcolor: "#f8fafc",
-                                autosize: true,
-                              }}
-                              style={{ width: "100%", height: "350px" }}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <h2 className="text-2xl font-bold mb-4 text-blue-400 text-center">
-                            ψ (yaw) ESP32
-                          </h2>
-                          <div className="bg-gray-900 rounded-xl p-4 shadow flex-1">
-                            <Plot
-                              data={[
-                                simData.inputs &&
-                                simData.inputs[0] &&
-                                simData.inputs[0].length >= 7
-                                  ? {
-                                      x: time,
-                                      y: simData.inputs.map(
-                                        (input: number[]) => input[6]
-                                      ),
-                                      type: "scatter",
-                                      mode: "lines",
-                                      name: "ψ (yaw) ESP32",
-                                      line: { color: "#f472b6" },
-                                    }
-                                  : undefined,
-                              ].filter(Boolean)}
-                              layout={{
-                                title: undefined,
-                                xaxis: {
-                                  title: {
-                                    text: "Time (s)",
-                                    font: { color: "#f472b6" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                yaxis: {
-                                  title: {
-                                    text: "ψ (deg)",
-                                    font: { color: "#f472b6" },
-                                  },
-                                  tickfont: { color: "#222" },
-                                  color: "#222",
-                                },
-                                font: {
-                                  color: "#f472b6",
-                                  family: "Inter, Arial, sans-serif",
-                                  size: 18,
-                                },
-                                legend: { font: { color: "#f472b6" } },
-                                paper_bgcolor: "#f8fafc",
-                                plot_bgcolor: "#f8fafc",
-                                autosize: true,
-                              }}
-                              style={{ width: "100%", height: "350px" }}
-                            />
-                          </div>
-                        </div>
+                        <h2 className="text-2xl font-bold mb-4 text-pink-400 text-center">
+                          φ (Roll)
+                        </h2>
+                        <RollChart />
+                        <h2 className="text-2xl font-bold mb-4 text-blue-400 text-center">
+                          θ (Pitch)
+                        </h2>
+                        <PitchChart />
+                        <h2 className="text-2xl font-bold mb-4 text-teal-400 text-center">
+                          ψ (Yaw)
+                        </h2>
+                        <YawChart />
                       </div>
                     </div>
                   ),

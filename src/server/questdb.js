@@ -89,21 +89,22 @@ export async function insertNewFlight(Kc, Ki, mass = null, armLength = null) {
 
 // Inserta datos de sensores asociados al vuelo
 export async function insertSensorData(sensor, flightId) {
-    //console.log('[DEBUG] insertSensorData called with flightId:', flightId, 'sensor:', sensor);
     const time = new Date().toISOString();
-
+    // LOG completo del query generado
+    // Asegura que todos los campos requeridos estén presentes y sean numéricos
+    const safeNum = v => (typeof v === 'number' && !isNaN(v) ? v : 0);
     const {
-        AngleRoll, AnglePitch, AngleYaw,
-        RateRoll, RatePitch, RateYaw,
-        AccX, AccY, AccZ,
-        tau_x, tau_y, tau_z,
-        KalmanAngleRoll, KalmanAnglePitch,
-        error_phi, error_theta,
-        InputThrottle,
-        InputRoll, InputPitch, InputYaw,
-        MotorInput1, MotorInput2, MotorInput3, MotorInput4,
-        Altura
-    } = sensor;
+        AngleRoll = 0, AnglePitch = 0, AngleYaw = 0,
+        RateRoll = 0, RatePitch = 0, RateYaw = 0,
+        AccX = 0, AccY = 0, AccZ = 0,
+        tau_x = 0, tau_y = 0, tau_z = 0,
+        KalmanAngleRoll = 0, KalmanAnglePitch = 0,
+        error_phi = 0, error_theta = 0,
+        InputThrottle = 0,
+        InputRoll = 0, InputPitch = 0, InputYaw = 0,
+        MotorInput1 = 0, MotorInput2 = 0, MotorInput3 = 0, MotorInput4 = 0,
+        Altura = 0
+    } = sensor || {};
 
     const query = `
         INSERT INTO sensor_data (
@@ -133,8 +134,7 @@ export async function insertSensorData(sensor, flightId) {
     const requiredFields = ['AngleRoll', 'AnglePitch', 'AngleYaw', 'RateRoll', 'RatePitch', 'RateYaw'];
     for (const field of requiredFields) {
         if (sensor[field] === undefined) {
-            console.error(`❌ Campo requerido faltante: ${field}`);
-            return;
+            console.warn(`⚠️ Campo requerido faltante: ${field}, se usará 0`);
         }
     }
     try {

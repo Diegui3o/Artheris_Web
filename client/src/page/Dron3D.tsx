@@ -14,14 +14,15 @@ function Drone({
 }) {
   const droneRef = useRef<THREE.Group>(null);
   const obj = useLoader(OBJLoader, "/src/models/base(2).obj");
-
   useFrame(() => {
     if (droneRef.current) {
-      // Invertir el signo de yaw para corregir la dirección
+      // Aplicar rotaciones en el orden correcto: YAW -> PITCH -> ROLL
+      // Esto asegura que pitch y roll se apliquen en el sistema de coordenadas local del dron
+      droneRef.current.rotation.order = "YXZ"; // Yaw (Y), Pitch (X), Roll (Z)
       droneRef.current.rotation.set(
-        kalmanAngles.pitch, // X: Pitch
-        -anglesData.yaw, // Y: Yaw invertido
-        kalmanAngles.roll // Z: Roll
+        kalmanAngles.pitch, // X: Pitch (aplicado después del yaw)
+        anglesData.yaw, // Y: Yaw (aplicado primero)
+        kalmanAngles.roll // Z: Roll (aplicado al final)
       );
     }
   });

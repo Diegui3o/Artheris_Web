@@ -78,10 +78,9 @@ wss.on("connection", (ws, req) => {
                 RateYaw: getVal(6),
                 AccX: getVal(7),
                 AccY: getVal(8),
-                AccZ: getVal(9),
-                tau_x: getVal(10), // Aplica función clamp
-                tau_y: getVal(11),
-                tau_z: getVal(12),
+                AccZ: getVal(9), tau_x: clampWithThreshold(getVal(10)), // Aplica función clamp con umbral
+                tau_y: clampWithThreshold(getVal(11)),
+                tau_z: clampWithThreshold(getVal(12)),
                 KalmanAngleRoll: getVal(13),
                 KalmanAnglePitch: getVal(14),
                 error_phi: getVal(15),
@@ -117,14 +116,13 @@ wss.on("connection", (ws, req) => {
             pitch: data.AnglePitch ?? data.pitch,
             yaw: data.AngleYaw ?? data.yaw,
             time: new Date().toISOString(),
-        };
-        // --- ACTUALIZAR TORQUES DE SIMULACIÓN SI LA SIMULACIÓN ESTÁ ACTIVA ---
+        };        // --- ACTUALIZAR TORQUES DE SIMULACIÓN SI LA SIMULACIÓN ESTÁ ACTIVA ---
         if (simState && simState.simMode) {
             simState.simControl = {
                 T: typeof data.T === 'number' ? data.T : (typeof data.InputThrottle === 'number' ? data.InputThrottle : simState.simControl.T),
-                tau_x: typeof data.tau_x === 'number' ? data.tau_x : simState.simControl.tau_x,
-                tau_y: typeof data.tau_y === 'number' ? data.tau_y : simState.simControl.tau_y,
-                tau_z: typeof data.tau_z === 'number' ? data.tau_z : simState.simControl.tau_z
+                tau_x: typeof data.tau_x === 'number' ? clampWithThreshold(data.tau_x) : simState.simControl.tau_x,
+                tau_y: typeof data.tau_y === 'number' ? clampWithThreshold(data.tau_y) : simState.simControl.tau_y,
+                tau_z: typeof data.tau_z === 'number' ? clampWithThreshold(data.tau_z) : simState.simControl.tau_z
             };
         }
         //console.log("[BACKEND] Emitting sensorUpdate:", combined); // <-- Debug log
@@ -151,12 +149,141 @@ wss.on("connection", (ws, req) => {
 function clamp(val, min = -5, max = 5) {
     return Math.min(Math.max(val, min), max);
 }
-// Example endpoint
+
+// Función para clampear torques con umbral de reposo
+function clampWithThreshold(val, threshold = 0.01, min = -5, max = 5) {
+    if (typeof val !== 'number' || isNaN(val)) return 0;
+    // Si el valor absoluto es menor que el umbral, forzar a cero
+    if (Math.abs(val) < threshold) return 0;
+    return Math.min(Math.max(val, min), max);
+}
+
+// --- NUEVOS ENDPOINTS PARA CONTROL DE MODO, LED Y MOTORES ---
+
+// Endpoint para obtener el modo actual
 app.get('/modo/actual', (req, res) => {
     console.log('🔎 [DEBUG] GET /modo/actual called');
     // Return the current mode from the latest telemetry, or 1 if not available
     res.json({ modo: (typeof state.latestTelemetry.modo === 'number' && !isNaN(state.latestTelemetry.modo)) ? state.latestTelemetry.modo : 1 });
 });
+
+// Endpoint para cambiar el modo
+app.get('/modo/:mode', (req, res) => {
+    const mode = parseInt(req.params.mode);
+    if (isNaN(mode) || mode < 0 || mode > 10) {
+        return res.status(400).json({ error: 'Modo inválido. Debe ser un número entre 0 y 10.' });
+    }
+
+    console.log(`🔄 [DEBUG] Cambiando modo a: ${mode}`);
+
+    // Enviar comando a todos los ESP32 conectados
+    wss.clients.forEach(client => {
+        if (client.readyState === 1) { // WebSocket.OPEN
+            const command = JSON.stringify({
+                type: 'command',
+                payload: { mode }
+            });
+            client.send(command);
+            console.log(`📤 Enviando comando de modo al ESP32: ${command}`);
+        }
+    });
+
+    // Actualizar el estado local y emitir a clientes web
+    state.latestTelemetry.modo = mode;
+    io.emit('modo', mode);
+
+    res.json({ modo: mode, message: `Modo cambiado a ${mode}` });
+});
+
+// Endpoint para encender LED
+app.post('/led/on', (req, res) => {
+    console.log('💡 [DEBUG] Encendiendo LED');
+
+    // Enviar comando a todos los ESP32 conectados
+    wss.clients.forEach(client => {
+        if (client.readyState === 1) {
+            const command = JSON.stringify({
+                type: 'command',
+                payload: { led: true }
+            });
+            client.send(command);
+            console.log(`📤 Enviando comando LED ON al ESP32: ${command}`);
+        }
+    });
+
+    // Emitir a clientes web
+    io.emit('led', { led: true });
+
+    res.json({ led: true, message: 'LED encendido' });
+});
+
+// Endpoint para apagar LED
+app.post('/led/off', (req, res) => {
+    console.log('💡 [DEBUG] Apagando LED');
+
+    // Enviar comando a todos los ESP32 conectados
+    wss.clients.forEach(client => {
+        if (client.readyState === 1) {
+            const command = JSON.stringify({
+                type: 'command',
+                payload: { led: false }
+            });
+            client.send(command);
+            console.log(`📤 Enviando comando LED OFF al ESP32: ${command}`);
+        }
+    });
+
+    // Emitir a clientes web
+    io.emit('led', { led: false });
+
+    res.json({ led: false, message: 'LED apagado' });
+});
+
+// Endpoint para encender motores
+app.post('/motores/on', (req, res) => {
+    console.log('🚁 [DEBUG] Encendiendo motores');
+
+    // Enviar comando a todos los ESP32 conectados
+    wss.clients.forEach(client => {
+        if (client.readyState === 1) {
+            const command = JSON.stringify({
+                type: 'command',
+                payload: { motors: true }
+            });
+            client.send(command);
+            console.log(`📤 Enviando comando MOTORES ON al ESP32: ${command}`);
+        }
+    });
+
+    // Emitir a clientes web
+    io.emit('motors', { motors: true });
+
+    res.json({ motors: true, message: 'Motores encendidos' });
+});
+
+// Endpoint para apagar motores
+app.post('/motores/off', (req, res) => {
+    console.log('🚁 [DEBUG] Apagando motores');
+
+    // Enviar comando a todos los ESP32 conectados
+    wss.clients.forEach(client => {
+        if (client.readyState === 1) {
+            const command = JSON.stringify({
+                type: 'command',
+                payload: { motors: false }
+            });
+            client.send(command);
+            console.log(`📤 Enviando comando MOTORES OFF al ESP32: ${command}`);
+        }
+    });
+
+    // Emitir a clientes web
+    io.emit('motors', { motors: false });
+
+    res.json({ motors: false, message: 'Motores apagados' });
+});
+
+// --- FIN DE NUEVOS ENDPOINTS ---
 
 app.use(
     '/',

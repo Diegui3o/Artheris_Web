@@ -4,6 +4,7 @@ import cors from "cors";
 import { Server } from "socket.io";
 import { WebSocketServer } from "ws";
 import createSimulationRouter from './config/st_simulation.js';
+import createRecordingRouter from './config/recording.js';
 import DroneSimulator from './server/simulator.js';
 import { insertSensorData } from './server/questdb.js';
 
@@ -290,6 +291,17 @@ app.use(
     createSimulationRouter({
         simState,
         io
+    })
+);
+
+app.use(
+    '/',
+    createRecordingRouter({
+        io,
+        espNamespace: null, // No estamos usando namespaces
+        wss,
+        esp32Socket: null, // No tenemos socket específico
+        state // Pasar el estado como parámetro
     })
 );
 

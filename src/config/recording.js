@@ -1,8 +1,6 @@
 import express from 'express';
 import { insertNewFlight, insertSensorData, printLastSensorData } from '../server/questdb.js';
-import { state } from '../index.js';
-
-export default function createRecordingRouter({ io, espNamespace, wss, esp32Socket }) {
+export default function createRecordingRouter({ io, espNamespace, wss, esp32Socket, state }) {
     const router = express.Router();
 
     let currentFlightId = null;

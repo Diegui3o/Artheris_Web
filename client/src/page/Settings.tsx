@@ -5,7 +5,7 @@ import { useState } from "react";
 
 export default function Settings() {
   const [mass, setMass] = useState(1.1);
-  const [armLength] = useState(0.445);
+  const [armLength, setArmLength] = useState(0.223);
 
   const [kc, setKc] = useState<{ [key: string]: number }>({
     "Kc_at[0][0]": 5.5,
@@ -99,11 +99,11 @@ export default function Settings() {
             <div>
               <label className="block mb-2 font-medium">
                 Longitud del Brazo (m)
-              </label>
+              </label>{" "}
               <input
                 type="number"
                 value={armLength}
-                onChange={(e) => setMass(parseFloat(e.target.value))}
+                onChange={(e) => setArmLength(parseFloat(e.target.value))}
                 disabled={recording}
                 className="w-full p-3 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500"
               />

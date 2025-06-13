@@ -21,7 +21,25 @@ function safe(value) {
     if (value === undefined || value === null || isNaN(value)) {
         return 'NULL';
     }
-    return typeof value === 'string' ? `'${value.replace(/'/g, "''")}'` : value;
+    if (typeof value === 'string') {
+        return `'${value.replace(/'/g, "''")}'`;
+    }
+    // Formatear números con 3 decimales
+    if (typeof value === 'number') {
+        return Number(value.toFixed(3));
+    }
+    return value;
+}
+
+// Función específica para formatear números con precisión decimal específica
+function formatWithPrecision(value, decimals = 3) {
+    if (value === undefined || value === null || isNaN(value)) {
+        return 'NULL';
+    }
+    if (typeof value === 'number') {
+        return Number(value.toFixed(decimals));
+    }
+    return value;
 }
 
 async function executeQueryWithRetry(query, retries = 5, delay = 1000) {
@@ -86,10 +104,21 @@ export async function insertNewFlight(Kc, Ki, mass = null, armLength = null) {
     }
 }
 
-
 // Inserta datos de sensores asociados al vuelo
 export async function insertSensorData(sensor, flightId) {
     const time = new Date().toISOString();
+
+    // Función para formatear con diferentes precisiones según el tipo de dato
+    const safeWithPrecision = (value, decimals = 3) => {
+        if (value === undefined || value === null || isNaN(value)) {
+            return 'NULL';
+        }
+        if (typeof value === 'number') {
+            return Number(value.toFixed(decimals));
+        }
+        return value;
+    };
+
     // LOG completo del query generado
     // Asegura que todos los campos requeridos estén presentes y sean numéricos
     const safeNum = v => (typeof v === 'number' && !isNaN(v) ? v : 0);
@@ -104,9 +133,7 @@ export async function insertSensorData(sensor, flightId) {
         InputRoll = 0, InputPitch = 0, InputYaw = 0,
         MotorInput1 = 0, MotorInput2 = 0, MotorInput3 = 0, MotorInput4 = 0,
         Altura = 0
-    } = sensor || {};
-
-    const query = `
+    } = sensor || {}; const query = `
         INSERT INTO sensor_data (
             flight_id, time,
             angle_roll, angle_pitch, angle_yaw,
@@ -120,15 +147,15 @@ export async function insertSensorData(sensor, flightId) {
             altura
         ) VALUES (
             '${flightId}', '${time}',
-            ${safe(AngleRoll)}, ${safe(AnglePitch)}, ${safe(AngleYaw)},
-            ${safe(RateRoll)}, ${safe(RatePitch)}, ${safe(RateYaw)},
-            ${safe(AccX)}, ${safe(AccY)}, ${safe(AccZ)},
-            ${safe(tau_x)}, ${safe(tau_y)}, ${safe(tau_z)},
-            ${safe(KalmanAngleRoll)}, ${safe(KalmanAnglePitch)},
-            ${safe(error_phi)}, ${safe(error_theta)},
-            ${safe(InputThrottle)}, ${safe(InputRoll)}, ${safe(InputPitch)}, ${safe(InputYaw)},
-            ${safe(MotorInput1)}, ${safe(MotorInput2)}, ${safe(MotorInput3)}, ${safe(MotorInput4)},
-            ${safe(Altura)}
+            ${safeWithPrecision(AngleRoll, 3)}, ${safeWithPrecision(AnglePitch, 3)}, ${safeWithPrecision(AngleYaw, 3)},
+            ${safeWithPrecision(RateRoll, 3)}, ${safeWithPrecision(RatePitch, 3)}, ${safeWithPrecision(RateYaw, 3)},
+            ${safeWithPrecision(AccX, 3)}, ${safeWithPrecision(AccY, 3)}, ${safeWithPrecision(AccZ, 3)},
+            ${safeWithPrecision(tau_x, 3)}, ${safeWithPrecision(tau_y, 3)}, ${safeWithPrecision(tau_z, 3)},
+            ${safeWithPrecision(KalmanAngleRoll, 3)}, ${safeWithPrecision(KalmanAnglePitch, 3)},
+            ${safeWithPrecision(error_phi, 3)}, ${safeWithPrecision(error_theta, 3)},
+            ${safeWithPrecision(InputThrottle, 3)}, ${safeWithPrecision(InputRoll, 3)}, ${safeWithPrecision(InputPitch, 3)}, ${safeWithPrecision(InputYaw, 3)},
+            ${safeWithPrecision(MotorInput1, 3)}, ${safeWithPrecision(MotorInput2, 3)}, ${safeWithPrecision(MotorInput3, 3)}, ${safeWithPrecision(MotorInput4, 3)},
+            ${safeWithPrecision(Altura, 3)}
         )
     `;
     const requiredFields = ['AngleRoll', 'AnglePitch', 'AngleYaw', 'RateRoll', 'RatePitch', 'RateYaw'];
@@ -181,3 +208,6 @@ export async function checkQuestDBConnection() {
         return false;
     }
 }
+
+// Exportar la función de formateo con precisión
+export { formatWithPrecision };

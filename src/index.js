@@ -79,9 +79,10 @@ wss.on("connection", (ws, req) => {
                 RateYaw: getVal(6),
                 AccX: getVal(7),
                 AccY: getVal(8),
-                AccZ: getVal(9), tau_x: clampWithThreshold(getVal(10)), // Aplica función clamp con umbral
-                tau_y: clampWithThreshold(getVal(11)),
-                tau_z: clampWithThreshold(getVal(12)),
+                AccZ: getVal(9),
+                tau_x: getVal(10),
+                tau_y: getVal(11),
+                tau_z: getVal(12),
                 KalmanAngleRoll: getVal(13),
                 KalmanAnglePitch: getVal(14),
                 error_phi: getVal(15),

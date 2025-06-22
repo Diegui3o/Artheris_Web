@@ -122,7 +122,7 @@ const DroneAngles = () => {
     value,
   }) => (
     <p className="label-text">
-      {label}: <span className="value-text">{(value ?? 0).toFixed(2)}</span>
+      {label}: <span className="value-text">{(value ?? 0).toFixed(3)}</span>
     </p>
   );
 
@@ -133,13 +133,13 @@ const DroneAngles = () => {
 
         <Section title="Ángulos">
           <p className="label-text">
-            Roll: <span className="value-text">{angles.roll.toFixed(2)}</span>
+            Roll: <span className="value-text">{angles.roll.toFixed(3)}</span>
           </p>
           <p className="label-text">
-            Pitch: <span className="value-text">{angles.pitch.toFixed(2)}</span>
+            Pitch: <span className="value-text">{angles.pitch.toFixed(3)}</span>
           </p>
           <p className="label-text">
-            Yaw: <span className="value-text">{angles.yaw.toFixed(2)}</span>
+            Yaw: <span className="value-text">{angles.yaw.toFixed(3)}</span>
           </p>
         </Section>
 
@@ -147,13 +147,13 @@ const DroneAngles = () => {
           <p className="label-text">
             KalmanAngleRoll:{" "}
             <span className="value-text">
-              {angles.KalmanAngleRoll.toFixed(2)}
+              {angles.KalmanAngleRoll.toFixed(3)}
             </span>
           </p>
           <p className="label-text">
             KalmanAnglePitch:{" "}
             <span className="value-text">
-              {angles.KalmanAnglePitch.toFixed(2)}
+              {angles.KalmanAnglePitch.toFixed(3)}
             </span>
           </p>
         </Section>
@@ -161,15 +161,15 @@ const DroneAngles = () => {
         <Section title="Velocidades Angulares">
           <p className="label-text">
             Rate Roll:{" "}
-            <span className="value-text">{angles.RateRoll.toFixed(2)}</span>
+            <span className="value-text">{angles.RateRoll.toFixed(3)}</span>
           </p>
           <p className="label-text">
             Rate Pitch:{" "}
-            <span className="value-text">{angles.RatePitch.toFixed(2)}</span>
+            <span className="value-text">{angles.RatePitch.toFixed(3)}</span>
           </p>
           <p className="label-text">
             Rate Yaw:{" "}
-            <span className="value-text">{angles.RateYaw.toFixed(2)}</span>
+            <span className="value-text">{angles.RateYaw.toFixed(3)}</span>
           </p>
         </Section>
 

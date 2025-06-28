@@ -7,10 +7,14 @@ git branch -M main
 git remote add origin https://github.com/Diegui3o/mqtt_web.git
 git push -u origin main
 …or push an existing repository from the command line
-git remote add origin https://github.com/Diegui3o/mqtt_web.git
+git init
+git remote add origin https://github.com/Diegui3o/websockets_web.git
+git add .
+git commit -m "Initial commit"
+git pull --rebase origin main
 git branch -M main
 git push -u origin main
-
+npm install
 
 
 float AngleRoll

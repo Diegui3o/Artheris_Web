@@ -127,7 +127,7 @@ wss.on("connection", (ws, req) => {
                 tau_z: typeof data.tau_z === 'number' ? clampWithThreshold(data.tau_z) : simState.simControl.tau_z
             };
         }
-        //console.log("[BACKEND] Emitting sensorUpdate:", combined); // <-- Debug log
+        //console.log("[BACKEND] Emitting sensorUpdate:", combined);
         state.latestTelemetry = combined;
         io.emit("sensorUpdate", combined);
         io.emit("angles", combined);

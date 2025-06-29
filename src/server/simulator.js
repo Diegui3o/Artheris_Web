@@ -4,13 +4,13 @@ class DroneSimulator {
         this.state = Array(12).fill(0); // [x,y,z, u,v,w, phi,theta,psi, p,q,r]
         this.simTime = 0;
 
-        // Controlador
+        // Controlador (ajustado para mejorar la visualización)
         this.Kc_at = [
-            [5.98, 0, 0, 3.57, 0, 0],
-            [0, 5.99, 0, 0, 3.58, 0],
-            [0, 0, 5.97864, 0, 0, 1.0]
+            [1.5, 0, 0, 0.3, 0, 0],
+            [0, 1.5, 0, 0, 0.3, 0],
+            [0, 0, 1.5, 0, 0, 0.3]
         ];
-        this.Ki_at = [0.01, 0.01, 0.1];
+        this.Ki_at = [0.03, 0.03, 0.01];
 
         // Integrales del error para control integral
         this.integral_phi = 0;
@@ -23,12 +23,20 @@ class DroneSimulator {
         this.psi_ref = 0;
     }
 
+    // Genera referencias de prueba para la simulación
+    generateTestReferences(time) {
+        // Referencias sinusoidales simples para demostración
+        this.phi_ref = 0.2 * Math.sin(0.1 * time);
+        this.theta_ref = 0.2 * Math.sin(0.1 * time + Math.PI / 2);
+    }
+
     // Permite actualizar los ángulos de referencia desde fuera
     setReferenceAngles(phi_rad, theta_rad) {
         this.phi_ref = phi_rad;
         this.theta_ref = theta_rad;
     }
 
+    // Calcula los torques necesarios para seguir las referencias
     computeTorques(dt) {
         const phi_ref = this.phi_ref;
         const theta_ref = this.theta_ref;
@@ -49,23 +57,6 @@ class DroneSimulator {
         const tau_x = this.Ki_at[0] * this.integral_phi + this.Kc_at[0][0] * error_phi - this.Kc_at[0][3] * p;
         const tau_y = this.Ki_at[1] * this.integral_theta + this.Kc_at[1][1] * error_theta - this.Kc_at[1][4] * q;
         const tau_z = this.Ki_at[2] * this.integral_psi + this.Kc_at[2][2] * error_psi - this.Kc_at[2][5] * r;
-
-        // --- DEBUG: Log de valores de torques ---
-        console.log('[SIM DEBUG] Torques calculados:', {
-            phi_ref: phi_ref.toFixed(4),
-            theta_ref: theta_ref.toFixed(4),
-            psi_ref: psi_ref.toFixed(4),
-            phi: phi.toFixed(4),
-            theta: theta.toFixed(4),
-            psi: psi.toFixed(4),
-            error_phi: error_phi.toFixed(4),
-            error_theta: error_theta.toFixed(4),
-            error_psi: error_psi.toFixed(4),
-            tau_x: tau_x.toFixed(4),
-            tau_y: tau_y.toFixed(4),
-            tau_z: tau_z.toFixed(4)
-        });
-
         return [tau_x, tau_y, tau_z];
     }
 

@@ -1,5 +1,5 @@
 import AnglesDisplay from "./AnglesDisplay";
-import SensorChart from "./data_rec";
+import SensorChart from "./DataRec";
 
 export default function Graphics() {
   return (

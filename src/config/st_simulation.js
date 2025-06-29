@@ -75,12 +75,6 @@ export default function createSimulationRouter({
             // --- CORREGIDO: Usar los torques calculados por el controlador PID ---
             const [calculatedT, calculatedTauX, calculatedTauY, calculatedTauZ] = sensor.inputs || [T, 0, 0, 0];
 
-            // --- AMPLIFICACIÓN: Multiplicar torques por factor para mejor visualización ---
-            const amplificationFactor = 1000; // Amplificar 1000x para mejor visibilidad
-            const amplifiedTauX = calculatedTauX * amplificationFactor;
-            const amplifiedTauY = calculatedTauY * amplificationFactor;
-            const amplifiedTauZ = calculatedTauZ * amplificationFactor;
-
             const simData = {
                 AngleRoll: safeRoll,
                 AnglePitch: safePitch,
@@ -94,7 +88,7 @@ export default function createSimulationRouter({
                 time: new Date().toISOString(),
                 simTime: simState.simulator.simTime,
                 state: simState.simulator.state.slice(),
-                inputs: [calculatedT, amplifiedTauX, amplifiedTauY, amplifiedTauZ, safeRoll, safePitch, safeYaw]
+                inputs: [calculatedT, calculatedTauX, calculatedTauY, calculatedTauZ, safeRoll, safePitch, safeYaw]
             };
             simState.simHistory.push(simData);
             io.emit("datosSimulacion", simData);

@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from "react";
 import { io } from "socket.io-client";
-import SwitchControl from "./switchmode";
+import SwitchControl from "./SwitchMode";
 import Plot from "react-plotly.js";
 
 const socket = io("http://localhost:3002");

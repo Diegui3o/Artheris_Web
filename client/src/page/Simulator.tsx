@@ -1385,8 +1385,8 @@ const Simulator: React.FC = () => {
     const N = 200;
     const simTime = getLastN(time, N);
     const torqueX = getLastN(simData.inputs?.map((input) => input[1]) || [], N);
-    const yMin = Math.min(...torqueX, -5);
-    const yMax = Math.max(...torqueX, 5);
+    const yMin = Math.min(...torqueX) - 0.5;
+    const yMax = Math.max(...torqueX) + 0.5;
 
     return (
       <Plot

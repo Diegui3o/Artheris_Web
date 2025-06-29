@@ -1,5 +1,5 @@
 "use client";
-import SwitchControl from "./switchmode";
+import SwitchControl from "./SwitchMode";
 
 import { useState } from "react";
 

@@ -4,7 +4,7 @@ import { CssBaseline, Box, Toolbar } from "@mui/material";
 import Sidebar from "./page/Sidebar";
 import Home from "./page/Home";
 import Dron3D from "./page/Dron3D";
-import Graphics from "./page/graphics";
+import Graphics from "./page/Graphics";
 import Settings from "./page/Settings";
 import Profile from "./page/Profile";
 import Calibration from "./page/Calibration";

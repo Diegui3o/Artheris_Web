@@ -5,7 +5,6 @@ import { Server } from "socket.io";
 import { WebSocketServer } from "ws";
 import createSimulationRouter from './config/st_simulation.js';
 import createRecordingRouter from './config/recording.js';
-import DroneSimulator from './server/simulator.js';
 import { insertSensorData } from './server/questdb.js';
 
 const app = express();

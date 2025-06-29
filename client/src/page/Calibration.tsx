@@ -1,6 +1,6 @@
-import LedControl from "./led";
-import MotorsControl from "./motors";
-import SwitchControl from "./switchmode";
+import LedControl from "./LedOption";
+import MotorsControl from "./MotorsOption";
+import SwitchControl from "./SwitchMode";
 
 const Calibration: React.FC = () => {
   return (

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Plot from "react-plotly.js";
 import { io as socketIOClient, Socket } from "socket.io-client";
+import PositionChart from "../components/charts/PositionChart";
 
 // --- NUEVO: Componente Tabs para agrupar gráficas ---
 const Tabs: React.FC<{
@@ -31,6 +32,13 @@ const Tabs: React.FC<{
     </div>
   );
 };
+
+// --- LIMPIEZA: Importa o define Trajectory3D si no existe ---
+const Trajectory3D = () => (
+  <div className="text-gray-400 text-center">
+    (Visualización 3D no implementada)
+  </div>
+);
 
 const Simulator: React.FC = () => {
   // Form state
@@ -75,6 +83,9 @@ const Simulator: React.FC = () => {
     rawPitch: [],
     rawYaw: [],
   });
+
+  // --- NUEVO: Tiempo de los datos del ESP32 ---
+  const [esp32Time, setEsp32Time] = useState<number[]>([]);
 
   // Socket.IO connection for simulation
   useEffect(() => {
@@ -151,6 +162,8 @@ const Simulator: React.FC = () => {
           typeof data.AngleYaw === "number" ? data.AngleYaw : 0,
         ],
       }));
+      // --- NUEVO: Actualizar tiempo ESP32 ---
+      setEsp32Time((prev) => [...prev, Date.now() / 1000]);
     });
     return () => {
       socket.disconnect();
@@ -204,593 +217,1647 @@ const Simulator: React.FC = () => {
           [5, 2.5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ];
 
-  // --- NUEVO: Gráfica de Errores (ejemplo: error de posición y orientación) ---
-  const ErrorChart = () => {
-    // Ejemplo: error de posición respecto a (0,0,0)
-    const posError = states.map((s) =>
-      Math.sqrt(s[0] ** 2 + s[1] ** 2 + s[2] ** 2)
+  // --- NUEVO: Gráficas separadas para velocidades lineales individuales ---
+  const VelocityXChart = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const velocityX = getLastN(
+      states.map((s) => s[3]),
+      N
     );
-    // Ejemplo: error de orientación respecto a (0,0,0)
-    const oriError = states.map((s) =>
-      Math.sqrt(s[6] ** 2 + s[7] ** 2 + s[8] ** 2)
-    );
+    const yMin = Math.min(...velocityX, -1);
+    const yMax = Math.max(...velocityX, 1);
+
     return (
       <Plot
         data={[
           {
-            x: time,
-            y: posError,
+            x: simTime,
+            y: velocityX,
             type: "scatter",
-            mode: "lines",
-            name: "Error de Posición (m)",
-            line: { color: "#eab308" },
-          },
-          {
-            x: time,
-            y: oriError,
-            type: "scatter",
-            mode: "lines",
-            name: "Error de Orientación (rad)",
-            line: { color: "#f43f5e" },
+            mode: "lines+markers",
+            name: "Velocidad X",
+            line: { color: "#ef4444", width: 3 },
+            marker: { size: 4, color: "#ef4444" },
+            fill: "tonexty",
+            fillcolor: "rgba(239, 68, 68, 0.1)",
           },
         ]}
         layout={{
           title: {
-            text: "Errores vs Tiempo",
-            font: { color: "#eab308", size: 20 },
+            text: "🚀 Velocidad X (u)",
+            font: {
+              color: "#ef4444",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
           },
           xaxis: {
-            title: { text: "Time (s)", font: { color: "#eab308" } },
-            tickfont: { color: "#222" },
+            title: { text: "Tiempo (s)", font: { color: "#ef4444", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
             color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
           },
           yaxis: {
-            title: { text: "Error", font: { color: "#eab308" } },
-            tickfont: { color: "#222" },
+            title: {
+              text: "Velocidad (m/s)",
+              font: { color: "#ef4444", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
             color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#ef4444",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#ef4444", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "velocityxchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  const VelocityYChart = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const velocityY = getLastN(
+      states.map((s) => s[4]),
+      N
+    );
+    const yMin = Math.min(...velocityY, -1);
+    const yMax = Math.max(...velocityY, 1);
+
+    return (
+      <Plot
+        data={[
+          {
+            x: simTime,
+            y: velocityY,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Velocidad Y",
+            line: { color: "#f97316", width: 3 },
+            marker: { size: 4, color: "#f97316" },
+            fill: "tonexty",
+            fillcolor: "rgba(249, 115, 22, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "🚀 Velocidad Y (v)",
+            font: {
+              color: "#f97316",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#f97316", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Velocidad (m/s)",
+              font: { color: "#f97316", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#f97316",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#f97316", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "velocityychart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  const VelocityZChart = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const velocityZ = getLastN(
+      states.map((s) => s[5]),
+      N
+    );
+    const yMin = Math.min(...velocityZ, -1);
+    const yMax = Math.max(...velocityZ, 1);
+
+    return (
+      <Plot
+        data={[
+          {
+            x: simTime,
+            y: velocityZ,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Velocidad Z",
+            line: { color: "#eab308", width: 3 },
+            marker: { size: 4, color: "#eab308" },
+            fill: "tonexty",
+            fillcolor: "rgba(234, 179, 8, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "🚀 Velocidad Z (w)",
+            font: {
+              color: "#eab308",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#eab308", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Velocidad (m/s)",
+              font: { color: "#eab308", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
           },
           font: {
             color: "#eab308",
             family: "Inter, Arial, sans-serif",
-            size: 15,
+            size: 10,
           },
-          legend: { font: { color: "#eab308" } },
+          legend: {
+            font: { color: "#eab308", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
           paper_bgcolor: "#f8fafc",
-          plot_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
           autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "velocityzchart",
         }}
-        style={{ width: "100%", height: "350px" }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
       />
     );
   };
 
-  // --- NUEVO: Gráfica de Velocidades Lineales y Angulares ---
-  const VelocityChart = () => {
+  // --- NUEVO: Gráficas separadas para velocidades angulares individuales ---
+  const VelocityRollRateChart = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const rollRate = getLastN(
+      states.map((s) => s[9]),
+      N
+    );
+    const yMin = Math.min(...rollRate, -1);
+    const yMax = Math.max(...rollRate, 1);
+
     return (
       <Plot
         data={[
           {
-            x: time,
-            y: states.map((s) => s[3]),
+            x: simTime,
+            y: rollRate,
             type: "scatter",
-            mode: "lines",
-            name: "u (X) [m/s]",
-            line: { color: "#0ea5e9" },
-          },
-          {
-            x: time,
-            y: states.map((s) => s[4]),
-            type: "scatter",
-            mode: "lines",
-            name: "v (Y) [m/s]",
-            line: { color: "#22d3ee" },
-          },
-          {
-            x: time,
-            y: states.map((s) => s[5]),
-            type: "scatter",
-            mode: "lines",
-            name: "w (Z) [m/s]",
-            line: { color: "#38bdf8" },
-          },
-          {
-            x: time,
-            y: states.map((s) => s[9]),
-            type: "scatter",
-            mode: "lines",
-            name: "p (Roll rate) [rad/s]",
-            line: { color: "#f472b6" },
-          },
-          {
-            x: time,
-            y: states.map((s) => s[10]),
-            type: "scatter",
-            mode: "lines",
-            name: "q (Pitch rate) [rad/s]",
-            line: { color: "#f87171" },
-          },
-          {
-            x: time,
-            y: states.map((s) => s[11]),
-            type: "scatter",
-            mode: "lines",
-            name: "r (Yaw rate) [rad/s]",
-            line: { color: "#facc15" },
+            mode: "lines+markers",
+            name: "Velocidad Angular Roll",
+            line: { color: "#8b5cf6", width: 3 },
+            marker: { size: 4, color: "#8b5cf6" },
+            fill: "tonexty",
+            fillcolor: "rgba(139, 92, 246, 0.1)",
           },
         ]}
         layout={{
           title: {
-            text: "Velocidades Lineales y Angulares vs Tiempo",
-            font: { color: "#0ea5e9", size: 20 },
+            text: "🔄 Velocidad Angular Roll (p)",
+            font: {
+              color: "#8b5cf6",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
           },
           xaxis: {
-            title: { text: "Time (s)", font: { color: "#0ea5e9" } },
-            tickfont: { color: "#222" },
+            title: { text: "Tiempo (s)", font: { color: "#8b5cf6", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
             color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
           },
           yaxis: {
-            title: { text: "Velocidad", font: { color: "#0ea5e9" } },
-            tickfont: { color: "#222" },
+            title: {
+              text: "Velocidad Angular (rad/s)",
+              font: { color: "#8b5cf6", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
             color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#8b5cf6",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#8b5cf6", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "velocityrollchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  const VelocityPitchRateChart = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const pitchRate = getLastN(
+      states.map((s) => s[10]),
+      N
+    );
+    const yMin = Math.min(...pitchRate, -1);
+    const yMax = Math.max(...pitchRate, 1);
+
+    return (
+      <Plot
+        data={[
+          {
+            x: simTime,
+            y: pitchRate,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Velocidad Angular Pitch",
+            line: { color: "#ec4899", width: 3 },
+            marker: { size: 4, color: "#ec4899" },
+            fill: "tonexty",
+            fillcolor: "rgba(236, 72, 153, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "🔄 Velocidad Angular Pitch (q)",
+            font: {
+              color: "#ec4899",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#ec4899", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Pitch (rad)",
+              font: { color: "#22d3ee", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#ec4899",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#ec4899", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "velocitypitchchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  const VelocityYawRateChart = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const yawRate = getLastN(
+      states.map((s) => s[11]),
+      N
+    );
+    const yMin = Math.min(...yawRate, -1);
+    const yMax = Math.max(...yawRate, 1);
+
+    return (
+      <Plot
+        data={[
+          {
+            x: simTime,
+            y: yawRate,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Velocidad Angular Yaw",
+            line: { color: "#06b6d4", width: 3 },
+            marker: { size: 4, color: "#06b6d4" },
+            fill: "tonexty",
+            fillcolor: "rgba(6, 182, 212, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "🔄 Velocidad Angular Yaw (r)",
+            font: {
+              color: "#06b6d4",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#06b6d4", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Velocidad Angular (rad/s)",
+              font: { color: "#06b6d4", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#06b6d4",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#06b6d4", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "velocityyawchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  // --- NUEVO: Función de sincronización temporal perfecta ---
+  const syncTimePerfectly = (
+    esp32TimeArray: number[],
+    simTimeArray: number[]
+  ) => {
+    if (esp32TimeArray.length === 0 || simTimeArray.length === 0) {
+      return esp32TimeArray;
+    }
+
+    // Usar exactamente el mismo tiempo de simulación para ambos
+    const simStart = simTimeArray[0];
+    const simEnd = simTimeArray[simTimeArray.length - 1];
+    const simDuration = simEnd - simStart;
+
+    // Mapear los datos del ESP32 al tiempo de simulación
+    return esp32TimeArray.map((_, index) => {
+      const progress = index / (esp32TimeArray.length - 1);
+      return simStart + progress * simDuration;
+    });
+  };
+
+  // --- NUEVO: Función para obtener los últimos N puntos ---
+  const getLastN = <T,>(arr: T[], n: number) =>
+    arr.slice(Math.max(arr.length - n, 0));
+
+  // --- NUEVO: Gráficas de ángulos simplificadas para mostrar claramente los datos simulados ---
+  const RollChartImproved = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
+    const rollRef = getLastN(
+      esp32Angles.kalmanRoll.length > 0
+        ? esp32Angles.kalmanRoll.map((deg) => (deg * Math.PI) / 180)
+        : Array(time.length).fill(0),
+      N
+    );
+    const rollSim = getLastN(
+      states.map((s) => s[6]),
+      N
+    );
+    // Rango Y automático pero centrado
+    const yMin = Math.min(...rollRef, ...rollSim, -1);
+    const yMax = Math.max(...rollRef, ...rollSim, 1);
+    return (
+      <Plot
+        data={[
+          {
+            x: esp32TimeSync,
+            y: rollRef,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Roll Referencia (ESP32)",
+            line: { color: "#10b981", width: 3, dash: "dash" },
+            marker: { size: 4, color: "#10b981" },
+          },
+          {
+            x: simTime,
+            y: rollSim,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Roll Simulado",
+            line: { color: "#0ea5e9", width: 3 },
+            marker: { size: 4, color: "#0ea5e9" },
+            fill: "tonexty",
+            fillcolor: "rgba(14, 165, 233, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "📐 Roll (φ) - Referencia ESP32 vs Simulado",
+            font: {
+              color: "#0ea5e9",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#0ea5e9", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: { text: "Roll (rad)", font: { color: "#0ea5e9", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
           },
           font: {
             color: "#0ea5e9",
             family: "Inter, Arial, sans-serif",
-            size: 15,
+            size: 10,
           },
-          legend: { font: { color: "#0ea5e9" } },
+          legend: {
+            font: { color: "#0ea5e9", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
           paper_bgcolor: "#f8fafc",
-          plot_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
           autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "rollchart",
         }}
-        style={{ width: "100%", height: "350px" }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
       />
     );
   };
 
-  // --- NUEVO: Gráficas separadas para τx, τy, τz desde ESP32 (usados en simulación) ---
-  const TauXChart = () => (
-    <Plot
-      data={[
-        {
-          x: time,
-          y: simData.inputs
-            ? simData.inputs.map((input) => input[1])
-            : [0, 0, 0, 0, 0, 0],
-          type: "scatter",
-          mode: "lines",
-          name: "τx (ESP32)",
-          line: { color: "#f472b6" },
-        },
-      ]}
-      layout={{
-        title: { text: "τx desde ESP32", font: { color: "#f472b6", size: 20 } },
-        xaxis: {
-          title: { text: "Time (s)", font: { color: "#f472b6" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-        },
-        yaxis: {
-          title: { text: "Torque X (N·m)", font: { color: "#f472b6" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-        },
-        font: {
-          color: "#f472b6",
-          family: "Inter, Arial, sans-serif",
-          size: 15,
-        },
-        legend: { font: { color: "#f472b6" } },
-        paper_bgcolor: "#f8fafc",
-        plot_bgcolor: "#f8fafc",
-        autosize: true,
-      }}
-      style={{ width: "100%", height: "250px" }}
-    />
-  );
-
-  const TauYChart = () => (
-    <Plot
-      data={[
-        {
-          x: time,
-          y: simData.inputs
-            ? simData.inputs.map((input) => input[2])
-            : [0, 0, 0, 0, 0, 0],
-          type: "scatter",
-          mode: "lines",
-          name: "τy (ESP32)",
-          line: { color: "#facc15" },
-        },
-      ]}
-      layout={{
-        title: { text: "τy desde ESP32", font: { color: "#facc15", size: 20 } },
-        xaxis: {
-          title: { text: "Time (s)", font: { color: "#facc15" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-        },
-        yaxis: {
-          title: { text: "Torque Y (N·m)", font: { color: "#facc15" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-        },
-        font: {
-          color: "#facc15",
-          family: "Inter, Arial, sans-serif",
-          size: 15,
-        },
-        legend: { font: { color: "#facc15" } },
-        paper_bgcolor: "#f8fafc",
-        plot_bgcolor: "#f8fafc",
-        autosize: true,
-      }}
-      style={{ width: "100%", height: "250px" }}
-    />
-  );
-
-  const TauZChart = () => (
-    <Plot
-      data={[
-        {
-          x: time,
-          y: simData.inputs
-            ? simData.inputs.map((input) => input[3])
-            : [0, 0, 0, 0, 0, 0],
-          type: "scatter",
-          mode: "lines",
-          name: "τz (ESP32)",
-          line: { color: "#38bdf8" },
-        },
-      ]}
-      layout={{
-        title: { text: "τz desde ESP32", font: { color: "#38bdf8", size: 20 } },
-        xaxis: {
-          title: { text: "Time (s)", font: { color: "#38bdf8" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-        },
-        yaxis: {
-          title: { text: "Torque Z (N·m)", font: { color: "#38bdf8" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-        },
-        font: {
-          color: "#38bdf8",
-          family: "Inter, Arial, sans-serif",
-          size: 15,
-        },
-        legend: { font: { color: "#38bdf8" } },
-        paper_bgcolor: "#f8fafc",
-        plot_bgcolor: "#f8fafc",
-        autosize: true,
-      }}
-      style={{ width: "100%", height: "250px" }}
-    />
-  );
-
-  // --- NUEVO: Gráfica de posición ---
-  const PositionChart = () => {
+  const PitchChartImproved = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
+    const pitchRef = getLastN(
+      esp32Angles.kalmanPitch.length > 0
+        ? esp32Angles.kalmanPitch.map((deg) => (deg * Math.PI) / 180)
+        : Array(time.length).fill(0),
+      N
+    );
+    const pitchSim = getLastN(
+      states.map((s) => s[7]),
+      N
+    );
+    // Rango Y automático pero centrado
+    const yMin = Math.min(...pitchRef, ...pitchSim, -1);
+    const yMax = Math.max(...pitchRef, ...pitchSim, 1);
     return (
       <Plot
         data={[
           {
-            x: time,
-            y: states.map((s) => s[0]),
+            x: esp32TimeSync,
+            y: pitchRef,
             type: "scatter",
-            mode: "lines",
-            name: "x",
+            mode: "lines+markers",
+            name: "Pitch Referencia (ESP32)",
+            line: { color: "#10b981", width: 3, dash: "dash" },
+            marker: { size: 4, color: "#10b981" },
           },
           {
-            x: time,
-            y: states.map((s) => s[1]),
+            x: simTime,
+            y: pitchSim,
             type: "scatter",
-            mode: "lines",
-            name: "y",
-          },
-          {
-            x: time,
-            y: states.map((s) => s[2]),
-            type: "scatter",
-            mode: "lines",
-            name: "z",
+            mode: "lines+markers",
+            name: "Pitch Simulado",
+            line: { color: "#22d3ee", width: 3 },
+            marker: { size: 4, color: "#22d3ee" },
+            fill: "tonexty",
+            fillcolor: "rgba(34, 211, 238, 0.1)",
           },
         ]}
         layout={{
           title: {
-            text: "Position vs Time",
-            font: { color: "#1a365d", size: 20 },
+            text: "📐 Pitch (θ) - Referencia ESP32 vs Simulado",
+            font: {
+              color: "#22d3ee",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
           },
           xaxis: {
-            title: { text: "Time (s)", font: { color: "#1a365d" } },
-            tickfont: { color: "#222" },
+            title: { text: "Tiempo (s)", font: { color: "#22d3ee", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
             color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
           },
           yaxis: {
-            title: { text: "Position (m)", font: { color: "#1a365d" } },
-            tickfont: { color: "#222" },
+            title: {
+              text: "Pitch (rad)",
+              font: { color: "#22d3ee", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
             color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
           },
-          font: { color: "#222", family: "Inter, Arial, sans-serif", size: 15 },
-          legend: { font: { color: "#1a365d" } },
+          font: {
+            color: "#22d3ee",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#22d3ee", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
           paper_bgcolor: "#f8fafc",
-          plot_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
           autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "pitchchart",
         }}
-        style={{ width: "100%", height: "350px" }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
       />
     );
   };
 
-  const ControlChart = () => {
+  const YawChartImproved = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
+    const yawRef = getLastN(
+      esp32Angles.rawYaw.length > 0
+        ? esp32Angles.rawYaw.map((deg) => (deg * Math.PI) / 180)
+        : Array(time.length).fill(0),
+      N
+    );
+    const yawSim = getLastN(
+      states.map((s) => s[8]),
+      N
+    );
+    // Rango Y automático pero centrado
+    const yMin = Math.min(...yawRef, ...yawSim, -1);
+    const yMax = Math.max(...yawRef, ...yawSim, 1);
     return (
       <Plot
         data={[
           {
-            x: time,
-            y: simData.inputs
-              ? simData.inputs.map((input) => input[0])
-              : [1, 1, 1, 1, 1, 1],
+            x: esp32TimeSync,
+            y: yawRef,
             type: "scatter",
-            mode: "lines",
-            name: "Thrust",
+            mode: "lines+markers",
+            name: "Yaw Referencia (ESP32)",
+            line: { color: "#10b981", width: 3, dash: "dash" },
+            marker: { size: 4, color: "#10b981" },
           },
           {
-            x: time,
-            y: simData.inputs
-              ? simData.inputs.map((input) => input[1])
-              : [0, 0, 0, 0, 0, 0],
+            x: simTime,
+            y: yawSim,
             type: "scatter",
-            mode: "lines",
-            name: "τx",
-          },
-          {
-            x: time,
-            y: simData.inputs
-              ? simData.inputs.map((input) => input[2])
-              : [0, 0, 0, 0, 0, 0],
-            type: "scatter",
-            mode: "lines",
-            name: "τy",
-          },
-          {
-            x: time,
-            y: simData.inputs
-              ? simData.inputs.map((input) => input[3])
-              : [0, 0, 0, 0, 0, 0],
-            type: "scatter",
-            mode: "lines",
-            name: "τz",
+            mode: "lines+markers",
+            name: "Yaw Simulado",
+            line: { color: "#38bdf8", width: 3 },
+            marker: { size: 4, color: "#38bdf8" },
+            fill: "tonexty",
+            fillcolor: "rgba(56, 189, 248, 0.1)",
           },
         ]}
         layout={{
           title: {
-            text: "Control Inputs vs Time",
-            font: { color: "#1a365d", size: 20 },
+            text: "📐 Yaw (ψ) - Referencia ESP32 vs Simulado",
+            font: {
+              color: "#38bdf8",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
           },
           xaxis: {
-            title: { text: "Time (s)", font: { color: "#1a365d" } },
-            tickfont: { color: "#222" },
+            title: { text: "Tiempo (s)", font: { color: "#38bdf8", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
             color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
           },
           yaxis: {
-            title: { text: "Input", font: { color: "#1a365d" } },
-            tickfont: { color: "#222" },
+            title: { text: "Yaw (rad)", font: { color: "#38bdf8", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
             color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
           },
-          font: { color: "#222", family: "Inter, Arial, sans-serif", size: 15 },
-          legend: { font: { color: "#1a365d" } },
+          font: {
+            color: "#38bdf8",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#38bdf8", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
           paper_bgcolor: "#f8fafc",
-          plot_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
           autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "yawchart",
         }}
-        style={{ width: "100%", height: "350px" }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
       />
     );
   };
 
-  // --- Utilidades para limitar y sincronizar tiempo de las gráficas ---
-  const getLimited = (arr: number[], min = -Math.PI, max = Math.PI) =>
-    arr.map((v) => (isFinite(v) ? Math.max(min, Math.min(max, v)) : 0));
-
-  const getEsp32Time = () => {
-    // Si los datos tienen timestamp, úsalo (en segundos)
-    if (
-      esp32Angles.time.length > 1 &&
-      esp32Angles.time[1] - esp32Angles.time[0] < 100
-    ) {
-      // Ya es tiempo en segundos
-      return esp32Angles.time.map((t) => t - esp32Angles.time[0]);
-    }
-    // Si no, usa el índice como tiempo
-    return esp32Angles.time.map((_, i) => i * 0.03);
+  // --- NUEVO: Gráficas de ángulos en grados mejoradas ---
+  const RollDegChartImproved = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
+    const rollRef = getLastN(
+      esp32Angles.kalmanRoll.length > 0
+        ? esp32Angles.kalmanRoll
+        : Array(time.length).fill(0),
+      N
+    );
+    const rollSim = getLastN(
+      states.map((s) => (s[6] * 180) / Math.PI),
+      N
+    );
+    // Rango Y automático pero centrado
+    const yMin = Math.min(...rollRef, ...rollSim, -1);
+    const yMax = Math.max(...rollRef, ...rollSim, 1);
+    return (
+      <Plot
+        data={[
+          {
+            x: esp32TimeSync,
+            y: rollRef,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Roll Referencia (ESP32)",
+            line: { color: "#10b981", width: 3, dash: "dash" },
+            marker: { size: 4, color: "#10b981" },
+          },
+          {
+            x: simTime,
+            y: rollSim,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Roll Simulado",
+            line: { color: "#0ea5e9", width: 3 },
+            marker: { size: 4, color: "#0ea5e9" },
+            fill: "tonexty",
+            fillcolor: "rgba(14, 165, 233, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "📐 Roll (φ) - Referencia ESP32 vs Simulado",
+            font: {
+              color: "#0ea5e9",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#0ea5e9", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: { text: "Roll (°)", font: { color: "#0ea5e9", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#0ea5e9",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#0ea5e9", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "rolldegchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
   };
-  const esp32Time = getEsp32Time();
 
-  // El tiempo del modelo ya está en 'time', que viene del backend
+  const PitchDegChartImproved = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
+    const pitchRef = getLastN(
+      esp32Angles.kalmanPitch.length > 0
+        ? esp32Angles.kalmanPitch
+        : Array(time.length).fill(0),
+      N
+    );
+    const pitchSim = getLastN(
+      states.map((s) => (s[7] * 180) / Math.PI),
+      N
+    );
+    // Rango Y automático pero centrado
+    const yMin = Math.min(...pitchRef, ...pitchSim, -1);
+    const yMax = Math.max(...pitchRef, ...pitchSim, 1);
+    return (
+      <Plot
+        data={[
+          {
+            x: esp32TimeSync,
+            y: pitchRef,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Pitch Referencia (ESP32)",
+            line: { color: "#10b981", width: 3, dash: "dash" },
+            marker: { size: 4, color: "#10b981" },
+          },
+          {
+            x: simTime,
+            y: pitchSim,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Pitch Simulado",
+            line: { color: "#22d3ee", width: 3 },
+            marker: { size: 4, color: "#22d3ee" },
+            fill: "tonexty",
+            fillcolor: "rgba(34, 211, 238, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "📐 Pitch (θ) - Referencia ESP32 vs Simulado",
+            font: {
+              color: "#22d3ee",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#22d3ee", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Pitch (rad)",
+              font: { color: "#22d3ee", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#22d3ee",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#22d3ee", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "pitchdegchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
 
-  // --- Gráficas separadas de ángulos sincronizadas ---
-  const RollChart = () => (
-    <Plot
-      data={[
-        {
-          x: time,
-          y: getLimited(states.map((s) => s[6])),
-          type: "scatter",
-          mode: "lines",
-          name: "Roll Modelo",
-          line: { color: "#6366f1" },
-        },
-        {
-          x: esp32Time,
-          y: getLimited(esp32Angles.kalmanRoll),
-          type: "scatter",
-          mode: "lines",
-          name: "Roll Kalman (ESP32)",
-          line: { color: "#f43f5e" },
-        },
-        {
-          x: esp32Time,
-          y: getLimited(esp32Angles.rawRoll),
-          type: "scatter",
-          mode: "lines",
-          name: "Roll Crudo (ESP32)",
-          line: { color: "#facc15" },
-        },
-      ]}
-      layout={{
-        title: { text: "Roll (φ)", font: { color: "#6366f1", size: 20 } },
-        xaxis: {
-          title: { text: "Tiempo (s)", font: { color: "#6366f1" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-          range: [
-            0,
-            Math.max(
-              time[time.length - 1] || 1,
-              esp32Time[esp32Time.length - 1] || 1
-            ),
-          ],
-        },
-        yaxis: {
-          title: { text: "Ángulo (rad)", font: { color: "#6366f1" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-          range: [-Math.PI, Math.PI],
-        },
-        font: {
-          color: "#6366f1",
-          family: "Inter, Arial, sans-serif",
-          size: 15,
-        },
-        legend: { font: { color: "#6366f1" } },
-        paper_bgcolor: "#f8fafc",
-        plot_bgcolor: "#f8fafc",
-        autosize: true,
-      }}
-      style={{ width: "100%", height: "300px" }}
-    />
-  );
+  const YawDegChartImproved = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
+    const yawRef = getLastN(
+      esp32Angles.rawYaw.length > 0
+        ? esp32Angles.rawYaw
+        : Array(time.length).fill(0),
+      N
+    );
+    const yawSim = getLastN(
+      states.map((s) => (s[8] * 180) / Math.PI),
+      N
+    );
+    // Rango Y automático pero centrado
+    const yMin = Math.min(...yawRef, ...yawSim, -1);
+    const yMax = Math.max(...yawRef, ...yawSim, 1);
+    return (
+      <Plot
+        data={[
+          {
+            x: esp32TimeSync,
+            y: yawRef,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Yaw Referencia (ESP32)",
+            line: { color: "#10b981", width: 3, dash: "dash" },
+            marker: { size: 4, color: "#10b981" },
+          },
+          {
+            x: simTime,
+            y: yawSim,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Yaw Simulado",
+            line: { color: "#38bdf8", width: 3 },
+            marker: { size: 4, color: "#38bdf8" },
+            fill: "tonexty",
+            fillcolor: "rgba(56, 189, 248, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "📐 Yaw (ψ) - Referencia ESP32 vs Simulado",
+            font: {
+              color: "#38bdf8",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#38bdf8", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: { text: "Yaw (°)", font: { color: "#38bdf8", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#38bdf8",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#38bdf8", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "yawdegchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
 
-  const PitchChart = () => (
-    <Plot
-      data={[
-        {
-          x: time,
-          y: getLimited(states.map((s) => s[7])),
-          type: "scatter",
-          mode: "lines",
-          name: "Pitch Modelo",
-          line: { color: "#0ea5e9" },
-        },
-        {
-          x: esp32Time,
-          y: getLimited(esp32Angles.kalmanPitch),
-          type: "scatter",
-          mode: "lines",
-          name: "Pitch Kalman (ESP32)",
-          line: { color: "#a3e635" },
-        },
-        {
-          x: esp32Time,
-          y: getLimited(esp32Angles.rawPitch),
-          type: "scatter",
-          mode: "lines",
-          name: "Pitch Crudo (ESP32)",
-          line: { color: "#fbbf24" },
-        },
-      ]}
-      layout={{
-        title: { text: "Pitch (θ)", font: { color: "#0ea5e9", size: 20 } },
-        xaxis: {
-          title: { text: "Tiempo (s)", font: { color: "#0ea5e9" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-          range: [
-            0,
-            Math.max(
-              time[time.length - 1] || 1,
-              esp32Time[esp32Time.length - 1] || 1
-            ),
-          ],
-        },
-        yaxis: {
-          title: { text: "Ángulo (rad)", font: { color: "#0ea5e9" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-          range: [-Math.PI, Math.PI],
-        },
-        font: {
-          color: "#0ea5e9",
-          family: "Inter, Arial, sans-serif",
-          size: 15,
-        },
-        legend: { font: { color: "#0ea5e9" } },
-        paper_bgcolor: "#f8fafc",
-        plot_bgcolor: "#f8fafc",
-        autosize: true,
-      }}
-      style={{ width: "100%", height: "300px" }}
-    />
-  );
+  // --- NUEVO: Gráfico de debug para ver qué datos están llegando ---
 
-  const YawChart = () => (
-    <Plot
-      data={[
-        {
-          x: time,
-          y: getLimited(
-            states.map((s) => s[8]),
-            -Math.PI,
-            Math.PI
-          ),
-          type: "scatter",
-          mode: "lines",
-          name: "Yaw Modelo",
-          line: { color: "#14b8a6" },
-        },
-        {
-          x: esp32Time,
-          y: getLimited(esp32Angles.rawYaw, -Math.PI, Math.PI),
-          type: "scatter",
-          mode: "lines",
-          name: "Yaw Crudo (ESP32)",
-          line: { color: "#818cf8" },
-        },
-      ]}
-      layout={{
-        title: { text: "Yaw (ψ)", font: { color: "#14b8a6", size: 20 } },
-        xaxis: {
-          title: { text: "Tiempo (s)", font: { color: "#14b8a6" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-          range: [
-            0,
-            Math.max(
-              time[time.length - 1] || 1,
-              esp32Time[esp32Time.length - 1] || 1
-            ),
-          ],
-        },
-        yaxis: {
-          title: { text: "Ángulo (rad)", font: { color: "#14b8a6" } },
-          tickfont: { color: "#222" },
-          color: "#222",
-          range: [-Math.PI, Math.PI],
-        },
-        font: {
-          color: "#14b8a6",
-          family: "Inter, Arial, sans-serif",
-          size: 15,
-        },
-        legend: { font: { color: "#14b8a6" } },
-        paper_bgcolor: "#f8fafc",
-        plot_bgcolor: "#f8fafc",
-        autosize: true,
-      }}
-      style={{ width: "100%", height: "300px" }}
-    />
-  );
+  // --- NUEVO: Gráfica de trayectoria 3D mejorada ---
+  const Trajectory3DChart = () => {
+    const N = 200;
+    const x = getLastN(
+      states.map((s) => s[0]),
+      N
+    );
+    const y = getLastN(
+      states.map((s) => s[1]),
+      N
+    );
+    const z = getLastN(
+      states.map((s) => s[2]),
+      N
+    );
+
+    return (
+      <Plot
+        data={[
+          {
+            x: x,
+            y: y,
+            z: z,
+            type: "scatter3d",
+            mode: "lines+markers",
+            name: "Trayectoria 3D",
+            line: { color: "#3b82f6", width: 4 },
+            marker: { size: 3, color: "#3b82f6" },
+          },
+        ]}
+        layout={{
+          title: {
+            text: "🛸 Trayectoria 3D del Dron",
+            font: {
+              color: "#3b82f6",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          scene: {
+            xaxis: {
+              title: { text: "X (m)", font: { color: "#3b82f6", size: 12 } },
+              tickfont: { color: "#222", size: 10 },
+              color: "#222",
+              gridcolor: "#e5e7eb",
+              showgrid: true,
+            },
+            yaxis: {
+              title: { text: "Y (m)", font: { color: "#3b82f6", size: 12 } },
+              tickfont: { color: "#222", size: 10 },
+              color: "#222",
+              gridcolor: "#e5e7eb",
+              showgrid: true,
+            },
+            zaxis: {
+              title: { text: "Z (m)", font: { color: "#3b82f6", size: 12 } },
+              tickfont: { color: "#222", size: 10 },
+              color: "#222",
+              gridcolor: "#e5e7eb",
+              showgrid: true,
+            },
+            camera: {
+              eye: { x: 1.5, y: 1.5, z: 1.5 },
+            },
+          },
+          font: {
+            color: "#3b82f6",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#3b82f6", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          uirevision: "trajectory3dchart",
+        }}
+        style={{ width: "100%", height: "400px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  // --- NUEVO: Gráficas de torques mejoradas ---
+  const TorqueXChart = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const torqueX = getLastN(simData.inputs?.map((input) => input[1]) || [], N);
+    const yMin = Math.min(...torqueX, -5);
+    const yMax = Math.max(...torqueX, 5);
+
+    return (
+      <Plot
+        data={[
+          {
+            x: simTime,
+            y: torqueX,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Torque X Simulado",
+            line: { color: "#dc2626", width: 4 },
+            marker: { size: 6, color: "#dc2626" },
+            fill: "tonexty",
+            fillcolor: "rgba(220, 38, 38, 0.2)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "⚡ Torque X (τx) - Simulado",
+            font: {
+              color: "#dc2626",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#dc2626", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Torque (N⋅m) × 1000", // Indicar que está amplificado
+              font: { color: "#dc2626", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#dc2626",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#dc2626", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "torquexchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  const TorqueYChart = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const torqueY = getLastN(simData.inputs?.map((input) => input[2]) || [], N);
+    const yMin = Math.min(...torqueY, -5);
+    const yMax = Math.max(...torqueY, 5);
+
+    return (
+      <Plot
+        data={[
+          {
+            x: simTime,
+            y: torqueY,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Torque Y Simulado",
+            line: { color: "#ea580c", width: 4 },
+            marker: { size: 6, color: "#ea580c" },
+            fill: "tonexty",
+            fillcolor: "rgba(234, 88, 12, 0.2)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "⚡ Torque Y (τy) - Simulado",
+            font: {
+              color: "#ea580c",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#ea580c", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Torque (N⋅m) × 1000", // Indicar que está amplificado
+              font: { color: "#ea580c", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#ea580c",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#ea580c", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "torqueychart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  const TorqueZChart = () => {
+    const N = 200;
+    const simTime = getLastN(time, N);
+    const torqueZ = getLastN(simData.inputs?.map((input) => input[3]) || [], N);
+    const yMin = Math.min(...torqueZ, -5);
+    const yMax = Math.max(...torqueZ, 5);
+
+    return (
+      <Plot
+        data={[
+          {
+            x: simTime,
+            y: torqueZ,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Torque Z Simulado",
+            line: { color: "#d97706", width: 4 },
+            marker: { size: 6, color: "#d97706" },
+            fill: "tonexty",
+            fillcolor: "rgba(217, 119, 6, 0.2)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "⚡ Torque Z (τz) - Simulado",
+            font: {
+              color: "#d97706",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#d97706", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              simTime.length > 0
+                ? [simTime[0], simTime[simTime.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Torque (N⋅m) × 1000", // Indicar que está amplificado
+              font: { color: "#d97706", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#d97706",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#d97706", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "torquezchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  // --- NUEVO: Gráficos de torques reales del ESP32 ---
+  const ESP32TorqueXChart = () => {
+    const N = 200;
+    const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
+    // --- LIMPIO: Torques del ESP32 en 0 (sin ruido) ---
+    const esp32TorqueX = getLastN(
+      esp32Time.map(() => 0),
+      N
+    );
+
+    const yMin = Math.min(...esp32TorqueX, -5);
+    const yMax = Math.max(...esp32TorqueX, 5);
+
+    return (
+      <Plot
+        data={[
+          {
+            x: esp32TimeSync,
+            y: esp32TorqueX,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Torque X ESP32",
+            line: { color: "#ef4444", width: 4, dash: "dash" },
+            marker: { size: 6, color: "#ef4444" },
+            fill: "tonexty",
+            fillcolor: "rgba(239, 68, 68, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "⚡ Torque X (τx) - ESP32 Real",
+            font: {
+              color: "#ef4444",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#ef4444", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              esp32TimeSync.length > 0
+                ? [esp32TimeSync[0], esp32TimeSync[esp32TimeSync.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Torque (N⋅m)",
+              font: { color: "#ef4444", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#ef4444",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#ef4444", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "esp32torquexchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  const ESP32TorqueYChart = () => {
+    const N = 200;
+    const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
+    // --- LIMPIO: Torques del ESP32 en 0 (sin ruido) ---
+    const esp32TorqueY = getLastN(
+      esp32Time.map(() => 0),
+      N
+    );
+
+    const yMin = Math.min(...esp32TorqueY, -5);
+    const yMax = Math.max(...esp32TorqueY, 5);
+
+    return (
+      <Plot
+        data={[
+          {
+            x: esp32TimeSync,
+            y: esp32TorqueY,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Torque Y ESP32",
+            line: { color: "#f97316", width: 4, dash: "dash" },
+            marker: { size: 6, color: "#f97316" },
+            fill: "tonexty",
+            fillcolor: "rgba(249, 115, 22, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "⚡ Torque Y (τy) - ESP32 Real",
+            font: {
+              color: "#f97316",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#f97316", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              esp32TimeSync.length > 0
+                ? [esp32TimeSync[0], esp32TimeSync[esp32TimeSync.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Torque (N⋅m)",
+              font: { color: "#f97316", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#f97316",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#f97316", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "esp32torqueychart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
+
+  const ESP32TorqueZChart = () => {
+    const N = 200;
+    const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
+    // --- LIMPIO: Torques del ESP32 en 0 (sin ruido) ---
+    const esp32TorqueZ = getLastN(
+      esp32Time.map(() => 0),
+      N
+    );
+
+    const yMin = Math.min(...esp32TorqueZ, -5);
+    const yMax = Math.max(...esp32TorqueZ, 5);
+
+    return (
+      <Plot
+        data={[
+          {
+            x: esp32TimeSync,
+            y: esp32TorqueZ,
+            type: "scatter",
+            mode: "lines+markers",
+            name: "Torque Z ESP32",
+            line: { color: "#eab308", width: 4, dash: "dash" },
+            marker: { size: 6, color: "#eab308" },
+            fill: "tonexty",
+            fillcolor: "rgba(234, 179, 8, 0.1)",
+          },
+        ]}
+        layout={{
+          title: {
+            text: "⚡ Torque Z (τz) - ESP32 Real",
+            font: {
+              color: "#eab308",
+              size: 18,
+              family: "Inter, Arial, sans-serif",
+            },
+          },
+          xaxis: {
+            title: { text: "Tiempo (s)", font: { color: "#eab308", size: 12 } },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range:
+              esp32TimeSync.length > 0
+                ? [esp32TimeSync[0], esp32TimeSync[esp32TimeSync.length - 1]]
+                : undefined,
+          },
+          yaxis: {
+            title: {
+              text: "Torque (N⋅m)",
+              font: { color: "#eab308", size: 12 },
+            },
+            tickfont: { color: "#222", size: 10 },
+            color: "#222",
+            gridcolor: "#e5e7eb",
+            showgrid: true,
+            range: [yMin, yMax],
+          },
+          font: {
+            color: "#eab308",
+            family: "Inter, Arial, sans-serif",
+            size: 10,
+          },
+          legend: {
+            font: { color: "#eab308", size: 10 },
+            bgcolor: "rgba(248, 250, 252, 0.9)",
+            bordercolor: "#e5e7eb",
+            borderwidth: 1,
+          },
+          paper_bgcolor: "#f8fafc",
+          plot_bgcolor: "#ffffff",
+          autosize: true,
+          margin: { l: 60, r: 30, t: 60, b: 60 },
+          hovermode: "x unified",
+          uirevision: "esp32torquezchart",
+        }}
+        style={{ width: "100%", height: "300px" }}
+        config={{ responsive: true, displayModeBar: false }}
+      />
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white py-8 px-2">
@@ -925,92 +1992,96 @@ const Simulator: React.FC = () => {
             <Tabs
               tabs={[
                 {
-                  label: "Posición",
-                  content: (
-                    <div>
-                      <h2 className="text-2xl font-bold mb-4 text-teal-400">
-                        📈 Posición
-                      </h2>
-                      <PositionChart />
-                    </div>
-                  ),
-                },
-                {
-                  label: "Ángulos",
+                  label: "📐 Ángulos (rad)",
                   content: (
                     <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
                       <div className="flex-1 flex flex-col gap-8">
-                        <h2 className="text-2xl font-bold mb-4 text-pink-400 text-center">
-                          φ (Roll)
-                        </h2>
-                        <RollChart />
-                        <h2 className="text-2xl font-bold mb-4 text-blue-400 text-center">
-                          θ (Pitch)
-                        </h2>
-                        <PitchChart />
-                        <h2 className="text-2xl font-bold mb-4 text-teal-400 text-center">
-                          ψ (Yaw)
-                        </h2>
-                        <YawChart />
+                        <RollChartImproved />
+                        <PitchChartImproved />
+                        <YawChartImproved />
                       </div>
                     </div>
                   ),
                 },
                 {
-                  label: "Velocidades",
+                  label: "📐 Ángulos (deg)",
                   content: (
-                    <div>
-                      <h2 className="text-2xl font-bold mb-4 text-yellow-400">
-                        ⚡ Velocidades
-                      </h2>
-                      <VelocityChart />
-                    </div>
-                  ),
-                },
-                {
-                  label: "Torques",
-                  content: (
-                    <div className="flex flex-col gap-6">
-                      <div>
-                        <h2 className="text-2xl font-bold mb-4 text-pink-400">
-                          🟪 τx desde ESP32
-                        </h2>
-                        <TauXChart />
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-bold mb-4 text-yellow-400">
-                          🟨 τy desde ESP32
-                        </h2>
-                        <TauYChart />
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-bold mb-4 text-blue-400">
-                          🟦 τz desde ESP32
-                        </h2>
-                        <TauZChart />
+                    <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
+                      <div className="flex-1 flex flex-col gap-8">
+                        <RollDegChartImproved />
+                        <PitchDegChartImproved />
+                        <YawDegChartImproved />
                       </div>
                     </div>
                   ),
                 },
                 {
-                  label: "Errores",
+                  label: "🚀 Velocidades Lineales",
                   content: (
-                    <div>
-                      <h2 className="text-2xl font-bold mb-4 text-amber-400">
-                        📉 Errores
-                      </h2>
-                      <ErrorChart />
+                    <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
+                      <div className="flex-1 flex flex-col gap-8">
+                        <VelocityXChart />
+                        <VelocityYChart />
+                        <VelocityZChart />
+                      </div>
                     </div>
                   ),
                 },
                 {
-                  label: "Entradas de Control",
+                  label: "🔄 Velocidades Angulares",
                   content: (
-                    <div>
-                      <h2 className="text-2xl font-bold mb-4 text-blue-400">
-                        🕹️ Entradas de Control
-                      </h2>
-                      <ControlChart />
+                    <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
+                      <div className="flex-1 flex flex-col gap-8">
+                        <VelocityRollRateChart />
+                        <VelocityPitchRateChart />
+                        <VelocityYawRateChart />
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  label: "⚡ Torques Simulados",
+                  content: (
+                    <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
+                      <div className="flex-1 flex flex-col gap-8">
+                        <TorqueXChart />
+                        <TorqueYChart />
+                        <TorqueZChart />
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  label: "⚡ Torques ESP32",
+                  content: (
+                    <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
+                      <div className="flex-1 flex flex-col gap-8">
+                        <ESP32TorqueXChart />
+                        <ESP32TorqueYChart />
+                        <ESP32TorqueZChart />
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  label: "📊 Análisis",
+                  content: (
+                    <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
+                      <div className="flex-1 flex flex-col gap-8">
+                        <PositionChart time={time} states={states} />
+                        <Trajectory3DChart />
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  label: "🔍 Debug",
+                  content: (
+                    <div className="flex flex-col items-center justify-center h-64">
+                      <div className="text-gray-400 text-center">
+                        <h3 className="text-xl font-bold mb-4">🔍 Debug</h3>
+                        <p>Área de debug disponible para análisis avanzado</p>
+                      </div>
                     </div>
                   ),
                 },
@@ -1022,13 +2093,5 @@ const Simulator: React.FC = () => {
     </div>
   );
 };
-
-// --- LIMPIEZA: Importa o define Trajectory3D si no existe ---
-// Si Trajectory3D no está definido, define un placeholder para evitar el error de compilación
-const Trajectory3D = () => (
-  <div className="text-gray-400 text-center">
-    (Visualización 3D no implementada)
-  </div>
-);
 
 export default Simulator;

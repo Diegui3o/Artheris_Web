@@ -117,9 +117,24 @@ wss.on("connection", (ws, req) => {
             roll: data.AngleRoll ?? data.roll,
             pitch: data.AnglePitch ?? data.pitch,
             yaw: data.AngleYaw ?? data.yaw,
+            KalmanAngleRoll_rad: typeof data.KalmanAngleRoll === 'number' ? data.KalmanAngleRoll * Math.PI / 180 : 0,
+            KalmanAnglePitch_rad: typeof data.KalmanAnglePitch === 'number' ? data.KalmanAnglePitch * Math.PI / 180 : 0,
             time: new Date().toISOString(),
-        };        // --- ACTUALIZAR TORQUES DE SIMULACIÓN SI LA SIMULACIÓN ESTÁ ACTIVA ---
-        if (simState && simState.simMode) {
+        };
+        // --- ACTUALIZAR TORQUES DE SIMULACIÓN SI LA SIMULACIÓN ESTÁ ACTIVA ---
+        if (simState && simState.simMode && simState.simulator) {
+            // Si hay KalmanAngleRoll y KalmanAnglePitch, actualiza referencias del simulador
+            if (typeof data.KalmanAngleRoll === 'number' && typeof data.KalmanAnglePitch === 'number') {
+                const phi_ref = data.KalmanAngleRoll * Math.PI / 180;
+                const theta_ref = data.KalmanAnglePitch * Math.PI / 180;
+                console.log('[ESP32 DEBUG] Actualizando referencias del simulador:', {
+                    KalmanAngleRoll: data.KalmanAngleRoll,
+                    KalmanAnglePitch: data.KalmanAnglePitch,
+                    phi_ref: phi_ref.toFixed(4),
+                    theta_ref: theta_ref.toFixed(4)
+                });
+                simState.simulator.setReferenceAngles(phi_ref, theta_ref);
+            }
             simState.simControl = {
                 T: typeof data.T === 'number' ? data.T : (typeof data.InputThrottle === 'number' ? data.InputThrottle : simState.simControl.T),
                 tau_x: typeof data.tau_x === 'number' ? clampWithThreshold(data.tau_x) : simState.simControl.tau_x,

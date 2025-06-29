@@ -25,7 +25,17 @@ export default function createSimulationRouter({
                 simState.simulationParams.T = simState.simulationParams.mass * simState.simulationParams.g;
             }
         }
-        simState.simulator = new DroneSimulator(simState.simulationParams);
+        // Fuerza el estado inicial a cero y los controles a equilibrio
+        simState.simControl = {
+            T: simState.simulationParams.mass * simState.simulationParams.g,
+            tau_x: 0,
+            tau_y: 0,
+            tau_z: 0
+        };
+        simState.simulator = new DroneSimulator({
+            ...simState.simulationParams,
+            initial: { x: 0, y: 0, z: 0, phi: 0, theta: 0, psi: 0 }
+        });
         simState.simMode = true;
         simState.simHistory = [];
         simState.simInterval = setInterval(() => {
@@ -34,12 +44,22 @@ export default function createSimulationRouter({
                 simState.simInterval = null;
                 return;
             }
+            // --- DEBUG: Log valores de control actuales ---
             const T = simState.simControl.T;
             const tau_x = simState.simControl.tau_x;
             const tau_y = simState.simControl.tau_y;
             const tau_z = simState.simControl.tau_z;
-            const u = [T, tau_x, tau_y, tau_z];
-            const sensor = simState.simulator.step(u, 0.01);
+            //console.log('[SIM] Paso de simulación - T:', T, 'tau_x:', tau_x, 'tau_y:', tau_y, 'tau_z:', tau_z);
+
+            // Verificar si las referencias están en 0 (sin datos del ESP32)
+            if (simState.simulator.phi_ref === 0 && simState.simulator.theta_ref === 0) {
+                simState.simulator.generateTestReferences(simState.simulator.simTime);
+                console.log('[SIM] Usando referencias de prueba - phi_ref:', simState.simulator.phi_ref.toFixed(4), 'theta_ref:', simState.simulator.theta_ref.toFixed(4));
+            }
+
+            // --- NUEVO: Usar stepWithPID que incluye el controlador PID ---
+            const sensor = simState.simulator.stepWithPID(T, 0.01);
+
             if (!simState.simulator.simTime) simState.simulator.simTime = 0;
             simState.simulator.simTime += 0.03;
             function sanitizeAngle(val) {
@@ -51,6 +71,16 @@ export default function createSimulationRouter({
             const safeRoll = sanitizeAngle(sensor.roll);
             const safePitch = sanitizeAngle(sensor.pitch);
             const safeYaw = sanitizeAngle(sensor.yaw);
+
+            // --- CORREGIDO: Usar los torques calculados por el controlador PID ---
+            const [calculatedT, calculatedTauX, calculatedTauY, calculatedTauZ] = sensor.inputs || [T, 0, 0, 0];
+
+            // --- AMPLIFICACIÓN: Multiplicar torques por factor para mejor visualización ---
+            const amplificationFactor = 1000; // Amplificar 1000x para mejor visibilidad
+            const amplifiedTauX = calculatedTauX * amplificationFactor;
+            const amplifiedTauY = calculatedTauY * amplificationFactor;
+            const amplifiedTauZ = calculatedTauZ * amplificationFactor;
+
             const simData = {
                 AngleRoll: safeRoll,
                 AnglePitch: safePitch,
@@ -64,7 +94,7 @@ export default function createSimulationRouter({
                 time: new Date().toISOString(),
                 simTime: simState.simulator.simTime,
                 state: simState.simulator.state.slice(),
-                inputs: [T, tau_x, tau_y, tau_z, safeRoll, safePitch, safeYaw]
+                inputs: [calculatedT, amplifiedTauX, amplifiedTauY, amplifiedTauZ, safeRoll, safePitch, safeYaw]
             };
             simState.simHistory.push(simData);
             io.emit("datosSimulacion", simData);

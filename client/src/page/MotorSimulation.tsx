@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from "react";
 import { io } from "socket.io-client";
-import SwitchControl from "./SwitchMode";
+import SwitchControl from "./switchmode";
 import Plot from "react-plotly.js";
 
 const socket = io("http://localhost:3002");
@@ -15,10 +15,10 @@ interface DatosSensor {
 }
 
 const coloresMotores: Record<string, string> = {
-  MotorInput1: "#F44336", // Rojo
-  MotorInput2: "#4CAF50", // Verde
-  MotorInput3: "#2196F3", // Azul
-  MotorInput4: "#FFC107", // Amarillo
+  MotorInput1: "#F44336",
+  MotorInput2: "#4CAF50",
+  MotorInput3: "#2196F3",
+  MotorInput4: "#FFC107",
 };
 
 type Action = { type: "ADD_DATA"; payload: DatosSensor[] };

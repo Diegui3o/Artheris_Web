@@ -129,7 +129,9 @@ const DroneAngles = () => {
   return (
     <Card className="p-4 shadow-lg rounded-lg bg-black neon-card">
       <CardContent>
-        <h2 className="neon-text">Drone Telemetría</h2>
+        <h2 className="main-title">
+          Drone Telemetría
+        </h2>
 
         <Section title="Ángulos">
           <p className="label-text">

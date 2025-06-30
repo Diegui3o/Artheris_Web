@@ -1,15 +1,50 @@
+:root {
+  --primary-color: #2563eb;
+  --secondary-color: #3b82f6;
+  --text-color: #1f2937;
+  --border-color: #e5e7eb;
+  --hover-color: #f3f4f6;
+}
+
 .neon-card {
-  border: 1px solid rgba(15, 61, 61, 0.492);
-  box-shadow: 0 0 10px rgba(29, 59, 59, 0.607), 0 0 40px rgb(130, 165, 165);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: white;
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
+.main-title {
+  color: var(--text-color);
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+  font-weight: 500;
+  opacity: 0.8;
+  font-style: italic;
+  letter-spacing: 0.2px;
+}
+
+.section-title {
+  color: var(--text-color);
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--border-color);
+  font-weight: 600;
 }
 
 .label-text {
-  color: #000;
-  font-family: 'Courier New', Courier, monospace;
+  color: var(--text-color);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+  opacity: 0.9;
 }
 
 .value-text {
-  color: rgb(10, 53, 53);
-  text-shadow: 0 0 5px rgb(35, 43, 74), 0 0 20px rgb(49, 66, 66);
-  font-family: 'Courier New', Courier, monospace;
+  color: var(--primary-color);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-left: 0.5rem;
 }

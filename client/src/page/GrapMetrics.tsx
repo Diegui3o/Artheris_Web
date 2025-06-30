@@ -1,5 +1,5 @@
 import AnglesDisplay from "./AnglesDisplay";
-import SensorChart from "./DataRec";
+import SensorChart from "./SensorData";
 
 export default function Graphics() {
   return (
@@ -33,7 +33,7 @@ export default function Graphics() {
           {/* Gráfica de Roll */}
           <div className="bg-gray-800 p-5 rounded-2xl shadow-lg h-[500px] overflow-hidden">
             <h3 className="text-xl font-semibold mb-3 text-purple-400">
-              🔁 Roll Comparación
+              🔁 Data Comparación
             </h3>
             <SensorChart />
           </div>
@@ -41,7 +41,7 @@ export default function Graphics() {
           {/* Gráfica de Pitch */}
           <div className="bg-gray-800 p-5 rounded-2xl shadow-lg h-[500px] overflow-hidden">
             <h3 className="text-xl font-semibold mb-3 text-purple-400">
-              🎯 Pitch Comparación
+              🎯 Data Comparación
             </h3>
             <SensorChart />
           </div>
@@ -49,7 +49,7 @@ export default function Graphics() {
           {/* Gráfica de Motor Inputs */}
           <div className="bg-gray-800 p-5 rounded-2xl shadow-lg h-[500px] overflow-hidden">
             <h3 className="text-xl font-semibold mb-3 text-purple-400">
-              ⚙️ Motor Inputs
+              ⚙️ Data Comparación
             </h3>
             <SensorChart />
           </div>

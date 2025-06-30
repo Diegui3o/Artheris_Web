@@ -126,26 +126,6 @@ export default function Home() {
           </motion.div>
         </div>
       </div>
-
-      {/* Llamado a la acción final */}
-      <div className="py-16 px-6 bg-white/10 relative z-10">
-        <h2 className="text-4xl font-bold text-center mb-8">
-          ¿Listo para comenzar?
-        </h2>
-        <p className="text-xl text-gray-300 text-center mb-8">
-          Únete a nuestra plataforma y lleva el control de tu dron al siguiente
-          nivel.
-        </p>
-        <div className="flex justify-center">
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 rounded-lg text-lg"
-          >
-            Registrarse Ahora
-          </motion.button>
-        </div>
-      </div>
     </div>
   );
 }

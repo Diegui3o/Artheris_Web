@@ -39,8 +39,6 @@ interface DatosSensor {
   RateYaw?: number;
   KalmanAngleRoll?: number;
   KalmanAnglePitch?: number;
-  complementaryAngleRoll?: number;
-  complementaryAnglePitch?: number;
   InputThrottle?: number;
   InputRoll?: number;
   InputPitch?: number;
@@ -70,8 +68,6 @@ const colores: Record<string, string> = {
   GyroZdps: "#3cd44d",
   KalmanAngleRoll: "#1Ea7E5",
   KalmanAnglePitch: "#a73935",
-  complementaryAngleRoll: "#67aC41",
-  complementaryAnglePitch: "#0a7b53",
   InputThrottle: "#FDD835",
   InputRoll: "#43A047",
   InputPitch: "#FB8b0",
@@ -120,8 +116,6 @@ const MultiSensorDashboard = () => {
         AccZ: Number(nuevoDato.AccZ),
         KalmanAngleRoll: Number(nuevoDato.KalmanAngleRoll),
         KalmanAnglePitch: Number(nuevoDato.KalmanAnglePitch),
-        complementaryAngleRoll: Number(nuevoDato.complementaryAngleRoll),
-        complementaryAnglePitch: Number(nuevoDato.complementaryAnglePitch),
         InputThrottle: Number(nuevoDato.InputThrottle),
         InputRoll: Number(nuevoDato.InputRoll),
         InputPitch: Number(nuevoDato.InputPitch),
@@ -317,12 +311,12 @@ const MultiSensorDashboard = () => {
 
       {selectedChart === "Roll" &&
         renderLineChart(
-          ["roll", "KalmanAngleRoll", "complementaryAngleRoll"],
+          ["roll", "KalmanAngleRoll"],
           "Roll Comparación"
         )}
       {selectedChart === "Pitch" &&
         renderLineChart(
-          ["pitch", "KalmanAnglePitch", "complementaryAnglePitch"],
+          ["pitch", "KalmanAnglePitch"],
           "Pitch Comparación"
         )}
       {selectedChart === "Rate" &&

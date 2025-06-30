@@ -1,17 +1,6 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
-import {
-  Menu,
-  Home,
-  Airplay,
-  Sliders,
-  User,
-  Settings,
-  Search,
-  Wrench,
-  AirVent,
-  Cpu,
-} from "lucide-react";
+import { Search, Menu, Home, Airplay, Sliders, Wrench, AirVent, Cpu, Settings, User } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   Drawer,
   List,
@@ -21,10 +10,35 @@ import {
   Divider,
   IconButton,
   Toolbar,
+  TextField,
+  InputAdornment,
+  Box,
 } from "@mui/material";
+import { routes } from "../routes";
 
 export default function Layout() {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showNoResults, setShowNoResults] = useState(false);
+  const navigate = useNavigate();
+
+  // Filtrar rutas basado en el término de búsqueda
+  const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setSearchTerm(value);
+    
+    if (value.trim() === "") {
+      setShowNoResults(false);
+      return;
+    }
+
+    const filteredRoutes = routes.filter(route =>
+      route.name.toLowerCase().includes(value.toLowerCase()) ||
+      route.description.toLowerCase().includes(value.toLowerCase())
+    );
+    
+    setShowNoResults(filteredRoutes.length === 0);
+  };
 
   return (
     <div className="h-screen flex flex-col">
@@ -50,25 +64,57 @@ export default function Layout() {
               src="https://img.icons8.com/ultraviolet/40/drone.png"
               alt="drone"
               className="ml-2 transition-all"
-              style={{ marginLeft: "8px" }} // Ajusta la posición del logo cuando el menú está colapsado
+              style={{ marginLeft: "8px" }}
             />
           )}
         </div>
 
         {/* Barra de búsqueda */}
-        <div className="flex items-center bg-gray-800 rounded-lg px-4 py-2 w-1/3">
-          <Search size={20} className="text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar..."
-            className="bg-transparent text-white outline-none ml-2 w-full placeholder-gray-400"
-          />
-        </div>
-
-        {/* Botón de iniciar sesión */}
-        <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition">
-          Iniciar Sesión
-        </button>
+        <TextField
+          fullWidth={false}
+          placeholder="Buscar..."
+          variant="outlined"
+          size="small"
+          value={searchTerm}
+          onChange={handleSearch}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search size={16} />
+              </InputAdornment>
+            ),
+          }}
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
+          sx={{
+            bgcolor: 'rgba(255, 255, 255, 0.1)',
+            borderRadius: 1,
+            width: '200px',
+            height: '32px',
+            mb: 2,
+            transition: 'all 0.3s ease',
+            '& .MuiOutlinedInput-root': {
+              '& fieldset': {
+                borderColor: 'rgba(255, 255, 255, 0.2)',
+              },
+              '&:hover fieldset': {
+                borderColor: '#f3f4f6',
+                transform: 'scale(1.02)',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: '#f3f4f6',
+                transform: 'scale(1.02)',
+              },
+            },
+            '& .MuiInputBase-input': {
+              color: '#f3f4f6',
+              fontSize: '0.875rem',
+              padding: '8px 12px',
+            },
+          }}
+        />
       </header>
 
       {/* Contenedor principal */}
@@ -80,9 +126,8 @@ export default function Layout() {
           sx={{
             width: isOpen ? 240 : 80,
             flexShrink: 0,
-            "& .MuiDrawer-paper": {
+            '& .MuiDrawer-paper': {
               width: isOpen ? 240 : 80,
-              transition: "width 0.3s ease-in-out",
               boxSizing: "border-box",
               backgroundColor: "#1f2937",
               color: "#fff",
@@ -92,46 +137,66 @@ export default function Layout() {
           <Toolbar />
           <Divider />
           <List>
-            {[
-              { to: "/", icon: <Home size={24} />, text: "Inicio" },
-              {
-                to: "/calibration",
-                icon: <Wrench size={24} />,
-                text: "Calibration",
-              },
-              { to: "/dron", icon: <Airplay size={24} />, text: "Dron 3D" },
-              {
-                to: "/graphics",
-                icon: <Sliders size={24} />,
-                text: "Gráficos",
-              },
-              {
-                to: "/motor-simulation",
-                icon: <AirVent size={24} />,
-                text: "Motors",
-              },
-              {
-                to: "/simulation",
-                icon: <Cpu size={24} />,
-                text: "Simulación",
-              },
-              {
-                to: "/settings",
-                icon: <Settings size={24} />,
-                text: "Ajustes",
-              },
-              { to: "/profile", icon: <User size={24} />, text: "Perfil" },
-            ].map((item, index) => (
-              <ListItem
-                component={NavLink}
-                to={item.to}
-                key={index}
-                sx={{ color: "inherit", textDecoration: "none" }}
-              >
-                <ListItemIcon sx={{ color: "white" }}>{item.icon}</ListItemIcon>
-                {isOpen && <ListItemText primary={item.text} />}
-              </ListItem>
-            ))}
+            {showNoResults ? (
+              <Box sx={{
+                p: 2,
+                textAlign: 'center',
+                color: '#a1a1aa',
+                bgcolor: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: 1,
+                mb: 2,
+              }}>
+                No se encontraron resultados
+              </Box>
+            ) : (
+              routes.map((route) => (
+                <ListItem
+                  key={route.path}
+                  component="div"
+                  onClick={() => {
+                    navigate(route.path);
+                    if (window.innerWidth < 768) {
+                      setIsOpen(false);
+                    }
+                  }}
+                  sx={{
+                    mb: 1,
+                    borderRadius: 1,
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      backgroundColor: '#374151',
+                      transform: 'translateX(5px)',
+                    },
+                    '& .MuiListItemIcon-root': {
+                      minWidth: 'auto',
+                      color: '#a1a1aa',
+                    },
+                  }}
+                >
+                  <ListItemIcon>
+                    {route.icon === 'Home' && <Home size={20} />}
+                    {route.icon === 'Airplay' && <Airplay size={20} />}
+                    {route.icon === 'Sliders' && <Sliders size={20} />}
+                    {route.icon === 'Wrench' && <Wrench size={20} />}
+                    {route.icon === 'AirVent' && <AirVent size={20} />}
+                    {route.icon === 'Cpu' && <Cpu size={20} />}
+                    {route.icon === 'Settings' && <Settings size={20} />}
+                    {route.icon === 'User' && <User size={20} />}
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary={route.name}
+                    sx={{
+                      display: isOpen ? 'block' : 'none',
+                      '& .MuiListItemText-primary': {
+                        color: '#f3f4f6',
+                        fontWeight: 500,
+                        fontSize: '0.875rem',
+                      },
+                    }}
+                  />
+                </ListItem>
+              ))
+            )}
           </List>
         </Drawer>
       </div>

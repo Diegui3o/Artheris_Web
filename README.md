@@ -43,18 +43,77 @@ Imagen referencial de la estructura del proyecto
    git clone https://github.com/tu-usuario/flightcontrol.git
    cd flightcontrol
    ```
-   O descarga el .zip compirmido directamente
-2. Instala las dependencias (primero backend luego fronted)
+   O descarga el .zip comprimido directamente
+2. Instala las dependencias (Backend)
    ```bash
    npm install
+   ```
+2. Inicia el servidor remoto (Backend)
+   ```bash
+   npm run dev
+   ```
+3. Instala las dependencias (Fronted)
+   ```bash
    cd client
    npm install
    ```
-3. Inicia el servidor remoto (primero backend luego fronted)
+3. Inicia el servidor remoto (Fronted)
    ```bash
-   npm run dev
-   cd client
    npm run dev
    ```
 4. Abre el navegador en http://localhost:5173
 
+## 🚀 Modo de uso
+
+Conecta el ESP32 con la siguiente configuracion.
+   ```bash
+   // ================= CONFIGURACIÓN =================
+   const char *ssid = "Name_Wifi";
+   const char *password = "Password";
+   const char *websocket_server = "IP";
+   const int websocket_port = 3003;
+   const char *websocket_path = "/esp32";
+   ```
+Notamos que para "websocket_server" se debe colocar una IP para eso debe ir a
+   ```bash
+   cmd
+   ```
+luego
+   ```bash
+   ipconfig
+   ```
+y buscar
+   ```bash
+   Adaptador de Ethernet Ethernet:
+      Sufijo DNS específico para la conexión. . : 
+      Vínculo: dirección IPv6 local. . . : fe80::1446:1bcb:1518:662b%5
+      Dirección IPv4. . . . . . . . . . . . . . : xxx.xxx.1.11
+      Máscara de subred . . . . . . . . . . . . : yyy.yyy.yyy.0
+      Puerta de enlace predeterminada . . . . . : zzz.zzz.1.1
+   ```
+Entonces rellenamos los siguientes campos con esos datos
+   ```bash
+   // ================= CONFIGURACIÓN =================
+   const char *websocket_server = "xxx.xxx.1.11";
+   
+   // Configuración IP fija
+   IPAddress local_IP(xxx, xxx, 1, 200);
+   IPAddress gateway(xxx, xxx, 1, 1);
+   IPAddress subnet(yyy, yyy, yyy, 0);
+   IPAddress primaryDNS(8, 8, 8, 8);
+   IPAddress secondaryDNS(8, 8, 4, 4);
+   ```
+Para usar esas variables en los siguientes campos
+   ```bash
+   WiFi.begin(ssid, password);
+
+   webSocket.begin(websocket_server, websocket_port, websocket_path);
+   webSocket.onEvent(webSocketEvent);
+   webSocket.setReconnectInterval(3000);
+   webSocket.enableHeartbeat(15000, 3000, 2);
+   ```
+El ESP32 se conecta automáticamente al servidor WebSocket.
+
+Abre la interfaz web para visualizar datos de vuelo y enviar comandos.
+
+Si QuestDB está activado, los vuelos pueden almacenarse y analizarse posteriormente.

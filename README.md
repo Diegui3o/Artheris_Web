@@ -1,23 +1,3 @@
-Título del Proyecto
-
-Resumen o descripción corta del propósito del software
-
-Características principales (bullet points)
-
-Arquitectura general o esquema del sistema (puede ser una imagen o un diagrama opcional)
-
-Requisitos de hardware/software
-
-Instrucciones de instalación
-
-Modo de uso (cómo lanzar el servidor, conectar el dron, etc.)
-
-Ejemplo de flujo de datos o comandos
-
-Licencia
-
-Cita del artículo (si ya tienes DOI o formato)
-
 # FlightControl – Interfaz WebSocket para monitoreo y control de un dron IoT en tiempo real
 
 **FlightControl** es una estación base moderna basada en tecnologías web que permite monitorear y controlar un cuadricóptero en tiempo real mediante comunicación WebSocket. El dron, equipado con un microcontrolador ESP32, se comunica directamente con un servidor Node.js, el cual retransmite datos a una interfaz web desarrollada en React y TypeScript.
@@ -40,15 +20,41 @@ Este proyecto fue desarrollado como parte de un sistema de pruebas para diversos
 ## 🔧 Requisitos
 
 ### Hardware:
-- Placa **ESP32**
-- Cuadricóptero funcional con sensores (ej. MPU6050)
-- Conexión WiFi
+- Placa **ESP32** (o similar)
+- Cuadricóptero funcional con sensores (ej. MPU6050, Magnetometro)
+- Red Ethernet(sin necesidad de internet)
 
 ### Software:
-- Node.js (versión 18 o superior)
-- Navegador moderno (Chrome, Firefox, etc.)
-- QuestDB (opcional, para almacenamiento de datos)
+- Node.js (versión 22 o superior)
+- Visual Studio Code (u otro editor)
+- Navegador (Chrome, Firefox, etc.)
+- Docker Desktop (opcional para QuestDB)
 
 ---
 
 ## 🗂️ Estructura del proyecto
+
+Imagen referencial de la estructura del proyecto
+
+## ⚙️ Instalación
+
+1. Clona este repositorio:
+   ```bash
+   git clone https://github.com/tu-usuario/flightcontrol.git
+   cd flightcontrol
+   ```
+   O descarga el .zip compirmido directamente
+2. Instala las dependencias (primero backend luego fronted)
+   ```bash
+   npm install
+   cd client
+   npm install
+   ```
+3. Inicia el servidor remoto (primero backend luego fronted)
+   ```bash
+   npm run dev
+   cd client
+   npm run dev
+   ```
+4. Abre el navegador en http://localhost:5173
+

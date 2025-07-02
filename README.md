@@ -52,7 +52,7 @@ Imagen referencial de la estructura del proyecto
    ```bash
    npm run dev
    ```
-3. Instala las dependencias (Fronted)
+3. Instala las dependencias inciar una nueva terminal (Fronted)
    ```bash
    cd client
    npm install
@@ -86,7 +86,7 @@ y buscar
    ```bash
    Adaptador de Ethernet Ethernet:
       Sufijo DNS específico para la conexión. . : 
-      Vínculo: dirección IPv6 local. . . : fe80::1446:1bcb:1518:662b%5
+      Vínculo: dirección IPv6 local. . . : oooo::oooo:oooo:oooo:oooo%o
       Dirección IPv4. . . . . . . . . . . . . . : xxx.xxx.1.11
       Máscara de subred . . . . . . . . . . . . : yyy.yyy.yyy.0
       Puerta de enlace predeterminada . . . . . : zzz.zzz.1.1
@@ -106,14 +106,17 @@ Entonces rellenamos los siguientes campos con esos datos
 Para usar esas variables en los siguientes campos
    ```bash
    WiFi.begin(ssid, password);
-
+   !WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)
    webSocket.begin(websocket_server, websocket_port, websocket_path);
    webSocket.onEvent(webSocketEvent);
    webSocket.setReconnectInterval(3000);
    webSocket.enableHeartbeat(15000, 3000, 2);
    ```
-El ESP32 se conecta automáticamente al servidor WebSocket.
+El ESP32 se conecta automáticamente al servidor WebSocket y en la terminal de backend aparecerá
+   ```bash
+   ✅ ESP32 conectado por WebSocket puro desde ${clientIP}
+   ```
 
-Abre la interfaz web para visualizar datos de vuelo y enviar comandos.
+Abre la interfaz web (http://localhost:5173) para visualizar datos de vuelo y enviar comandos.
 
 Si QuestDB está activado, los vuelos pueden almacenarse y analizarse posteriormente.

@@ -52,7 +52,7 @@ Imagen referencial de la estructura del proyecto
    ```bash
    npm run dev
    ```
-3. Instala las dependencias inciar una nueva terminal (Fronted)
+3. Inciar una nueva termina para intalar las dependencias (Fronted)
    ```bash
    cd client
    npm install
@@ -120,3 +120,6 @@ El ESP32 se conecta automáticamente al servidor WebSocket y en la terminal de b
 Abre la interfaz web (http://localhost:5173) para visualizar datos de vuelo y enviar comandos.
 
 Si QuestDB está activado, los vuelos pueden almacenarse y analizarse posteriormente.
+
+##  📄 Licencia
+Este proyecto está licenciado bajo la Licencia MIT.

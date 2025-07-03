@@ -33,15 +33,15 @@ Este proyecto fue desarrollado como parte de un sistema de pruebas para diversos
 ---
 
 ## 🗂️ Estructura del proyecto
-
+![Diagrama del sistema](./assets/diagrama.svg)
 Imagen referencial de la estructura del proyecto
 
 ## ⚙️ Instalación
 
 1. Clona este repositorio:
    ```bash
-   git clone https://github.com/tu-usuario/flightcontrol.git
-   cd flightcontrol
+   git clone https://github.com/Diegui3o/websockets_web.git
+   cd websockets_web
    ```
    O descarga el .zip comprimido directamente
 2. Instala las dependencias (Backend)

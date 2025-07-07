@@ -1,5 +1,5 @@
 "use client";
-import SwitchControl from "./switchmode";
+import SwitchControl from "./SwitchMode";
 
 import { useState } from "react";
 
@@ -8,18 +8,18 @@ export default function Settings() {
   const [armLength, setArmLength] = useState(0.223);
 
   const [kc, setKc] = useState<{ [key: string]: number }>({
-    "Kc_at[0][0]": 5.5,
-    "Kc_at[1][1]": 5.5,
+    "Kc_at[0][0]": 2.1,
+    "Kc_at[1][1]": 1.92,
     "Kc_at[2][2]": 5.3,
-    "Kc_at[0][3]": 3.6,
-    "Kc_at[1][4]": 3.6,
+    "Kc_at[0][3]": 0.58,
+    "Kc_at[1][4]": 0.38,
     "Kc_at[2][5]": 1.6,
   });
 
   const [ki, setKi] = useState<{ [key: string]: number }>({
-    "Ki_at[0][0]": 0.6,
-    "Ki_at[1][1]": 0.6,
-    "Ki_at[2][2]": 0.1,
+    "Ki_at[0][0]": 0.04,
+    "Ki_at[1][1]": 0.09,
+    "Ki_at[2][2]": 0.01,
   });
 
   const [recording, setRecording] = useState(false);

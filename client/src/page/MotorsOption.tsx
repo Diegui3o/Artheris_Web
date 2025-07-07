@@ -6,7 +6,12 @@ export default function ControlPanel() {
   const toggleMotors = async (state: string) => {
     try {
       const endpoint = state === "on" ? "/motores/on" : "/motores/off";
-      const response = await fetch(`http://localhost:3002${endpoint}`);
+      const response = await fetch(`http://localhost:3002${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
       if (response.ok) {
         setMotorStatus(state.toUpperCase());
       }

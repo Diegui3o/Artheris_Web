@@ -33,7 +33,7 @@ Este proyecto fue desarrollado como parte de un sistema de pruebas para diversos
 ---
 
 ## 🗂️ Estructura del proyecto
-![Diagrama del sistema](./assets/diagrama.svg)
+![Diagrama del sistema](./assets/diagram.svg)
 Imagen referencial de la estructura del proyecto
 
 ## ⚙️ Instalación

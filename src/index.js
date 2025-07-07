@@ -51,17 +51,58 @@ io.on("connection", socket => {
     // Manejo de conexión de socket (sin lógica específica en este momento)
 });
 
+// --- Lista de dispositivos conectados y sockets por id ---
+const dispositivosConectados = {};
+const esp32Sockets = {}; // id -> ws
 // WebSocket - ESP32
 wss.on("connection", (ws, req) => {
     const clientIP = req.socket.remoteAddress;
     console.log(`✅ ESP32 conectado por WebSocket puro desde ${clientIP}`);
     ws.on("message", (message) => {
+        // --- Registro de dispositivo conectado SOLO si hay id ---
+        let identificador = null;
+        try {
+            const data = JSON.parse(message.toString());
+            if (data.id) {
+                identificador = data.id;
+                // Elimina el dispositivo registrado por IP si existe y es el mismo socket
+                const ipId = clientIP;
+                if (dispositivosConectados[ipId] && dispositivosConectados[ipId].ws === ws) {
+                    delete dispositivosConectados[ipId];
+                }
+                // REGISTRA SOLO SI HAY ID
+                if (!dispositivosConectados[identificador]) {
+                    dispositivosConectados[identificador] = {
+                        id: identificador,
+                        nombre: data.nombre || identificador,
+                        conectado: true,
+                        ip: clientIP,
+                        ws: ws
+                    };
+                } else {
+                    dispositivosConectados[identificador].conectado = true;
+                    dispositivosConectados[identificador].ws = ws;
+                }
+                esp32Sockets[identificador] = ws;
+                ws.deviceId = identificador;
+            }
+            // Si no hay id, NO registres nada
+        } catch (e) {
+            // No registres dispositivos por CSV/IP aquí
+        }
         let data;
         let parsed = false;
         // Intentar parsear como JSON
         try {
             data = JSON.parse(message.toString());
             parsed = true;
+            // Si el mensaje tiene 'id', eliminamos el registro por IP si existe
+            if (data.id) {
+                const ipId = clientIP;
+                if (dispositivosConectados[ipId] && dispositivosConectados[ipId].ws === ws) {
+                    delete dispositivosConectados[ipId];
+                }
+            }
         } catch (e) {
             // Si no es JSON, intentar parsear como CSV
             const msgStr = message.toString();
@@ -113,11 +154,10 @@ wss.on("connection", (ws, req) => {
         // Emitir datos combinados y eventos esperados por el frontend
         const combined = {
             ...data,
+            id: identificador, // Siempre incluye el id
             roll: data.AngleRoll ?? data.roll,
             pitch: data.AnglePitch ?? data.pitch,
             yaw: data.AngleYaw ?? data.yaw,
-            KalmanAngleRoll_rad: typeof data.KalmanAngleRoll === 'number' ? data.KalmanAngleRoll * Math.PI / 180 : 0,
-            KalmanAnglePitch_rad: typeof data.KalmanAnglePitch === 'number' ? data.KalmanAnglePitch * Math.PI / 180 : 0,
             time: new Date().toISOString(),
         };
         // --- ACTUALIZAR TORQUES DE SIMULACIÓN SI LA SIMULACIÓN ESTÁ ACTIVA ---
@@ -159,6 +199,14 @@ wss.on("connection", (ws, req) => {
         }
     });
     ws.on("close", () => {
+        if (ws.deviceId && dispositivosConectados[ws.deviceId]) {
+            dispositivosConectados[ws.deviceId].conectado = false;
+            // Elimina la referencia al socket para evitar estados fantasmas
+            delete dispositivosConectados[ws.deviceId].ws;
+        }
+        if (ws.deviceId && esp32Sockets[ws.deviceId]) {
+            delete esp32Sockets[ws.deviceId];
+        }
         console.log("❌ ESP32 desconectado (ws)");
     });
 });
@@ -299,6 +347,46 @@ app.post('/motores/off', (req, res) => {
     res.json({ motors: false, message: 'Motores apagados' });
 });
 
+// --- Endpoint para obtener la lista de dispositivos (conectados y desconectados) ---
+app.get("/api/devices", (req, res) => {
+    // Devuelve todos los dispositivos registrados, con su estado 'conectado'
+    res.json(Object.values(dispositivosConectados));
+});
+
+// --- Endpoint para prender LED de un ESP32 específico ---
+app.post('/led/on/:id', (req, res) => {
+    const id = req.params.id;
+    const ws = esp32Sockets[id];
+    if (ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({ type: 'command', payload: { led: true } }));
+        res.json({ ok: true, message: `LED encendido en ${id}` });
+    } else {
+        res.status(404).json({ ok: false, message: `ESP32 ${id} no conectado` });
+    }
+});
+
+// --- Endpoint para obtener perfil de un ESP32 ---
+app.get('/api/profile/:id', (req, res) => {
+    // Devuelve un perfil por defecto si no existe
+    const id = req.params.id;
+    // En un sistema real buscarías el perfil guardado aquí
+    const defaultProfile = {
+        nombre: '',
+        descripcion: '',
+        propietario: '',
+        fechaCreacion: new Date().toISOString(),
+        editable: true,
+        // Puedes agregar más campos si lo deseas
+    };
+    res.json({ id, profile: defaultProfile });
+});
+
+// --- Endpoint para obtener vuelos de un ESP32 ---
+app.get('/api/flights/:id', (req, res) => {
+    // Devuelve una lista vacía si no hay vuelos
+    const id = req.params.id;
+    res.json({ id, flights: [] });
+});
 // --- FIN DE NUEVOS ENDPOINTS ---
 
 app.use(

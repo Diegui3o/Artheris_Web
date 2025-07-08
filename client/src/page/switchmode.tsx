@@ -18,7 +18,7 @@ const ModeSwitch = () => {
 
       const data = await response.json();
 
-      // Verifica si la respuesta es un objeto y si tiene la propiedad "modo"
+      // Verify if the answer is an object and if you have the property "mode"
       if (data && typeof data === "object" && "modo" in data) {
         setModo(data.modo);
         console.log("Modo actual:", data.modo);

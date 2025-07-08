@@ -27,7 +27,7 @@ const dataReducer = (state: DatosSensor[], action: Action): DatosSensor[] => {
   switch (action.type) {
     case "ADD_DATA": {
       const newData = [...state, ...action.payload];
-      return newData.slice(-100); // Guarda los últimos 100 datos
+      return newData.slice(-100); // Save the last 100 data
     }
     default:
       return state;
@@ -304,7 +304,7 @@ const MotorDashboard = () => {
         <Plot
           data={[
             {
-              x: yaw, // o KalmanAngleYaw si lo tienes
+              x: yaw,
               y: kalmanPitch,
               z: kalmanRoll,
               type: "scatter3d",
@@ -352,8 +352,6 @@ const MotorDashboard = () => {
       >
         Panel de Control de Motores PWM
       </h1>
-
-      {/* SwitchControl arriba con ángulos dentro */}
       <div
         style={{
           width: "100%",
@@ -379,7 +377,6 @@ const MotorDashboard = () => {
           Modo de Conmutación
         </h3>
         <SwitchControl />
-        {/* Ángulos en una sola fila dentro del bloque */}
         {renderAnglesBars()}
       </div>
 

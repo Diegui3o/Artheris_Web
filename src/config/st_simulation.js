@@ -25,7 +25,6 @@ export default function createSimulationRouter({
                 simState.simulationParams.T = simState.simulationParams.mass * simState.simulationParams.g;
             }
         }
-        // Fuerza el estado inicial a cero y los controles a equilibrio
         simState.simControl = {
             T: simState.simulationParams.mass * simState.simulationParams.g,
             tau_x: 0,
@@ -44,20 +43,17 @@ export default function createSimulationRouter({
                 simState.simInterval = null;
                 return;
             }
-            // --- DEBUG: Log valores de control actuales ---
             const T = simState.simControl.T;
             const tau_x = simState.simControl.tau_x;
             const tau_y = simState.simControl.tau_y;
             const tau_z = simState.simControl.tau_z;
-            //console.log('[SIM] Paso de simulación - T:', T, 'tau_x:', tau_x, 'tau_y:', tau_y, 'tau_z:', tau_z);
 
-            // Verificar si las referencias están en 0 (sin datos del ESP32)
             if (simState.simulator.phi_ref === 0 && simState.simulator.theta_ref === 0) {
                 simState.simulator.generateTestReferences(simState.simulator.simTime);
                 console.log('[SIM] Usando referencias de prueba - phi_ref:', simState.simulator.phi_ref.toFixed(4), 'theta_ref:', simState.simulator.theta_ref.toFixed(4));
             }
 
-            // --- NUEVO: Usar stepWithPID que incluye el controlador PID ---
+            // Use PID
             const sensor = simState.simulator.stepWithPID(T, 0.01);
 
             if (!simState.simulator.simTime) simState.simulator.simTime = 0;
@@ -71,8 +67,6 @@ export default function createSimulationRouter({
             const safeRoll = sanitizeAngle(sensor.roll);
             const safePitch = sanitizeAngle(sensor.pitch);
             const safeYaw = sanitizeAngle(sensor.yaw);
-
-            // --- CORREGIDO: Usar los torques calculados por el controlador PID ---
             const [calculatedT, calculatedTauX, calculatedTauY, calculatedTauZ] = sensor.inputs || [T, 0, 0, 0];
 
             const simData = {
@@ -112,7 +106,7 @@ export default function createSimulationRouter({
     router.get('/simulate/history', (req, res) => {
         res.json({ history: simState.simHistory });
     });
-    // Nueva función buildCombined() para unificar datos de lastAngles, lastControl y lastMotors
+    // Buildcombined Function () to unify lasticate data, lastcontrol and lastmotors
     function buildCombined() {
         const ANGLES_FIELDS = [
             'AngleRoll', 'AnglePitch', 'AngleYaw',
@@ -134,11 +128,10 @@ export default function createSimulationRouter({
         combined.AngleRoll = Number(lastAngles.AngleRoll_est ?? lastAngles.AngleRoll) || 0;
         combined.AnglePitch = Number(lastAngles.AnglePitch_est ?? lastAngles.AnglePitch) || 0;
         combined.AngleYaw = Number(lastAngles.AngleYaw ?? lastAngles.AngleYaw_est) || 0;
-        // También asigna los alias roll, pitch, yaw para el frontend
         combined.roll = combined.AngleRoll;
         combined.pitch = combined.AnglePitch;
         combined.yaw = combined.AngleYaw;
-        // Fill the rest of ANGLES_FIELDS except the above
+
         for (const key of ANGLES_FIELDS) {
             if (["AngleRoll", "AnglePitch", "AngleYaw"].includes(key)) continue;
             combined[key] = Number(lastAngles[key]) || 0;
@@ -149,7 +142,7 @@ export default function createSimulationRouter({
         for (const key of MOTORS_FIELDS) {
             combined[key] = Number(lastMotors[key]) || 0;
         }
-        // Agrega los ángulos crudos si existen en lastAngles
+
         combined.RawRoll = Number(lastAngles.RawRoll) || 0;
         combined.RawPitch = Number(lastAngles.RawPitch) || 0;
         combined.RawYaw = Number(lastAngles.RawYaw) || 0;

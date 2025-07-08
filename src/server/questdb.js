@@ -9,12 +9,11 @@ const pool = new pg.Pool({
     database: 'qdb',
 });
 
-// Verificar conexión a QuestDB al iniciar
+// Verify connection to Questdb at the start
 pool.query('SELECT 1')
     .then(() => console.log('✅ Conexión a QuestDB establecida'))
     .catch(err => {
         console.error('❌ No se pudo conectar a QuestDB');
-        // NO process.exit(1); Solo warning, el backend sigue funcionando
     });
 
 function safe(value) {
@@ -24,14 +23,12 @@ function safe(value) {
     if (typeof value === 'string') {
         return `'${value.replace(/'/g, "''")}'`;
     }
-    // Formatear números con 3 decimales
     if (typeof value === 'number') {
         return Number(value.toFixed(3));
     }
     return value;
 }
 
-// Función específica para formatear números con precisión decimal específica
 function formatWithPrecision(value, decimals = 3) {
     if (value === undefined || value === null || isNaN(value)) {
         return 'NULL';
@@ -59,7 +56,6 @@ async function executeQueryWithRetry(query, retries = 5, delay = 1000) {
     throw new Error('❌ Max retries reached, could not execute query');
 }
 
-// Inserta un nuevo vuelo (con los 9 datos correctos de Kc y Ki)
 export async function insertNewFlight(Kc, Ki, mass = null, armLength = null) {
     const startTime = new Date().toISOString();
     const flightId = uuidv4();
@@ -104,11 +100,9 @@ export async function insertNewFlight(Kc, Ki, mass = null, armLength = null) {
     }
 }
 
-// Inserta datos de sensores asociados al vuelo
 export async function insertSensorData(sensor, flightId) {
     const time = new Date().toISOString();
 
-    // Función para formatear con diferentes precisiones según el tipo de dato
     const safeWithPrecision = (value, decimals = 3) => {
         if (value === undefined || value === null || isNaN(value)) {
             return 'NULL';
@@ -119,8 +113,7 @@ export async function insertSensorData(sensor, flightId) {
         return value;
     };
 
-    // LOG completo del query generado
-    // Asegura que todos los campos requeridos estén presentes y sean numéricos
+    // Ensures that all the required fields are present and are numerical
     const safeNum = v => (typeof v === 'number' && !isNaN(v) ? v : 0);
     const {
         AngleRoll = 0, AnglePitch = 0, AngleYaw = 0,
@@ -171,7 +164,6 @@ export async function insertSensorData(sensor, flightId) {
     }
 }
 
-// Exporta la función insertControlState
 export async function insertControlState(modo, ledStatus, motorStatus) {
     const time = new Date().toISOString();
     const query = `
@@ -185,7 +177,6 @@ export async function insertControlState(modo, ledStatus, motorStatus) {
     }
 }
 
-// Función para imprimir los últimos N registros de sensor_data
 export async function printLastSensorData(n = 10, returnRows = false) {
     try {
         const result = await pool.query(`SELECT * FROM sensor_data ORDER BY time DESC LIMIT ${n}`);
@@ -209,5 +200,4 @@ export async function checkQuestDBConnection() {
     }
 }
 
-// Exportar la función de formateo con precisión
 export { formatWithPrecision };

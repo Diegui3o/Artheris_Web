@@ -90,7 +90,7 @@ const dataReducer = (state: DatosSensor[], action: Action): DatosSensor[] => {
   switch (action.type) {
     case "ADD_DATA": {
       const newData = [...state, ...action.payload];
-      return newData.slice(-130); // mantener últimos 130 datos
+      return newData.slice(-130);
     }
     default:
       return state;
@@ -134,12 +134,12 @@ const MultiSensorDashboard = () => {
       };
       dispatch({ type: "ADD_DATA", payload: [datoFormateado] });
     };
-    // Escucha ambos eventos posibles
+    // Listen both events
     socket.on("sensorUpdate", (data) => {
       handler(data);
     });
     socket.on("datosSimulacion", (data) => {
-      console.log("[data_rec] Datos recibidos en 'datosSimulacion':", data); // <-- Debug log
+      console.log("[data_rec] Datos recibidos en 'datosSimulacion':", data);
       handler(data);
     });
 
@@ -161,7 +161,7 @@ const MultiSensorDashboard = () => {
           borderColor: colores[key],
           backgroundColor: colores[key] + "33",
           borderWidth: 2,
-          tension: 0.6, // curva suave
+          tension: 0.6,
           pointRadius: 0.7,
           fill: false,
         })),
@@ -217,7 +217,7 @@ const MultiSensorDashboard = () => {
 
   const renderBarChart = useCallback(
     (keys: string[], title: string) => {
-      const lastData = data[data.length - 1]; // solo último dato
+      const lastData = data[data.length - 1];
       const chartData = {
         labels: keys,
         datasets: [
@@ -310,15 +310,9 @@ const MultiSensorDashboard = () => {
       </div>
 
       {selectedChart === "Roll" &&
-        renderLineChart(
-          ["roll", "KalmanAngleRoll"],
-          "Roll Comparación"
-        )}
+        renderLineChart(["roll", "KalmanAngleRoll"], "Roll Comparación")}
       {selectedChart === "Pitch" &&
-        renderLineChart(
-          ["pitch", "KalmanAnglePitch"],
-          "Pitch Comparación"
-        )}
+        renderLineChart(["pitch", "KalmanAnglePitch"], "Pitch Comparación")}
       {selectedChart === "Rate" &&
         renderLineChart(
           ["RateRoll", "RatePitch", "RateYaw"],

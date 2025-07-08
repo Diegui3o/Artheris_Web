@@ -1,6 +1,6 @@
 # Artheris FlightControl – Interfaz WebSocket para monitoreo y control de un dron IoT en tiempo real
 
-**FlightControl** es una estación base moderna basada en tecnologías web que permite monitorear y controlar un cuadricóptero en tiempo real mediante comunicación WebSocket. El dron, equipado con un microcontrolador ESP32, se comunica directamente con un servidor Node.js, el cual retransmite datos a una interfaz web desarrollada en React y TypeScript.
+**Artheris FlightControl** es una estación base moderna basada en tecnologías web que permite monitorear y controlar un cuadricóptero en tiempo real mediante comunicación WebSocket. El dron, equipado con un microcontrolador ESP32, se comunica directamente con un servidor Node.js, el cual retransmite datos a una interfaz web desarrollada en React y TypeScript.
 
 Este proyecto fue desarrollado como parte de un sistema de pruebas para diversos algoritmos de control aplicados a vehículos aéreos no tripulados (UAV), con énfasis en la accesibilidad, visualización clara y registro de datos para análisis posteriores.
 
@@ -37,6 +37,27 @@ Este proyecto fue desarrollado como parte de un sistema de pruebas para diversos
 Imagen referencial de la estructura del proyecto
 
 ## ⚙️ Instalación
+
+⚠️ Antes de clonar el repositorio, asegúrate de cumplir con los siguientes requisitos:
+
+Instalar Node.js:
+
+Descarga la versión LTS desde el sitio oficial de Node.js.
+
+Sigue las recomendaciones de instalación del proveedor (incluyendo opciones como npm y variables de entorno).
+
+Verificar la instalación:
+
+bash
+node --version
+npm --version
+Debes obtener las versiones instaladas sin errores.
+
+No modifiques archivos críticos (como package.json o dependencias) sin antes:
+
+Crear una rama nueva (git checkout -b feature/nombre-de-tu-cambio).
+
+Revisar el impacto con npm audit o pruebas unitarias.
 
 1. Clona este repositorio:
    ```bash

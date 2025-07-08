@@ -1,4 +1,4 @@
-# FlightControl – Interfaz WebSocket para monitoreo y control de un dron IoT en tiempo real
+# Artheris FlightControl – Interfaz WebSocket para monitoreo y control de un dron IoT en tiempo real
 
 **FlightControl** es una estación base moderna basada en tecnologías web que permite monitorear y controlar un cuadricóptero en tiempo real mediante comunicación WebSocket. El dron, equipado con un microcontrolador ESP32, se comunica directamente con un servidor Node.js, el cual retransmite datos a una interfaz web desarrollada en React y TypeScript.
 

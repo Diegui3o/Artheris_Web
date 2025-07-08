@@ -48,17 +48,16 @@ Instalar Node.js:
    
    Verificar la instalación:
    
-      ```bash
       node --version
       npm --version
-      ```
+
    Debes obtener las versiones instaladas sin errores.
    
    No modifiques archivos críticos (como package.json o dependencias) sin antes:
    
    Crear una rama nueva (git checkout -b feature/nombre-de-tu-cambio).
    
-   Revisar el impacto con npm audit o pruebas unitarias.
+Y continua con la instalacion:
 
 1. Clona este repositorio:
    ```bash

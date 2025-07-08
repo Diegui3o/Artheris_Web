@@ -42,22 +42,23 @@ Imagen referencial de la estructura del proyecto
 
 Instalar Node.js:
 
-Descarga la versión LTS desde el sitio oficial de Node.js.
-
-Sigue las recomendaciones de instalación del proveedor (incluyendo opciones como npm y variables de entorno).
-
-Verificar la instalación:
-
-bash
-node --version
-npm --version
-Debes obtener las versiones instaladas sin errores.
-
-No modifiques archivos críticos (como package.json o dependencias) sin antes:
-
-Crear una rama nueva (git checkout -b feature/nombre-de-tu-cambio).
-
-Revisar el impacto con npm audit o pruebas unitarias.
+   Descarga la versión LTS desde el sitio oficial de Node.js.
+   
+   Sigue las recomendaciones de instalación del proveedor (incluyendo opciones como npm y variables de entorno).
+   
+   Verificar la instalación:
+   
+      ```bash
+      node --version
+      npm --version
+      ```
+   Debes obtener las versiones instaladas sin errores.
+   
+   No modifiques archivos críticos (como package.json o dependencias) sin antes:
+   
+   Crear una rama nueva (git checkout -b feature/nombre-de-tu-cambio).
+   
+   Revisar el impacto con npm audit o pruebas unitarias.
 
 1. Clona este repositorio:
    ```bash

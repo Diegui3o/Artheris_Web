@@ -185,7 +185,7 @@ Si utilizas este software en tus investigaciones, por favor cita de la siguiente
 
 ```bibtex
 @software{Diegui3o_ArtherisFlightControl_2025,
-  author = {Diego [Tu Apellido]},
+  author = {Autores},
   title = {Artheris FlightControl: Interfaz WebSocket para monitoreo y control de un dron IoT en tiempo real},
   year = {2025},
   url = {https://github.com/Diegui3o/websockets_web},
@@ -193,11 +193,5 @@ Si utilizas este software en tus investigaciones, por favor cita de la siguiente
   note = {Disponible en SoftwareX}
 }
 ```
-
-## 🤝 Contacto y reconocimientos
-
-- Autor principal: Diego [Tu Apellido] ([tu.email@institucion.edu](mailto:tu.email@institucion.edu))
-- Colaboradores: [Nombres y correos de colaboradores, si aplica]
-- Financiación: Este trabajo fue apoyado por [nombre de la institución/proyecto/grant, si aplica].
 
 Agradecimientos especiales a la comunidad de código abierto y a los testers que contribuyeron con sugerencias y pruebas.

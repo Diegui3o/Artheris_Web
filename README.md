@@ -179,19 +179,4 @@ Para garantizar la reproducibilidad de los resultados y experimentos:
 - Los datos de vuelo pueden exportarse desde QuestDB para análisis posterior.
 - Se sugiere usar Docker para desplegar QuestDB y evitar incompatibilidades.
 
-## 📚 Cómo citar
-
-Si utilizas este software en tus investigaciones, por favor cita de la siguiente manera:
-
-```bibtex
-@software{Diegui3o_ArtherisFlightControl_2025,
-  author = {Autores},
-  title = {Artheris FlightControl: Interfaz WebSocket para monitoreo y control de un dron IoT en tiempo real},
-  year = {2025},
-  url = {https://github.com/Diegui3o/websockets_web},
-  version = {1.0},
-  note = {Disponible en SoftwareX}
-}
-```
-
-Agradecimientos especiales a la comunidad de código abierto y a los testers que contribuyeron con sugerencias y pruebas.
+Agradecimientos especiales a la comunidad de código abierto y a la Universidad Nacional de San Agustin.

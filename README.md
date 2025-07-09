@@ -11,9 +11,6 @@ Este software fue diseñado como plataforma de pruebas para experimentación y v
 ![React](https://img.shields.io/badge/React-18%2B-blue)
 ![WebSocket](https://img.shields.io/badge/WebSocket-Real%20Time-orange)
 
-[![Ver Demo](https://img.shields.io/badge/Ver-Demo-blue?style=for-the-badge)](./assets/demo.gif)
-[![Documentación](https://img.shields.io/badge/Ir-a-la-Documentación-brightgreen?style=for-the-badge)](https://github.com/Diegui3o/websockets_web/wiki)
-
 ## 🛰️ Características principales
 
 - Comunicación bidireccional en tiempo real mediante WebSocket puro.
@@ -27,13 +24,13 @@ Este software fue diseñado como plataforma de pruebas para experimentación y v
 
 ## 📋 Tabla de funcionalidades
 
-| Característica        | Estado        | Descripción                          |
-|-----------------------|--------------|--------------------------------------|
-| Telemetría en vivo    | ✅ Completo   | Gráficas y datos en tiempo real      |
-| Control remoto        | ✅ Completo   | LED, motores, modos de vuelo         |
-| Modo simulación       | 🛠️ En progreso | Pruebas sin hardware físico          |
-| Exportación de datos  | ✅ Completo   | CSV/JSON para análisis externo       |
-| Multiplataforma       | ✅ Completo   | Web, móvil, desktop                  |
+| Característica       | Estado         | Descripción                     |
+| -------------------- | -------------- | ------------------------------- |
+| Telemetría en vivo   | ✅ Completo    | Gráficas y datos en tiempo real |
+| Control remoto       | ✅ Completo    | LED, motores, modos de vuelo    |
+| Modo simulación      | 🛠️ En progreso | Pruebas sin hardware físico     |
+| Exportación de datos | ✅ Completo    | CSV/JSON para análisis externo  |
+| Multiplataforma      | ✅ Completo    | Web, móvil, desktop             |
 
 ---
 
@@ -44,7 +41,7 @@ Este software fue diseñado como plataforma de pruebas para experimentación y v
 ---
 
 ## 🤔 ¿Sabías que...?
-- Puedes conectar varios drones a la vez y monitorearlos desde la misma interfaz.
+
 - El backend puede ser usado como base para otros robots IoT.
 - ¡La interfaz es totalmente responsive y funciona en tu celular!
 - El sistema está preparado para ser extendido con nuevos sensores o protocolos.
@@ -54,22 +51,27 @@ Este software fue diseñado como plataforma de pruebas para experimentación y v
 ## ✨ Lo que hace único a Artheris FlightControl
 
 ### 🚦 Integración de hardware flexible
+
 - Compatible con múltiples sensores (IMU, magnetómetro, temperatura, presión, etc.).
 - Arquitectura modular: puedes adaptar el sistema fácilmente a diferentes modelos de drones o añadir nuevos periféricos.
 
 ### 📡 WebSocket puro y arquitectura moderna
+
 - Comunicación en tiempo real sin dependencias externas, logrando baja latencia y alta robustez.
 - Backend y frontend desacoplados: puedes conectar otras interfaces (CLI, móvil, etc.) fácilmente.
 
 ### 📊 Visualización y análisis en tiempo real
+
 - Gráficas interactivas para telemetría y comandos.
 - Historial de vuelos accesible desde la web para análisis y comparación.
 
 ### 🛠️ Exportación y reproducibilidad
+
 - Exporta tus vuelos y experimentos a CSV/JSON para análisis en Python, Matlab, R, etc.
 - Scripts y plantillas incluidos para facilitar la configuración y conexión del ESP32.
 
 ### 🧑‍💻 Casos de uso destacados
+
 - **Educación:** Ideal para prácticas de laboratorio en universidades y formación técnica.
 - **Investigación:** Plataforma base para experimentos en control, robótica o IoT.
 - **Prototipado rápido:** Perfecto para makers y startups que quieran validar ideas de drones conectados.

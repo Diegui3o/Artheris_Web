@@ -17,6 +17,31 @@ Este software fue diseñado como plataforma de pruebas para experimentación y v
 
 ---
 
+## ✨ Lo que hace único a Artheris FlightControl
+
+### 🚦 Integración de hardware flexible
+- Compatible con múltiples sensores (IMU, magnetómetro, temperatura, presión, etc.).
+- Arquitectura modular: puedes adaptar el sistema fácilmente a diferentes modelos de drones o añadir nuevos periféricos.
+
+### 📡 WebSocket puro y arquitectura moderna
+- Comunicación en tiempo real sin dependencias externas, logrando baja latencia y alta robustez.
+- Backend y frontend desacoplados: puedes conectar otras interfaces (CLI, móvil, etc.) fácilmente.
+
+### 📊 Visualización y análisis en tiempo real
+- Gráficas interactivas para telemetría y comandos.
+- Historial de vuelos accesible desde la web para análisis y comparación.
+
+### 🛠️ Exportación y reproducibilidad
+- Exporta tus vuelos y experimentos a CSV/JSON para análisis en Python, Matlab, R, etc.
+- Scripts y plantillas incluidos para facilitar la configuración y conexión del ESP32.
+
+### 🧑‍💻 Casos de uso destacados
+- **Educación:** Ideal para prácticas de laboratorio en universidades y formación técnica.
+- **Investigación:** Plataforma base para experimentos en control, robótica o IoT.
+- **Prototipado rápido:** Perfecto para makers y startups que quieran validar ideas de drones conectados.
+
+---
+
 ## 🔧 Requisitos
 
 ### Hardware:

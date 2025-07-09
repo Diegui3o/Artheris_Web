@@ -6,6 +6,14 @@ Este software fue diseñado como plataforma de pruebas para experimentación y v
 
 ---
 
+![MIT License](https://img.shields.io/badge/license-MIT-green)
+![Node.js](https://img.shields.io/badge/Node.js-22%2B-brightgreen)
+![React](https://img.shields.io/badge/React-18%2B-blue)
+![WebSocket](https://img.shields.io/badge/WebSocket-Real%20Time-orange)
+
+[![Ver Demo](https://img.shields.io/badge/Ver-Demo-blue?style=for-the-badge)](./assets/demo.gif)
+[![Documentación](https://img.shields.io/badge/Ir-a-la-Documentación-brightgreen?style=for-the-badge)](https://github.com/Diegui3o/websockets_web/wiki)
+
 ## 🛰️ Características principales
 
 - Comunicación bidireccional en tiempo real mediante WebSocket puro.
@@ -14,6 +22,32 @@ Este software fue diseñado como plataforma de pruebas para experimentación y v
 - Registro automático y almacenamiento seguro de vuelos en una base de datos de series temporales (QuestDB), facilitando el análisis y la trazabilidad.
 - Modo simulación (en desarrollo) para pruebas sin hardware físico.
 - Interfaz web intuitiva y responsiva, desarrollada en React + TypeScript, compatible con dispositivos móviles y de escritorio.
+
+---
+
+## 📋 Tabla de funcionalidades
+
+| Característica        | Estado        | Descripción                          |
+|-----------------------|--------------|--------------------------------------|
+| Telemetría en vivo    | ✅ Completo   | Gráficas y datos en tiempo real      |
+| Control remoto        | ✅ Completo   | LED, motores, modos de vuelo         |
+| Modo simulación       | 🛠️ En progreso | Pruebas sin hardware físico          |
+| Exportación de datos  | ✅ Completo   | CSV/JSON para análisis externo       |
+| Multiplataforma       | ✅ Completo   | Web, móvil, desktop                  |
+
+---
+
+## 🎬 Demo en acción
+
+![Demo de la interfaz](./assets/demo.gif)
+
+---
+
+## 🤔 ¿Sabías que...?
+- Puedes conectar varios drones a la vez y monitorearlos desde la misma interfaz.
+- El backend puede ser usado como base para otros robots IoT.
+- ¡La interfaz es totalmente responsive y funciona en tu celular!
+- El sistema está preparado para ser extendido con nuevos sensores o protocolos.
 
 ---
 

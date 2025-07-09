@@ -1,4 +1,3 @@
-// socketHandler.js
 export function handleSocketConnection(socket, state) {
     console.log('Cliente conectado');
 
@@ -8,10 +7,10 @@ export function handleSocketConnection(socket, state) {
         flightId: state.flightId,
     });
 
-    // Emitir la última telemetría al conectar
+    // Issue the last telemetry when connecting
     socket.emit('sensorUpdate', state.latestTelemetry);
 
-    // Permitir que el backend emita telemetría a todos los clientes fácilmente
+    // Allow the backend to emit telemetry to all customers easily
     state.emitTelemetry = (telemetry) => {
         state.latestTelemetry = telemetry;
         socket.server.emit('sensorUpdate', telemetry);
@@ -38,13 +37,11 @@ export function handleSocketConnection(socket, state) {
         socket.broadcast.emit('motors', val);
     });
 
-    // Recibir datos de telemetría desde el ESP32 (WebSocket)
+    // Receive telemetry data from ESP32 (Websockt)
     socket.on('telemetria', (data) => {
         console.log("Telemetría recibida del ESP32:", data);
         state.latestTelemetry = data;
-        // Emitir a todos los clientes web conectados
         socket.server.emit('sensorUpdate', data);
-        // Guardar si está grabando
         if (state.isRecording) state.telemetries.push(data);
     });
 }

@@ -1,5 +1,16 @@
 import { useState } from "react";
-import { Search, Menu, Home, Airplay, Sliders, Wrench, AirVent, Cpu, Settings, User } from "lucide-react";
+import {
+  Search,
+  Menu,
+  Home,
+  Airplay,
+  Sliders,
+  Wrench,
+  AirVent,
+  Cpu,
+  Settings,
+  User,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   Drawer,
@@ -22,29 +33,30 @@ export default function Layout() {
   const [showNoResults, setShowNoResults] = useState(false);
   const navigate = useNavigate();
 
-  // Filtrar rutas basado en el término de búsqueda
+  // Filter routes based on the search term
   const handleSearch = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setSearchTerm(value);
-    
+
     if (value.trim() === "") {
       setShowNoResults(false);
       return;
     }
 
-    const filteredRoutes = routes.filter(route =>
-      route.name.toLowerCase().includes(value.toLowerCase()) ||
-      route.description.toLowerCase().includes(value.toLowerCase())
+    const filteredRoutes = routes.filter(
+      (route) =>
+        route.name.toLowerCase().includes(value.toLowerCase()) ||
+        route.description.toLowerCase().includes(value.toLowerCase())
     );
-    
+
     setShowNoResults(filteredRoutes.length === 0);
   };
 
   return (
     <div className="h-screen flex flex-col">
-      {/* Barra superior */}
+      {/* Upper bar */}
       <header className="bg-gray-900 text-white flex items-center justify-between px-4 py-3 shadow-md fixed top-0 left-0 w-full z-10">
-        {/* Contenedor del logo y botón de menú */}
+        {/* Logo container and menu button */}
         <div
           className="flex items-center transition-all"
           style={{ marginLeft: isOpen ? 240 : 80 }}
@@ -69,7 +81,7 @@ export default function Layout() {
           )}
         </div>
 
-        {/* Barra de búsqueda */}
+        {/* Search bar */}
         <TextField
           fullWidth={false}
           placeholder="Buscar..."
@@ -89,44 +101,43 @@ export default function Layout() {
           autoCorrect="off"
           spellCheck={false}
           sx={{
-            bgcolor: 'rgba(255, 255, 255, 0.1)',
+            bgcolor: "rgba(255, 255, 255, 0.1)",
             borderRadius: 1,
-            width: '200px',
-            height: '32px',
+            width: "200px",
+            height: "32px",
             mb: 2,
-            transition: 'all 0.3s ease',
-            '& .MuiOutlinedInput-root': {
-              '& fieldset': {
-                borderColor: 'rgba(255, 255, 255, 0.2)',
+            transition: "all 0.3s ease",
+            "& .MuiOutlinedInput-root": {
+              "& fieldset": {
+                borderColor: "rgba(255, 255, 255, 0.2)",
               },
-              '&:hover fieldset': {
-                borderColor: '#f3f4f6',
-                transform: 'scale(1.02)',
+              "&:hover fieldset": {
+                borderColor: "#f3f4f6",
+                transform: "scale(1.02)",
               },
-              '&.Mui-focused fieldset': {
-                borderColor: '#f3f4f6',
-                transform: 'scale(1.02)',
+              "&.Mui-focused fieldset": {
+                borderColor: "#f3f4f6",
+                transform: "scale(1.02)",
               },
             },
-            '& .MuiInputBase-input': {
-              color: '#f3f4f6',
-              fontSize: '0.875rem',
-              padding: '8px 12px',
+            "& .MuiInputBase-input": {
+              color: "#f3f4f6",
+              fontSize: "0.875rem",
+              padding: "8px 12px",
             },
           }}
         />
       </header>
 
-      {/* Contenedor principal */}
+      {/* Main container */}
       <div className="flex flex-1 mt-[60px]">
-        {/* Sidebar */}
         <Drawer
           variant="permanent"
           open={isOpen}
           sx={{
             width: isOpen ? 240 : 80,
             flexShrink: 0,
-            '& .MuiDrawer-paper': {
+            "& .MuiDrawer-paper": {
               width: isOpen ? 240 : 80,
               boxSizing: "border-box",
               backgroundColor: "#1f2937",
@@ -138,14 +149,16 @@ export default function Layout() {
           <Divider />
           <List>
             {showNoResults ? (
-              <Box sx={{
-                p: 2,
-                textAlign: 'center',
-                color: '#a1a1aa',
-                bgcolor: 'rgba(255, 255, 255, 0.05)',
-                borderRadius: 1,
-                mb: 2,
-              }}>
+              <Box
+                sx={{
+                  p: 2,
+                  textAlign: "center",
+                  color: "#a1a1aa",
+                  bgcolor: "rgba(255, 255, 255, 0.05)",
+                  borderRadius: 1,
+                  mb: 2,
+                }}
+              >
                 No se encontraron resultados
               </Box>
             ) : (
@@ -162,35 +175,35 @@ export default function Layout() {
                   sx={{
                     mb: 1,
                     borderRadius: 1,
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      backgroundColor: '#374151',
-                      transform: 'translateX(5px)',
+                    transition: "all 0.2s ease",
+                    "&:hover": {
+                      backgroundColor: "#374151",
+                      transform: "translateX(5px)",
                     },
-                    '& .MuiListItemIcon-root': {
-                      minWidth: 'auto',
-                      color: '#a1a1aa',
+                    "& .MuiListItemIcon-root": {
+                      minWidth: "auto",
+                      color: "#a1a1aa",
                     },
                   }}
                 >
                   <ListItemIcon>
-                    {route.icon === 'Home' && <Home size={20} />}
-                    {route.icon === 'Airplay' && <Airplay size={20} />}
-                    {route.icon === 'Sliders' && <Sliders size={20} />}
-                    {route.icon === 'Wrench' && <Wrench size={20} />}
-                    {route.icon === 'AirVent' && <AirVent size={20} />}
-                    {route.icon === 'Cpu' && <Cpu size={20} />}
-                    {route.icon === 'Settings' && <Settings size={20} />}
-                    {route.icon === 'User' && <User size={20} />}
+                    {route.icon === "Home" && <Home size={20} />}
+                    {route.icon === "Airplay" && <Airplay size={20} />}
+                    {route.icon === "Sliders" && <Sliders size={20} />}
+                    {route.icon === "Wrench" && <Wrench size={20} />}
+                    {route.icon === "AirVent" && <AirVent size={20} />}
+                    {route.icon === "Cpu" && <Cpu size={20} />}
+                    {route.icon === "Settings" && <Settings size={20} />}
+                    {route.icon === "User" && <User size={20} />}
                   </ListItemIcon>
-                  <ListItemText 
+                  <ListItemText
                     primary={route.name}
                     sx={{
-                      display: isOpen ? 'block' : 'none',
-                      '& .MuiListItemText-primary': {
-                        color: '#f3f4f6',
+                      display: isOpen ? "block" : "none",
+                      "& .MuiListItemText-primary": {
+                        color: "#f3f4f6",
                         fontWeight: 500,
-                        fontSize: '0.875rem',
+                        fontSize: "0.875rem",
                       },
                     }}
                   />

@@ -1,19 +1,19 @@
 import { DeviceProfile, Vuelo } from "../types";
 
-// Obtiene la lista de dispositivos conectados y su estadoexport async function fetchDevices(): Promise<DeviceProfile[]> {
+export async function fetchDevices(): Promise<DeviceProfile[]> {
   const res = await fetch("http://localhost:3002/api/devices");
   if (!res.ok) throw new Error("No se pudo obtener la lista de dispositivos");
   return res.json();
 }
 
-// Obtiene el perfil de un dispositivo por ID
+// Get the profile of a device by ID
 export async function fetchDeviceProfile(deviceId: string): Promise<DeviceProfile> {
   const res = await fetch(`http://localhost:3002/api/profile/${deviceId}`);
   if (!res.ok) throw new Error("No se pudo obtener el perfil del dispositivo");
   return res.json();
 }
 
-// Actualiza el perfil de un dispositivo
+// Update the profile of a device
 export async function updateDeviceProfile(deviceId: string, nombre: string, skin: string): Promise<DeviceProfile> {
   const res = await fetch(`http://localhost:3002/api/profile/${deviceId}`, {
     method: "PUT",
@@ -24,7 +24,7 @@ export async function updateDeviceProfile(deviceId: string, nombre: string, skin
   return res.json();
 }
 
-// Obtiene el historial de vuelos de un dispositivo
+// Obtain a device's flight history
 export async function fetchDeviceFlights(deviceId: string): Promise<Vuelo[]> {
   const res = await fetch(`http://localhost:3002/api/flights/${deviceId}`);
   if (!res.ok) throw new Error("No se pudo obtener el historial de vuelos");

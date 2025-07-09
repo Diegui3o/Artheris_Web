@@ -11,18 +11,17 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
     let simMode = false;
     let simHistory = [];
 
-    // Middleware para manejar errores
+    // Middleware to handle errors
     function errorHandler(err, req, res, next) {
         console.error(err.stack);
         res.status(500).send('Algo salió mal!');
     }
 
-    // Iniciar nueva grabación
+    // Start new recording
     router.post('/start-recording', async (req, res) => {
         try {
             if (recordingTimeout) clearTimeout(recordingTimeout);
             const { Kc, Ki, mass, armLength } = req.body || {};
-            // --- VALIDACIÓN ROBUSTA ---
             if (!Kc || typeof Kc !== 'object' || Object.keys(Kc).length < 6) {
                 return res.status(400).json({ error: 'Parámetros Kc incompletos o inválidos' });
             }
@@ -43,7 +42,7 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
                 return res.status(500).json({ error: 'Error al guardar vuelo en base de datos', details: dbErr.message });
             }
             currentFlightId = flightId;
-            // --- ACTUALIZA EL ESTADO GLOBAL ---
+            // Update the global state
             state.isRecording = true;
             state.flightId = flightId;
             recordingTimeout = setTimeout(() => {
@@ -63,7 +62,7 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
         }
     });
 
-    // Endpoint para detener la grabación
+    // Endpoint to stop recording
     router.post('/stop-recording', (req, res) => {
         currentFlightId = null;
         state.isRecording = false;
@@ -71,7 +70,6 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
         res.json({ message: 'Grabación detenida' });
     });
 
-    // Endpoint temporal para depuración: ver últimos datos guardados
     router.get('/debug/latest-data', (req, res) => {
         res.json({
             currentFlightId,
@@ -79,22 +77,19 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
             modo
         });
     });
-
-    // Endpoint temporal para depuración: ver últimos datos guardados (JSON)
     router.get('/debug/sensor-data/json', async (req, res) => {
         try {
-            const result = await printLastSensorData(10, true); // true = return rows
+            const result = await printLastSensorData(10, true);
             res.json({ data: result });
         } catch (err) {
             res.status(500).json({ error: 'Error al consultar sensor_data' });
         }
     });
 
-    // Manejar datos de telemetría y guardar en QuestDB si hay un vuelo activo
+    // Handle telemetry data and save in Questdb if there is an active flight
     if (io) {
         io.on('connection', (socket) => {
             socket.on('telemetria', (data) => {
-                //console.log('[DEBUG] Evento telemetria recibido (io.on):', data);
                 latestData = data;
                 modo = data.modo ?? modo;
                 if (typeof broadcastData === 'function') broadcastData(data);
@@ -105,7 +100,6 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
                 try {
                     const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
                     if (parsedData.type === 'telemetria' && parsedData.payload) {
-                        //console.log('[DEBUG] Evento telemetria recibido (io.on message):', parsedData.payload);
                         const sensorData = parsedData.payload;
                         latestData = sensorData;
                         modo = sensorData.modo ?? modo;
@@ -120,13 +114,12 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
     }
 
     if (espNamespace) {
-        // Manejar conexiones ESP32 y guardar en QuestDB si hay un vuelo activo
+        // Handle ESP32 and keep in Questdb if there is an active flight
         espNamespace.on('connection', (socket) => {
             socket.on('message', (data) => {
                 try {
                     const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
                     if (parsedData.type === 'telemetria' && parsedData.payload) {
-                        //console.log('[DEBUG] Evento telemetria recibido (espNamespace):', parsedData.payload);
                         const sensorData = parsedData.payload;
                         latestData = sensorData;
                         modo = sensorData.modo ?? modo;
@@ -156,6 +149,5 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
         });
     });
 
-    // Exporta el router para usarlo en index.js
     return router;
 }

@@ -4,7 +4,6 @@ import Plot from "react-plotly.js";
 import { io as socketIOClient, Socket } from "socket.io-client";
 import PositionChart from "../components/charts/PositionChart";
 
-// --- NUEVO: Componente Tabs para agrupar gráficas ---
 const Tabs: React.FC<{
   tabs: { label: string; content: React.ReactNode }[];
 }> = ({ tabs }) => {
@@ -33,7 +32,6 @@ const Tabs: React.FC<{
   );
 };
 
-// --- LIMPIEZA: Importa o define Trajectory3D si no existe ---
 const Trajectory3D = () => (
   <div className="text-gray-400 text-center">
     (Visualización 3D no implementada)
@@ -41,7 +39,6 @@ const Trajectory3D = () => (
 );
 
 const Simulator: React.FC = () => {
-  // Form state
   const [params, setParams] = useState({
     mass: 1.0,
     Ixx: 0.0221,
@@ -60,8 +57,6 @@ const Simulator: React.FC = () => {
     error?: number[][];
     inputs?: number[][];
   }>({ time: [], states: [] });
-
-  // --- NUEVO: Historial de ángulos del ESP32 (crudo y Kalman) ---
   const [esp32Angles, setEsp32Angles] = useState<{
     time: number[];
     roll: number[];
@@ -83,13 +78,9 @@ const Simulator: React.FC = () => {
     rawPitch: [],
     rawYaw: [],
   });
-
-  // --- NUEVO: Tiempo de los datos del ESP32 ---
   const [esp32Time, setEsp32Time] = useState<number[]>([]);
 
-  // Socket.IO connection for simulation
   useEffect(() => {
-    // Consultar al backend si la simulación sigue activa al cargar la página
     axios.get("/simulate/status").then((res) => {
       if (res.data?.simActive) {
         setSimActive(true);
@@ -99,7 +90,6 @@ const Simulator: React.FC = () => {
     });
   }, []);
 
-  // Cargar historial de simulación si está activa
   useEffect(() => {
     if (!simActive) return;
     axios.get("/simulate/history").then((res) => {
@@ -116,7 +106,6 @@ const Simulator: React.FC = () => {
         ),
       });
     });
-    // Usar URL absoluta para evitar problemas de proxy
     const socket: Socket = socketIOClient("http://localhost:3002");
     socket.on("datosSimulacion", (data) => {
       if (Array.isArray(data.state) && data.state.length === 12) {
@@ -134,7 +123,6 @@ const Simulator: React.FC = () => {
         }));
       }
     });
-    // --- NUEVO: Escuchar ángulos del ESP32 por socket ---
     socket.on("sensorUpdate", (data) => {
       setEsp32Angles((prev) => ({
         time: [...prev.time, Date.now() / 1000],
@@ -162,7 +150,6 @@ const Simulator: React.FC = () => {
           typeof data.AngleYaw === "number" ? data.AngleYaw : 0,
         ],
       }));
-      // --- NUEVO: Actualizar tiempo ESP32 ---
       setEsp32Time((prev) => [...prev, Date.now() / 1000]);
     });
     return () => {
@@ -170,10 +157,8 @@ const Simulator: React.FC = () => {
     };
   }, [simActive]);
 
-  // Activar/desactivar simulación
   const handleSimToggle = async () => {
     if (!simActive) {
-      // Iniciar simulación
       setLoading(true);
       try {
         await axios.post("/simulate/start", {
@@ -190,7 +175,6 @@ const Simulator: React.FC = () => {
       }
       setLoading(false);
     } else {
-      // Detener simulación
       setLoading(true);
       try {
         await axios.post("/simulate/stop");
@@ -202,8 +186,6 @@ const Simulator: React.FC = () => {
     }
   };
 
-  // Usa los datos reales si existen, si no usa los de ejemplo
-  // --- NUEVO: Usar simTime del backend si está disponible ---
   const time = simData.time.length > 0 ? simData.time : [0, 1, 2, 3, 4, 5];
   const states =
     simData.states.length > 0
@@ -217,7 +199,6 @@ const Simulator: React.FC = () => {
           [5, 2.5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ];
 
-  // --- NUEVO: Gráficas separadas para velocidades lineales individuales ---
   const VelocityXChart = () => {
     const N = 200;
     const simTime = getLastN(time, N);
@@ -1290,9 +1271,6 @@ const Simulator: React.FC = () => {
     );
   };
 
-  // --- NUEVO: Gráfico de debug para ver qué datos están llegando ---
-
-  // --- NUEVO: Gráfica de trayectoria 3D mejorada ---
   const Trajectory3DChart = () => {
     const N = 200;
     const x = getLastN(
@@ -1380,7 +1358,6 @@ const Simulator: React.FC = () => {
     );
   };
 
-  // --- NUEVO: Gráficas de torques mejoradas ---
   const TorqueXChart = () => {
     const N = 200;
     const simTime = getLastN(time, N);
@@ -1425,7 +1402,7 @@ const Simulator: React.FC = () => {
           },
           yaxis: {
             title: {
-              text: "Torque (N⋅m) × 1000", // Indicar que está amplificado
+              text: "Torque (N⋅m) × 1000",
               font: { color: "#dc2626", size: 12 },
             },
             tickfont: { color: "#222", size: 10 },
@@ -1502,7 +1479,7 @@ const Simulator: React.FC = () => {
           },
           yaxis: {
             title: {
-              text: "Torque (N⋅m) × 1000", // Indicar que está amplificado
+              text: "Torque (N⋅m) × 1000",
               font: { color: "#ea580c", size: 12 },
             },
             tickfont: { color: "#222", size: 10 },
@@ -1612,11 +1589,9 @@ const Simulator: React.FC = () => {
     );
   };
 
-  // --- NUEVO: Gráficos de torques reales del ESP32 ---
   const ESP32TorqueXChart = () => {
     const N = 200;
     const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
-    // --- LIMPIO: Torques del ESP32 en 0 (sin ruido) ---
     const esp32TorqueX = getLastN(
       esp32Time.map(() => 0),
       N
@@ -1698,7 +1673,6 @@ const Simulator: React.FC = () => {
   const ESP32TorqueYChart = () => {
     const N = 200;
     const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
-    // --- LIMPIO: Torques del ESP32 en 0 (sin ruido) ---
     const esp32TorqueY = getLastN(
       esp32Time.map(() => 0),
       N
@@ -1780,7 +1754,6 @@ const Simulator: React.FC = () => {
   const ESP32TorqueZChart = () => {
     const N = 200;
     const esp32TimeSync = getLastN(syncTimePerfectly(esp32Time, time), N);
-    // --- LIMPIO: Torques del ESP32 en 0 (sin ruido) ---
     const esp32TorqueZ = getLastN(
       esp32Time.map(() => 0),
       N

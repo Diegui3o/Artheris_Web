@@ -6,9 +6,8 @@ const updateMode = (newMode, esp32Socket, modoRef) => {
         modoRef.value = newMode;
         io.emit('modo', modoRef.value);
 
-        // Enviar comando específico al ESP32 si está conectado
+        // Send specific command to ESP32 if you are connected
         if (esp32Socket) {
-            // Formato JSON que el ESP32 puede procesar
             const modeCommand = {
                 type: "command",
                 payload: {
@@ -25,7 +24,6 @@ const updateMode = (newMode, esp32Socket, modoRef) => {
 
 // Logic function to set LED state on all ESP32 clients
 const setLedState = (ledOn, wss, io) => {
-    // Send LED command to all ESP32 WebSocket clients in the format ESP32 expects
     wss.clients.forEach(client => {
         if (client.readyState === 1) {
             client.send(JSON.stringify({ type: 'command', payload: { led: ledOn } }));
@@ -38,7 +36,6 @@ const setLedState = (ledOn, wss, io) => {
 
 // Logic function to set motor state on all ESP32 clients
 const setMotorsState = (motorsOn, wss, io) => {
-    // Send motor command to all ESP32 WebSocket clients in the format ESP32 expects
     wss.clients.forEach(client => {
         if (client.readyState === 1) {
             client.send(JSON.stringify({ type: 'command', payload: { motors: motorsOn } }));
@@ -51,16 +48,13 @@ const setMotorsState = (motorsOn, wss, io) => {
 
 // Logic function to set mode on all ESP32 clients
 const setMode = (mode, wss, io) => {
-    // Send mode command to all ESP32 WebSocket clients in the format ESP32 expects
     wss.clients.forEach(client => {
         if (client.readyState === 1) {
             client.send(JSON.stringify({ type: 'command', payload: { mode } }));
         }
     });
-    // Emit to all web clients as well
     io.emit('modo', mode);
     console.log(`📤 Enviando comando de MODO al ESP32: ${mode}`);
 };
 
-// Export only logic functions
 export { updateMode, setLedState, setMotorsState, setMode };

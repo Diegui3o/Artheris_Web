@@ -1,9 +1,5 @@
-// Funciones útiles para calcular estadísticas del perfil y vuelos
 import { DatosSensor, Vuelo } from "../types";
 
-
-
-// Convierte "mm:ss" o "hh:mm:ss" a segundos
 export function parseDuracion(duracion: string): number {
   const partes = duracion.split(":").map(Number);
   if (partes.length === 2) return partes[0] * 60 + partes[1];
@@ -11,7 +7,6 @@ export function parseDuracion(duracion: string): number {
   return 0;
 }
 
-// Convierte "x.x km" o "xxx m" a metros
 export function parseDistancia(distancia: string): number {
   if (distancia.includes("km")) return parseFloat(distancia) * 1000;
   if (distancia.includes("m")) return parseFloat(distancia);

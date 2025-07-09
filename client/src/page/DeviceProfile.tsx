@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { fetchDeviceProfile, fetchDeviceFlights, updateDeviceProfile } from "../utils/deviceApi";
+import {
+  fetchDeviceProfile,
+  fetchDeviceFlights,
+  updateDeviceProfile,
+} from "../utils/deviceApi";
 import { DeviceProfile, Vuelo } from "../types";
 import { parseDuracion } from "../utils/profileStats";
 
@@ -15,7 +19,9 @@ const DeviceProfilePage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   // deviceProfile reemplaza a profile para consistencia con el frontend
-  const [deviceProfile, setDeviceProfile] = useState<DeviceProfile | null>(null);
+  const [deviceProfile, setDeviceProfile] = useState<DeviceProfile | null>(
+    null
+  );
   const [historial, setHistorial] = useState<Vuelo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,9 +78,13 @@ const DeviceProfilePage: React.FC = () => {
         </button>
         <div className="flex items-center gap-4 mb-4">
           <span
-            className={`inline-block w-3 h-3 rounded-full ${deviceProfile?.conectado ? "bg-green-400" : "bg-red-400"}`}
+            className={`inline-block w-3 h-3 rounded-full ${
+              deviceProfile?.conectado ? "bg-green-400" : "bg-red-400"
+            }`}
           />
-          <h2 className="text-2xl font-bold text-white">{deviceProfile?.nombre}</h2>
+          <h2 className="text-2xl font-bold text-white">
+            {deviceProfile?.nombre}
+          </h2>
           <span className="ml-auto px-2 py-0.5 rounded text-xs font-mono tracking-widest shadow bg-black/40 text-green-200">
             {deviceProfile?.conectado ? "Conectado" : "Desconectado"}
           </span>
@@ -94,21 +104,27 @@ const DeviceProfilePage: React.FC = () => {
           <span className="block text-xs text-gray-400">Total tiempo</span>
           <span className="block text-xl font-bold text-cyan-400">
             {historial
-              .reduce((acc: number, v: Vuelo) => acc + parseDuracion(v.duracion), 0)
+              .reduce(
+                (acc: number, v: Vuelo) => acc + parseDuracion(v.duracion),
+                0
+              )
               .toFixed(1)}{" "}
             min
           </span>
-          </div>
-          <div>
-            <span className="block text-xs text-gray-400">Total tiempo</span>
-            <span className="block text-xl font-bold text-cyan-400">
-              {historial
-                .reduce((acc: number, v: Vuelo) => acc + parseDuracion(v.duracion), 0)
-                .toFixed(1)}{" "}
-              min
-            </span>
-          </div>
         </div>
+        <div>
+          <span className="block text-xs text-gray-400">Total tiempo</span>
+          <span className="block text-xl font-bold text-cyan-400">
+            {historial
+              .reduce(
+                (acc: number, v: Vuelo) => acc + parseDuracion(v.duracion),
+                0
+              )
+              .toFixed(1)}{" "}
+            min
+          </span>
+        </div>
+      </div>
       <div className="bg-gray-800 rounded-lg p-4">
         <h3 className="text-lg font-bold text-cyan-300 mb-2">
           Historial de Vuelos
@@ -283,7 +299,7 @@ const DeviceProfilePage: React.FC = () => {
                   Reiniciar estadísticas
                 </button>
               </div>
-              {/* LOGROS VISUALES */}
+              {/* Visual achievements */}
               <div className="flex flex-wrap gap-2 mt-4">
                 {LOGROS.map((l: { nombre: string }, i: number) => (
                   <span
@@ -295,7 +311,7 @@ const DeviceProfilePage: React.FC = () => {
                   </span>
                 ))}
               </div>
-              {/* DETALLES ÚTILES */}
+              {/* Useful details */}
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div className="text-xs text-gray-400">
                   <b>Última conexión:</b>{" "}
@@ -308,7 +324,7 @@ const DeviceProfilePage: React.FC = () => {
                 </div>
               </div>
             </div>
-            {/* HISTORIAL DE VUELOS */}
+            {/* Flight history */}
             <div className="rounded-2xl bg-white/10 backdrop-blur-md p-6 shadow-xl border border-white/10 flex flex-col relative overflow-hidden w-full mt-4">
               <h2 className="text-lg font-bold text-white mb-4">
                 Historial de Vuelos
@@ -343,6 +359,6 @@ const DeviceProfilePage: React.FC = () => {
       </div>
     </>
   );
-}
+};
 
 export default DeviceProfilePage;

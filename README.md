@@ -22,18 +22,6 @@ Este software fue diseñado como plataforma de pruebas para experimentación y v
 
 ---
 
-## 📋 Tabla de funcionalidades
-
-| Característica       | Estado         | Descripción                     |
-| -------------------- | -------------- | ------------------------------- |
-| Telemetría en vivo   | ✅ Completo    | Gráficas y datos en tiempo real |
-| Control remoto       | ✅ Completo    | LED, motores, modos de vuelo    |
-| Modo simulación      | 🛠️ En progreso | Pruebas sin hardware físico     |
-| Exportación de datos | ✅ Completo    | CSV/JSON para análisis externo  |
-| Multiplataforma      | ✅ Completo    | Web, móvil, desktop             |
-
----
-
 ## 🎬 Demo en acción
 
 ![Demo de la interfaz](./assets/demo.gif)

@@ -62,23 +62,16 @@ export default function Layout() {
           style={{ marginLeft: isOpen ? 240 : 80 }}
         >
           <IconButton onClick={() => setIsOpen(!isOpen)} className="text-white">
-            <Menu size={24} />
+            <Menu size={24} color="#fff" />
           </IconButton>
-          {isOpen && (
-            <img
-              src="https://img.icons8.com/ultraviolet/40/drone.png"
-              alt="drone"
-              className="ml-2 transition-all"
-            />
-          )}
-          {!isOpen && (
-            <img
-              src="https://img.icons8.com/ultraviolet/40/drone.png"
-              alt="drone"
-              className="ml-2 transition-all"
-              style={{ marginLeft: "8px" }}
-            />
-          )}
+          <img
+            src="https://img.icons8.com/ultraviolet/40/drone.png"
+            alt="drone"
+            className="ml-2 transition-all"
+          />
+          <span className="ml-2 text-white font-bold text-lg select-none">
+            Artheris FlightControl
+          </span>
         </div>
 
         {/* Search bar */}
@@ -199,6 +192,7 @@ export default function Layout() {
                   <ListItemText
                     primary={route.name}
                     sx={{
+                      marginLeft: 2,
                       display: isOpen ? "block" : "none",
                       "& .MuiListItemText-primary": {
                         color: "#f3f4f6",

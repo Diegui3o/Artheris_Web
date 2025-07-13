@@ -13,6 +13,56 @@ const PORT = 3002;
 app.use(cors());
 app.use(express.json());
 
+// --- ENDPOINTS BÁSICOS PARA REGISTRO Y CONSULTA DE DRONES POR ID ---
+import fs from "fs";
+import path from "path";
+
+const DRONES_FILE = path.join(process.cwd(), "src", "server", "drones.json");
+
+function readDrones() {
+  if (!fs.existsSync(DRONES_FILE)) return [];
+  return JSON.parse(fs.readFileSync(DRONES_FILE, "utf8"));
+}
+function writeDrones(drones) {
+  fs.writeFileSync(DRONES_FILE, JSON.stringify(drones, null, 2));
+}
+
+// Registrar o actualizar dron por ID
+app.put('/api/drones/:id', (req, res) => {
+  const { id } = req.params;
+  const data = req.body;
+  let drones = readDrones();
+  let dron = drones.find(d => d.id === id);
+  if (dron) {
+    Object.assign(dron, data);
+  } else {
+    dron = { id, ...data };
+    drones.push(dron);
+  }
+  writeDrones(drones);
+  res.json(dron);
+});
+
+// Obtener dron por ID
+app.get('/api/drones/:id', (req, res) => {
+  const { id } = req.params;
+  const drones = readDrones();
+  const dron = drones.find(d => d.id === id);
+  if (!dron) return res.status(404).json({ error: 'No encontrado' });
+  res.json(dron);
+});
+
+// Listar todos los drones (opcional)
+app.get('/api/drones', (req, res) => {
+  res.json(readDrones());
+});
+
+// --- Lista global de dispositivos conectados ---
+// Endpoint para obtener los dispositivos conectados
+app.get('/api/devices', (req, res) => {
+  res.json(Object.values(dispositivosConectados));
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] }
@@ -21,6 +71,60 @@ const io = new Server(server, {
 // Server WebSocket for ESP32 (port 3003, path /esp32)
 const wssServer = http.createServer();
 const wss = new WebSocketServer({ server: wssServer, path: "/esp32" });
+
+wss.on("connection", ws => {
+    ws.on("message", msg => {
+        // Espera mensaje tipo "modo,DEVICE_ID"
+        const parts = msg.toString().split(",");
+        // Solo procesa si hay al menos 2 partes y la segunda parte es un DEVICE_ID válido
+        if (parts.length >= 2) {
+            const deviceId = parts[1];
+            if (deviceId && deviceId.startsWith("esp32-")) {
+                if (!dispositivosConectados[deviceId]) {
+                    dispositivosConectados[deviceId] = {
+                        id: deviceId,
+                        conectado: true,
+                        ultimaConexion: new Date().toISOString()
+                    };
+                } else {
+                    dispositivosConectados[deviceId].conectado = true;
+                    dispositivosConectados[deviceId].ultimaConexion = new Date().toISOString();
+                }
+                // Opcional: notifica a los clientes web
+                io.emit("deviceStatusAll", Object.values(dispositivosConectados));
+            }
+        }
+    });
+    // Guarda el id de este socket en el objeto ws
+    let currentDeviceId = null;
+    ws.on("message", msg => {
+        const parts = msg.toString().split(",");
+        if (parts.length >= 2) {
+            const deviceId = parts[1];
+            if (deviceId && deviceId.startsWith("esp32-")) {
+                currentDeviceId = deviceId;
+                if (!dispositivosConectados[deviceId]) {
+                    dispositivosConectados[deviceId] = {
+                        id: deviceId,
+                        conectado: true,
+                        ultimaConexion: new Date().toISOString()
+                    };
+                } else {
+                    dispositivosConectados[deviceId].conectado = true;
+                    dispositivosConectados[deviceId].ultimaConexion = new Date().toISOString();
+                }
+                io.emit("deviceStatusAll", Object.values(dispositivosConectados));
+            }
+        }
+    });
+    ws.on("close", () => {
+        if (currentDeviceId && dispositivosConectados[currentDeviceId]) {
+            dispositivosConectados[currentDeviceId].conectado = false;
+            dispositivosConectados[currentDeviceId].ultimaDesconexion = new Date().toISOString();
+            io.emit("deviceStatusAll", Object.values(dispositivosConectados));
+        }
+    });
+});
 wssServer.listen(3003, () => {
     console.log("Raw WebSocket server for ESP32 listening on port 3003 (path /esp32)");
 });
@@ -48,11 +152,33 @@ const simState = {
 
 // WebSocket - Clientes
 io.on("connection", socket => {
+    // Al conectar un cliente web, enviar el estado de todos los dispositivos
+    const estados = Object.values(dispositivosConectados).map(device => ({
+        id: device.id,
+        status: device.conectado ? 'connected' : 'disconnected',
+        nombre: device.nombre || device.id
+    }));
+    socket.emit('deviceStatusAll', estados);
 });
 
 // --- List of connected devices and sockets per ID ---
 const dispositivosConectados = {};
 const esp32Sockets = {};
+// --- Mapa para registrar último contacto de cada ESP32 ---
+const ultimoContacto = {};
+
+// --- Helper para emitir el estado completo de dispositivos conectados ---
+function emitirEstadoDispositivos() {
+    const estados = Object.values(dispositivosConectados)
+        .filter(d => d.conectado)
+        .map(d => ({
+            id: d.id,
+            nombre: d.nombre,
+            status: 'connected'
+        }));
+    io.emit('deviceStatusAll', estados);
+}
+
 // WebSocket - ESP32
 wss.on("connection", (ws, req) => {
     const clientIP = req.socket.remoteAddress;
@@ -81,11 +207,19 @@ wss.on("connection", (ws, req) => {
                 }
                 esp32Sockets[identificador] = ws;
                 ws.deviceId = identificador;
+                // --- Marca el último contacto de este ESP32 ---
+                ultimoContacto[identificador] = Date.now();
+                // Notificar a los clientes web el estado completo actualizado
+                emitirEstadoDispositivos();
             }
         } catch (e) {
         }
         let data;
         let parsed = false;
+        // Marca el último contacto aunque sea CSV
+        if (ws.deviceId) {
+            ultimoContacto[ws.deviceId] = Date.now();
+        }
         try {
             data = JSON.parse(message.toString());
             parsed = true;
@@ -119,7 +253,6 @@ wss.on("connection", (ws, req) => {
                 KalmanAnglePitch: getVal(14),
                 error_phi: getVal(15),
                 error_theta: getVal(16),
-                InputThrottle: getVal(17),
                 InputRoll: getVal(18),
                 InputPitch: getVal(19),
                 InputYaw: getVal(20),
@@ -185,14 +318,16 @@ wss.on("connection", (ws, req) => {
         }
     });
     ws.on("close", () => {
+        // Elimina completamente el dispositivo del registro
         if (ws.deviceId && dispositivosConectados[ws.deviceId]) {
-            dispositivosConectados[ws.deviceId].conectado = false;
-            delete dispositivosConectados[ws.deviceId].ws;
+            delete dispositivosConectados[ws.deviceId];
         }
         if (ws.deviceId && esp32Sockets[ws.deviceId]) {
             delete esp32Sockets[ws.deviceId];
         }
         console.log("❌ ESP32 desconectado (ws)");
+        // Notificar a los clientes web el estado completo actualizado
+        emitirEstadoDispositivos();
     });
 });
 function clamp(val, min = -5, max = 5) {

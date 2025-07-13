@@ -2,7 +2,7 @@ import { DeviceProfile, Vuelo } from "../types";
 
 export async function fetchDevices(): Promise<DeviceProfile[]> {
   const res = await fetch("http://localhost:3002/api/devices");
-  if (!res.ok) throw new Error("No se pudo obtener la lista de dispositivos");
+  if (!res.ok) throw new Error("No se pudo obtener la lista de dispositivos conectados");
   return res.json();
 }
 

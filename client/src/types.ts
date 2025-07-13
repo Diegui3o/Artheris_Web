@@ -18,6 +18,7 @@ export interface Vuelo {
 }
 
 export interface DeviceProfile {
+  registrado: boolean;
   id: string;              // ID único del ESP32
   nombre: string;          // Nombre personalizado
   skin: string;            // Skin seleccionado

@@ -10,6 +10,7 @@ import {
   Cpu,
   Settings,
   User,
+  Camera,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -188,6 +189,7 @@ export default function Layout() {
                     {route.icon === "Cpu" && <Cpu size={20} />}
                     {route.icon === "Settings" && <Settings size={20} />}
                     {route.icon === "User" && <User size={20} />}
+                    {route.icon === "Camera" && <Camera size={20} />}
                   </ListItemIcon>
                   <ListItemText
                     primary={route.name}

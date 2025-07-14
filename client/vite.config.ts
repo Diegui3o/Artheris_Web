@@ -9,10 +9,10 @@ export default defineConfig({
     proxy: {
       '/socket.io': {
         target: 'http://localhost:3002',
-        ws: true, // Habilita proxy para WebSocket
+        ws: true,
         changeOrigin: true,
       },
-      '/simulate': 'http://localhost:3002', // Proxy para las rutas de simulación
+      '/simulate': 'http://localhost:3002',
     },
   },
 })

@@ -56,8 +56,6 @@ const ModeSwitch = () => {
 
   useEffect(() => {
     fetchCurrentMode();
-    console.log("📡 Suscribiéndose al evento 'modo'...");
-
     socket.on("modo", (nuevoModo: number | null) => {
       // Verify if the newomode is a valid number (0, 1 or 2)
       if (nuevoModo !== null && [0, 1, 2].includes(nuevoModo)) {
@@ -66,11 +64,6 @@ const ModeSwitch = () => {
         console.warn("⚠️ Se recibió un modo inválido o null, ignorando...");
       }
     });
-
-    return () => {
-      console.log("🔄 Desuscribiéndose del evento 'modo'");
-      socket.off("modo");
-    };
   }, []);
 
   return (

@@ -1,130 +1,134 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useEffect, useRef } from "react";
+import io, { type Socket } from "socket.io-client";
 
-const RapidCapture = () => {
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [fps, setFps] = useState(5); // Fotos por segundo (5 fps ≈ 1 foto cada 200ms)
-  const captureCount = useRef(0);
-  const inputRef = useRef<HTMLInputElement>(null);
+const CameraPage: React.FC = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const roomId = "test-room";
+  const remoteStreamRef = useRef<MediaStream | null>(null);
 
-  // Método mejorado para captura rápida
-  const triggerRapidCapture = useCallback(() => {
-    if (!isCapturing) return;
-
-    // Disparador de la cámara nativa
-    if (inputRef.current) {
-      inputRef.current.value = ""; // Resetear el input
-      inputRef.current.click();
-      captureCount.current++;
-    }
-  }, [isCapturing]);
-
-  // Efecto para el intervalo de captura
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (isCapturing) {
-      interval = setInterval(triggerRapidCapture, 1000 / fps);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isCapturing, fps, triggerRapidCapture]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setPhotos((prev) => [
-          ...prev.slice(-50),
-          event.target?.result as string,
-        ]); // Mantener solo las últimas 50 fotos
-      };
-      reader.readAsDataURL(file);
+  const handleVideoClick = () => {
+    if (videoRef.current && remoteStreamRef.current) {
+      videoRef.current.srcObject = remoteStreamRef.current;
+      videoRef.current.play().catch((e) => {
+        console.error("Error al reproducir video:", e);
+      });
     }
   };
 
+  useEffect(() => {
+    // Conéctate al servidor de señalización usando la IP de la red local
+    socketRef.current = io("http://192.168.1.11:3002/webrtc");
+    const socket = socketRef.current;
+
+    const createPeerConnection = () => {
+      console.log("1. Creando PeerConnection...");
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      });
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && socket) {
+          console.log("-> LOCAL: Enviando candidato ICE:", event.candidate);
+          socket.emit("candidate", { candidate: event.candidate, roomId });
+        }
+      };
+
+      pc.ontrack = (event) => {
+        console.log(
+          "✅ Stream recibido con tracks:",
+          event.streams[0].getTracks()
+        );
+        remoteStreamRef.current = event.streams[0];
+
+        // Verifica los tracks
+        const videoTracks = event.streams[0].getVideoTracks();
+        const audioTracks = event.streams[0].getAudioTracks();
+        console.log(
+          `Video tracks: ${videoTracks.length}, Audio tracks: ${audioTracks.length}`
+        );
+
+        if (videoTracks.length > 0) {
+          videoTracks[0].onended = () => console.log("Video track terminado");
+          videoTracks[0].onmute = () => console.log("Video track muteado");
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log(`ℹ️ Estado de conexión ICE: ${pc.iceConnectionState}`);
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log(`ℹ️ Estado de conexión Peer: ${pc.connectionState}`);
+      };
+
+      peerConnectionRef.current = pc;
+    };
+
+    socket.on("connect", () => {
+      console.log("✅ SUCCESS: Conectado al servidor de señalización!");
+      console.log(`2. Uniéndose a la sala: ${roomId}`);
+      socket.emit("join", roomId);
+    });
+
+    socket.on("offer", async (data: { sdp: string; type: RTCSdpType }) => {
+      console.log("<- REMOTE: Oferta recibida del par remoto.");
+      if (!peerConnectionRef.current) {
+        createPeerConnection();
+      }
+
+      const pc = peerConnectionRef.current;
+      if (!pc) return;
+
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(data));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        console.log("-> LOCAL: Enviando respuesta al par remoto.");
+        socket.emit("answer", { sdp: answer.sdp, type: answer.type, roomId });
+      } catch (e) {
+        console.error("Error al manejar la oferta:", e);
+      }
+    });
+
+    socket.on("candidate", (data: { candidate: RTCIceCandidateInit }) => {
+      if (data.candidate) {
+        console.log("<- REMOTE: Candidato ICE recibido:", data.candidate);
+        peerConnectionRef.current
+          ?.addIceCandidate(new RTCIceCandidate(data.candidate))
+          .catch((e) => {
+            console.error("Error al añadir candidato ICE:", e);
+          });
+      }
+    });
+
+    createPeerConnection();
+
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+      }
+    };
+  }, []);
+
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Captura Rápida</h1>
-
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <button
-          onClick={() => setIsCapturing(!isCapturing)}
-          className={`p-3 rounded-lg text-white ${
-            isCapturing ? "bg-red-600" : "bg-green-600"
-          }`}
-        >
-          {isCapturing
-            ? `Detener (${captureCount.current})`
-            : "Iniciar Captura"}
-        </button>
-
-        <select
-          value={fps}
-          onChange={(e) => setFps(Number(e.target.value))}
-          className="p-3 border rounded-lg"
-          disabled={isCapturing}
-        >
-          <option value={1}>1 FPS</option>
-          <option value={2}>2 FPS</option>
-          <option value={5}>5 FPS</option>
-          <option value={10}>10 FPS</option>
-        </select>
-      </div>
-
-      <input
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleFileChange}
-        ref={inputRef}
-        style={{ display: "none" }}
+    <div>
+      <h1>Transmisión de Video</h1>
+      <video
+        ref={videoRef}
+        playsInline
+        controls
+        style={{ width: "100%", maxWidth: "640px", cursor: "pointer" }}
+        onClick={handleVideoClick}
       />
-
-      <div className="photo-grid">
-        {photos.map((photo, index) => (
-          <div key={index} className="photo-item">
-            <img src={photo} alt={`Captura ${index}`} />
-            <span>#{photos.length - index}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* @ts-expect-error: styled-jsx types are not recognized */}
-      <style jsx>{`
-        .photo-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-          gap: 8px;
-          margin-top: 16px;
-        }
-        .photo-item {
-          position: relative;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          overflow: hidden;
-        }
-        .photo-item img {
-          width: 100%;
-          height: 120px;
-          object-fit: cover;
-        }
-        .photo-item span {
-          position: absolute;
-          bottom: 4px;
-          right: 4px;
-          background: rgba(0, 0, 0, 0.7);
-          color: white;
-          padding: 2px 6px;
-          border-radius: 10px;
-          font-size: 12px;
-        }
-      `}</style>
+      <p>¡Haz clic en el video para reproducirlo!</p>
     </div>
   );
 };
 
-export default RapidCapture;
+export default CameraPage;

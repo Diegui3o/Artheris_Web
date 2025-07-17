@@ -6,6 +6,8 @@ export function configureWebRTC(io) {
     console.log("Nuevo cliente WebRTC conectado:", socket.id);
 
     socket.on("join", (roomId) => {
+      console.log(`[${roomId}] ✅ Usuario ${socket.id} se unió.`);
+
       if (!rooms.has(roomId)) {
         rooms.set(roomId, new Set());
       }
@@ -13,30 +15,33 @@ export function configureWebRTC(io) {
       const room = rooms.get(roomId);
       room.add(socket.id);
       socket.join(roomId);
-      console.log(`Usuario ${socket.id} se unió a la sala ${roomId}`);
 
-      // Notificar a los demás en la sala que hay un nuevo usuario
+      // Emitir 'joined' al cliente que se unió (no a toda la sala)
+      socket.emit("joined", { roomId }); // <-- Cambio clave aquí
+
+      // Notificar a los demás en la sala
       socket.to(roomId).emit("user-joined", socket.id);
     });
 
-    socket.on("offer", ({ sdp, type, to, roomId }) => {
-      console.log(`Enviando oferta de ${socket.id} a ${to} en sala ${roomId}`);
-      socket.to(to).emit("offer", { sdp, type, from: socket.id, roomId });
-    });
-
-    socket.on("answer", ({ sdp, type, to, roomId }) => {
+    socket.on("offer", ({ sdp, type, roomId }) => {
       console.log(
-        `Enviando respuesta de ${socket.id} a ${to} en sala ${roomId}`
+        `[${roomId}] ➡️ Recibida OFERTA de ${socket.id}. Reenviando...`
       );
-      socket.to(to).emit("answer", { sdp, type, from: socket.id, roomId });
+      socket.to(roomId).emit("offer", { sdp, type, from: socket.id });
     });
 
-    socket.on("candidate", ({ candidate, to, roomId }) => {
-      socket.to(to).emit("candidate", {
-        candidate,
-        from: socket.id,
-        roomId,
-      });
+    socket.on("answer", ({ sdp, type, roomId }) => {
+      console.log(
+        `[${roomId}] ➡️ Recibida RESPUESTA de ${socket.id}. Reenviando...`
+      );
+      socket.to(roomId).emit("answer", { sdp, type, from: socket.id });
+    });
+
+    socket.on("candidate", ({ candidate, roomId }) => {
+      console.log(
+        `[${roomId}] ➡️ Recibido CANDIDATO de ${socket.id}. Reenviando...`
+      );
+      socket.to(roomId).emit("candidate", { candidate, from: socket.id });
     });
 
     socket.on("disconnect", () => {

@@ -21,23 +21,6 @@ Este software fue diseñado como plataforma de pruebas para experimentación y v
 - Interfaz web intuitiva y responsiva, desarrollada en React + TypeScript, compatible con dispositivos móviles y de escritorio.
 
 ---
-
-## 🎬 Demo en acción
-
-![Demo de la interfaz](./assets/demo.gif)
-
----
-
-## 🤔 ¿Sabías que...?
-
-- El backend puede ser usado como base para otros robots IoT.
-- ¡La interfaz es totalmente responsive y funciona en tu celular!
-- El sistema está preparado para ser extendido con nuevos sensores o protocolos.
-
----
-
-## ✨ Lo que hace único a Artheris FlightControl
-
 ### 🚦 Integración de hardware flexible
 
 - Compatible con múltiples sensores (IMU, magnetómetro, temperatura, presión, etc.).
@@ -217,15 +200,3 @@ Si QuestDB está activado, los vuelos pueden almacenarse y analizarse posteriorm
 
 Este proyecto está licenciado bajo la Licencia MIT.
 
----
-
-## 🧪 Notas de reproducibilidad
-
-Para garantizar la reproducibilidad de los resultados y experimentos:
-
-- Se recomienda documentar la versión exacta de Node.js y de las dependencias (`package-lock.json`).
-- Los scripts de ejemplo para conexión del ESP32 y configuración de red están incluidos en la sección de Modo de uso.
-- Los datos de vuelo pueden exportarse desde QuestDB para análisis posterior.
-- Se sugiere usar Docker para desplegar QuestDB y evitar incompatibilidades.
-
-Agradecimientos especiales a la comunidad de código abierto y a la Universidad Nacional de San Agustin.

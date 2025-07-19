@@ -1,4 +1,4 @@
-export function configureWebRTC(io) {
+export function configureWebRTC(io, processImage) {
   // Almacena las salas y sus usuarios
   const rooms = new Map();
 
@@ -42,6 +42,24 @@ export function configureWebRTC(io) {
         `[${roomId}] ➡️ Recibido CANDIDATO de ${socket.id}. Reenviando...`
       );
       socket.to(roomId).emit("candidate", { candidate, from: socket.id });
+    });
+
+    socket.on("process-frame", async ({ image, roomId }) => {
+      if (!image || !processImage) return;
+
+      try {
+        // Llama a la función de procesamiento que recibimos como parámetro
+        const result = await processImage(image);
+
+        // Emite el resultado de vuelta únicamente al cliente que lo envió
+        socket.emit("analysis-result", result);
+
+      } catch (error) {
+        console.error(`[${roomId}] ❌ Error procesando frame de ${socket.id}: ${error.message}`);
+        socket.emit("analysis-error", {
+          error: "Error al procesar el frame en el servidor.",
+        });
+      }
     });
 
     socket.on("disconnect", () => {

@@ -6,8 +6,9 @@ import { WebSocketServer } from "ws";
 import { handleSocketConnection } from "./config/socketHandler.js";
 import createSimulationRouter from "./config/st_simulation.js";
 import createRecordingRouter from "./config/recording.js";
-import { insertSensorData } from "./server/questdb.js";
+import { insertSensorData, insertControlState } from "./server/questdb.js";
 import { configureWebRTC } from "./config/webrtc.js";
+import { startPythonProcess, processImage } from "./config/imageProcessor.js";
 
 const app = express();
 const PORT = 3002;
@@ -57,6 +58,27 @@ app.get("/api/drones/:id", (req, res) => {
 // Listar todos los drones (opcional)
 app.get("/api/drones", (req, res) => {
   res.json(readDrones());
+});
+
+// --- ENDPOINT PARA PROCESAMIENTO DE IMÁGENES CON PYTHON ---
+app.post("/api/process-image", async (req, res) => {
+  const { image, id } = req.body; // Espera una imagen en base64 y un ID de dron
+
+  if (!image) {
+    return res.status(400).json({ error: "Falta la imagen en formato base64." });
+  }
+
+  try {
+    console.log(`🖼️  Recibida solicitud para procesar imagen del dron ${id || "desconocido"}...`);
+    const result = await processImage(image);
+    console.log(`✅ Resultado del procesamiento: ${JSON.stringify(result)}`);
+    // Opcional: Emitir el resultado vía WebSocket a los clientes interesados
+    io.emit("image-result", { id, ...result });
+    res.json(result);
+  } catch (error) {
+    console.error(`❌ Error procesando la imagen: ${error.message}`);
+    res.status(500).json({ error: "Error interno del servidor al procesar la imagen.", details: error.message });
+  }
 });
 
 // --- Lista global de dispositivos conectados ---
@@ -494,11 +516,14 @@ app.use(
   })
 );
 
-configureWebRTC(io);
+configureWebRTC(io, processImage);
 
 io.on("connection", (socket) => {
   handleSocketConnection(socket, state);
 });
+
+// Iniciar el proceso hijo de Python al arrancar el servidor
+startPythonProcess();
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Servidor escuchando en http://0.0.0.0:${PORT}`);

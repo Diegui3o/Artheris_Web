@@ -76,7 +76,7 @@ const colores: Record<string, string> = {
   MotorInput2: "#d84a75",
   MotorInput3: "#3F5bB5",
   MotorInput4: "#009688",
-  Altura: "#00BCD4",
+  Height: "#00BCD4",
   tau_x: "#FF9800",
   tau_y: "#9C27B0",
   tau_z: "#8BC34A",
@@ -139,7 +139,6 @@ const MultiSensorDashboard = () => {
       handler(data);
     });
     socket.on("datosSimulacion", (data) => {
-      console.log("[data_rec] Datos recibidos en 'datosSimulacion':", data);
       handler(data);
     });
 
@@ -284,7 +283,7 @@ const MultiSensorDashboard = () => {
     <div style={{ padding: "20px" }}>
       <div style={{ marginBottom: "20px" }}>
         <label htmlFor="chartSelect" style={{ marginRight: "10px" }}>
-          Seleccionar gráfica:
+          Select chart:
         </label>
         <select
           id="chartSelect"
@@ -298,41 +297,42 @@ const MultiSensorDashboard = () => {
             fontFamily: "helvetica",
           }}
         >
-          <option value="Roll">Roll Comparación</option>
-          <option value="Pitch">Pitch Comparación</option>
-          <option value="Rate">Rate Comparación</option>
-          <option value="Tau Comparación">Tau Comparación</option>
-          <option value="Input">Controles de Entrada</option>
-          <option value="Motor">Motores</option>
-          <option value="Altura">Altura</option>
-          <option value="Errores">Errores</option>
+          <option value="Roll">Roll Tracking </option>
+          <option value="Pitch">Pitch Tracking </option>
+          <option value="Rate">Rate Tracking </option>
+          <option value="Tau Comparación">Tau Tracking </option>
+          <option value="Input">Input Controls</option>
+          <option value="Motor">Motors</option>
+          <option value="Altura">Altitude</option>
+          <option value="Errores">Angular Deviation</option>
         </select>
       </div>
 
       {selectedChart === "Roll" &&
-        renderLineChart(["roll", "KalmanAngleRoll"], "Roll Comparación")}
+        renderLineChart(["roll", "KalmanAngleRoll"], "Roll Comparison")}
       {selectedChart === "Pitch" &&
-        renderLineChart(["pitch", "KalmanAnglePitch"], "Pitch Comparación")}
+        renderLineChart(["pitch", "KalmanAnglePitch"], "Pitch Comparison")}
       {selectedChart === "Rate" &&
         renderLineChart(
           ["RateRoll", "RatePitch", "RateYaw"],
           "Rate Comparación"
         )}
       {selectedChart === "Tau Comparación" &&
-        renderLineChart(["tau_x", "tau_y", "tau_z"], "Tau Comparación")}
+        renderLineChart(["tau_x", "tau_y", "tau_z"], "Tau Comparison")}
       {selectedChart === "Input" &&
         renderBarChart(
           ["InputThrottle", "InputRoll", "InputPitch", "InputYaw"],
-          "Controles de Entrada"
+          "Input controls"
         )}
       {selectedChart === "Motor" &&
         renderBarChart(
           ["MotorInput1", "MotorInput2", "MotorInput3", "MotorInput4"],
-          "Motores"
+          "Motors"
         )}
-      {selectedChart === "Altura" && renderLineChart(["Altura"], "Altura")}
+      {selectedChart === "Altura" &&
+        renderLineChart(["Height"], "Height stimated")}
       {selectedChart === "Errores" &&
-        renderLineChart(["error_phi", "error_theta"], "Errores")}
+        renderLineChart(["error_phi", "error_theta"], "Errors")}
     </div>
   );
 };

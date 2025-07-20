@@ -1,12 +1,12 @@
 export function configureWebRTC(io) {
-  // Almacena las salas y sus usuarios
+  // Stores rooms and users
   const rooms = new Map();
 
   io.of("/webrtc").on("connection", (socket) => {
-    console.log("Nuevo cliente WebRTC conectado:", socket.id);
+    console.log("New webrtc client connected:", socket.id);
 
     socket.on("join", (roomId) => {
-      console.log(`[${roomId}] ✅ Usuario ${socket.id} se unió.`);
+      console.log(`[${roomId}] ✅ User ${socket.id} joined.`);
 
       if (!rooms.has(roomId)) {
         rooms.set(roomId, new Set());
@@ -16,36 +16,36 @@ export function configureWebRTC(io) {
       room.add(socket.id);
       socket.join(roomId);
 
-      // Emitir 'joined' al cliente que se unió (no a toda la sala)
-      socket.emit("joined", { roomId }); // <-- Cambio clave aquí
+      // Issue 'joined' to the client who joined (not the entire room)
+      socket.emit("joined", { roomId });
 
-      // Notificar a los demás en la sala
+      // Notify others in the room
       socket.to(roomId).emit("user-joined", socket.id);
     });
 
     socket.on("offer", ({ sdp, type, roomId }) => {
       console.log(
-        `[${roomId}] ➡️ Recibida OFERTA de ${socket.id}. Reenviando...`
+        `[${roomId}] ➡️ Received ${socket.id} offer.`
       );
       socket.to(roomId).emit("offer", { sdp, type, from: socket.id });
     });
 
     socket.on("answer", ({ sdp, type, roomId }) => {
       console.log(
-        `[${roomId}] ➡️ Recibida RESPUESTA de ${socket.id}. Reenviando...`
+        `[${roomId}] ➡️ Received response from ${socket.id}. Forwarding...`
       );
       socket.to(roomId).emit("answer", { sdp, type, from: socket.id });
     });
 
     socket.on("candidate", ({ candidate, roomId }) => {
       console.log(
-        `[${roomId}] ➡️ Recibido CANDIDATO de ${socket.id}. Reenviando...`
+        `[${roomId}] ➡️ Received candidate from ${socket.id}. Forwarding...`
       );
       socket.to(roomId).emit("candidate", { candidate, from: socket.id });
     });
 
     socket.on("disconnect", () => {
-      console.log("Cliente WebRTC desconectado:", socket.id);
+      console.log("Webrtc client disconnected:", socket.id);
       rooms.forEach((users, roomId) => {
         if (users.has(socket.id)) {
           users.delete(socket.id);

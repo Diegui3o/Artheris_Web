@@ -1,6 +1,6 @@
 import type { Vuelo } from "../types";
 
-// El tipo de los datos de cada vuelo (ajusta según tu backend real)
+// The data type of each flight
 type DatosVuelo = {
   InputThrottle?: number | string;
   Altitude?: number;
@@ -29,7 +29,7 @@ function TiempoVueloInputThrottle({ vuelos }: { vuelos: VueloConDatos[] }) {
   const minutos = (totalSegundos / 60).toFixed(1);
   return (
     <div className="text-gray-200 text-sm">
-      <b>Tiempo de vuelo (InputThrottle 1400-2000):</b>{" "}
+      <b>Flight time (InputThrottle 1400-2000):</b>{" "}
       {muestras > 0 ? `${minutos} min` : "--"}
     </div>
   );
@@ -57,13 +57,13 @@ function DetallesInteresantes({ vuelos }: { vuelos: VueloConDatos[] }) {
   return (
     <div className="mt-3 text-gray-300 text-sm">
       <div>
-        <b>Número de vuelos:</b> {numVuelos}
+        <b>Number of flights:</b> {numVuelos}
       </div>
       <div>
-        <b>Máxima altura registrada:</b> {maxAltura ? `${maxAltura} m` : "--"}
+        <b>Maximum registered height:</b> {maxAltura ? `${maxAltura} m` : "--"}
       </div>
       <div>
-        <b>Vuelo más largo:</b>{" "}
+        <b>Longer flight:</b>{" "}
         {maxDuracion ? `${(maxDuracion / 60).toFixed(1)} min` : "--"}
       </div>
     </div>
@@ -102,14 +102,17 @@ const DeviceProfile: React.FC<DeviceProfileProps> = ({ deviceId }) => {
         setCargandoPerfil(false);
       })
       .catch(() => {
-        setError("No se pudo cargar el perfil del dispositivo");
+        setError("The device profile could not be loaded");
         setCargandoPerfil(false);
       });
     fetchDeviceFlights(deviceId)
       .then((result: VueloConDatos[] | { flights: VueloConDatos[] }) => {
         if (Array.isArray(result)) {
           setFlights(result);
-        } else if (result && Array.isArray((result as { flights?: VueloConDatos[] }).flights)) {
+        } else if (
+          result &&
+          Array.isArray((result as { flights?: VueloConDatos[] }).flights)
+        ) {
           setFlights((result as { flights: VueloConDatos[] }).flights);
         } else {
           setFlights([]);
@@ -130,18 +133,18 @@ const DeviceProfile: React.FC<DeviceProfileProps> = ({ deviceId }) => {
         deviceProfile.skin || ""
       );
       setDeviceProfile((prev) =>
-        prev ? { ...prev, nombre: updated.nombre } : prev
+        prev ? { ...prev, Name: updated.nombre } : prev
       );
-      setMensaje("Perfil actualizado");
+      setMensaje("Updated profile");
     } catch {
-      setError("Error al actualizar el perfil");
+      setError("Error when updating the profile");
     } finally {
       setCargandoPerfil(false);
     }
   };
 
   if (cargandoPerfil && !deviceProfile) {
-    return <div className="text-gray-200 p-6">Cargando perfil...</div>;
+    return <div className="text-gray-200 p-6">Loading profile...</div>;
   }
 
   if (error) {
@@ -151,7 +154,7 @@ const DeviceProfile: React.FC<DeviceProfileProps> = ({ deviceId }) => {
   if (!deviceProfile) {
     return (
       <div className="text-gray-400 p-6">
-        Selecciona un dispositivo para ver el perfil.
+        Select a device to see the profile.
       </div>
     );
   }
@@ -184,33 +187,33 @@ const DeviceProfile: React.FC<DeviceProfileProps> = ({ deviceId }) => {
         value={deviceProfile.descripcion ?? ""}
         onChange={(e) =>
           setDeviceProfile((prev) =>
-            prev ? { ...prev, descripcion: e.target.value } : prev
+            prev ? { ...prev, description: e.target.value } : prev
           )
         }
-        placeholder="Descripción"
+        placeholder="Description"
       />
       <input
         className="bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-xs w-full"
         value={deviceProfile.propietario ?? ""}
         onChange={(e) =>
           setDeviceProfile((prev) =>
-            prev ? { ...prev, propietario: e.target.value } : prev
+            prev ? { ...prev, owner: e.target.value } : prev
           )
         }
-        placeholder="Propietario"
+        placeholder="Owner"
       />
       <button
         className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded disabled:opacity-60 mt-2"
         disabled={nuevoNombre === deviceProfile.nombre || cargandoPerfil}
         onClick={handleSave}
       >
-        Guardar
+        Save
       </button>
       {mensaje && <div className="text-green-400 mt-2">{mensaje}</div>}
       {error && <div className="text-red-400 mt-2">{error}</div>}
       {flights.length === 0 && (
         <div className="text-yellow-400 mt-4">
-          Este dispositivo aún no ha registrado vuelos.
+          This device has not yet registered flights.
         </div>
       )}
       <TiempoVueloInputThrottle vuelos={flights} />

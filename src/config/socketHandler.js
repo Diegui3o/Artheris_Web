@@ -1,5 +1,5 @@
 export function handleSocketConnection(socket, state) {
-    console.log('Cliente conectado');
+    console.log('Customer connected');
 
     socket.emit('status', {
         isRecording: state.isRecording,
@@ -38,8 +38,8 @@ export function handleSocketConnection(socket, state) {
     });
 
     // Receive telemetry data from ESP32 (Websockt)
-    socket.on('telemetria', (data) => {
-        console.log("Telemetría recibida del ESP32:", data);
+    socket.on('Telemetry', (data) => {
+        console.log("Telemetry received from ESP32:", data);
         state.latestTelemetry = data;
         socket.server.emit('sensorUpdate', data);
         if (state.isRecording) state.telemetries.push(data);

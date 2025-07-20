@@ -38,15 +38,15 @@ const RollDegChart: React.FC<RollDegChartProps> = ({
       ]}
       layout={{
         title: {
-          text: "Roll (φ) en grados",
+          text: "Roll (φ) in degrees",
           font: { color: "#6366f1", size: 20 },
         },
         xaxis: {
-          title: { text: "Tiempo (s)", font: { color: "#6366f1" } },
+          title: { text: "Time (s)", font: { color: "#6366f1" } },
           color: "#222",
         },
         yaxis: {
-          title: { text: "Ángulo (°)", font: { color: "#6366f1" } },
+          title: { text: "Angle (°)", font: { color: "#6366f1" } },
           color: "#222",
           range: [-180, 180],
         },

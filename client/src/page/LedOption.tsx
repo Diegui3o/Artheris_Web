@@ -9,21 +9,21 @@ export default function ControlPanel() {
       const response = await fetch(`http://localhost:3002${endpoint}`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
       });
       if (response.ok) {
         setLedStatus(state.toUpperCase());
       }
     } catch (error) {
-      console.error("Error al controlar el LED", error);
+      console.error("Error controlling the LED", error);
     }
   };
 
   return (
     <div className="flex flex-col items-center bg-gray-900 p-6 rounded-2xl shadow-xl max-w-md mx-auto border border-gray-700">
       <h1 className="text-2xl font-bold text-white mb-4 text-center uppercase tracking-wide">
-        Control del LED
+        LED control
       </h1>
 
       <div
@@ -32,8 +32,7 @@ export default function ControlPanel() {
       ></div>
 
       <p className="text-gray-400 text-lg mb-4 text-center">
-        Estado del LED:{" "}
-        <span className="font-bold text-white">{ledStatus}</span>
+        LED status: <span className="font-bold text-white">{ledStatus}</span>
       </p>
 
       <div className="flex gap-4">
@@ -41,13 +40,13 @@ export default function ControlPanel() {
           onClick={() => toggleLed("on")}
           className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-all"
         >
-          Encender
+          Turn on
         </button>
         <button
           onClick={() => toggleLed("off")}
           className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-all"
         >
-          Apagar
+          Turn off
         </button>
       </div>
     </div>

@@ -14,7 +14,6 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
     // Middleware to handle errors
     function errorHandler(err, req, res, next) {
         console.error(err.stack);
-        res.status(500).send('Algo salió mal!');
     }
 
     // Start new recording
@@ -23,42 +22,42 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
             if (recordingTimeout) clearTimeout(recordingTimeout);
             const { Kc, Ki, mass, armLength } = req.body || {};
             if (!Kc || typeof Kc !== 'object' || Object.keys(Kc).length < 6) {
-                return res.status(400).json({ error: 'Parámetros Kc incompletos o inválidos' });
+                return res.status(400).json({ error: 'Incomplete or invalid Kc parameters' });
             }
             if (!Ki || typeof Ki !== 'object' || Object.keys(Ki).length < 3) {
-                return res.status(400).json({ error: 'Parámetros Ki incompletos o inválidos' });
+                return res.status(400).json({ error: 'Incomplete or invalid Ki parameters' });
             }
             if (typeof mass !== 'number' || isNaN(mass)) {
-                return res.status(400).json({ error: 'Parámetro mass inválido' });
+                return res.status(400).json({ error: 'Mass parameter invalid' });
             }
             if (typeof armLength !== 'number' || isNaN(armLength)) {
-                return res.status(400).json({ error: 'Parámetro armLength inválido' });
+                return res.status(400).json({ error: 'Parameter armLength invalid' });
             }
             let flightId;
             try {
                 flightId = await insertNewFlight(Kc, Ki, mass, armLength);
             } catch (dbErr) {
-                console.error('❌ Error al insertar nuevo vuelo en QuestDB:', dbErr);
-                return res.status(500).json({ error: 'Error al guardar vuelo en base de datos', details: dbErr.message });
+                console.error('❌ Error inserting new flight to Questdb:', dbErr);
+                return res.status(500).json({ error: 'Error saving flight based on databases', details: dbErr.message });
             }
             currentFlightId = flightId;
             // Update the global state
             state.isRecording = true;
             state.flightId = flightId;
             recordingTimeout = setTimeout(() => {
-                console.log('⏱️ Grabación detenida por timeout');
+                console.log('⏱️ Recording detainee by Timeout');
                 currentFlightId = null;
                 state.isRecording = false;
                 state.flightId = null;
             }, 20000);
             res.json({
-                message: 'Grabación iniciada',
+                message: 'Recording initiated',
                 flightId,
-                recordingDuration: '30 segundos'
+                recordingDuration: '30 seconds'
             });
         } catch (err) {
-            console.error('Error en /start-recording:', err);
-            res.status(500).json({ error: 'Error interno en /start-recording', details: err.message });
+            console.error('Error in /start-recording:', err);
+            res.status(500).json({ error: 'Internal error in /start-recording', details: err.message });
         }
     });
 
@@ -67,7 +66,7 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
         currentFlightId = null;
         state.isRecording = false;
         state.flightId = null;
-        res.json({ message: 'Grabación detenida' });
+        res.json({ message: 'Detailed recording' });
     });
 
     router.get('/debug/latest-data', (req, res) => {
@@ -82,7 +81,7 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
             const result = await printLastSensorData(10, true);
             res.json({ data: result });
         } catch (err) {
-            res.status(500).json({ error: 'Error al consultar sensor_data' });
+            res.status(500).json({ error: 'Error when consulting sensor_data' });
         }
     });
 
@@ -107,7 +106,7 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
                         handleTelemetry(sensorData);
                     }
                 } catch (error) {
-                    console.error('Error procesando datos en socket principal:', error);
+                    console.error('Error processing data in the main socket:', error);
                 }
             });
         });
@@ -132,8 +131,8 @@ export default function createRecordingRouter({ io, espNamespace, wss, esp32Sock
                         }
                     }
                 } catch (error) {
-                    console.error('Error procesando datos del ESP32:', error);
-                    console.error('Mensaje original:', data);
+                    console.error('Error processing ESP32:', error);
+                    console.error('Original message:', data);
                 }
             });
         });

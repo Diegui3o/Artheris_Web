@@ -14,11 +14,11 @@ const updateMode = (newMode, esp32Socket, modoRef) => {
                     mode: newMode
                 }
             };
-            console.log('📤 Enviando comando de modo al ESP32:', modeCommand);
+            console.log('📤 Senting Mode to ESP32:', modeCommand);
             esp32Socket.emit('message', JSON.stringify(modeCommand));
         }
 
-        console.log(`📢 Modo cambiado a: ${modoRef.value}`);
+        console.log(`📢 Changed mode to: ${modoRef.value}`);
     }
 };
 
@@ -31,7 +31,7 @@ const setLedState = (ledOn, wss, io) => {
     });
     // Emit to all web clients as well
     io.emit('led', { led: ledOn });
-    console.log(`📤 Enviando comando de LED al ESP32: ${ledOn ? 'ON' : 'OFF'}`);
+    console.log(`📤 Sending LED command to ESP32: ${ledOn ? 'ON' : 'OFF'}`);
 };
 
 // Logic function to set motor state on all ESP32 clients
@@ -43,7 +43,7 @@ const setMotorsState = (motorsOn, wss, io) => {
     });
     // Emit to all web clients as well
     io.emit('motors', { motors: motorsOn });
-    console.log(`📤 Enviando comando de MOTORES al ESP32: ${motorsOn ? 'ON' : 'OFF'}`);
+    console.log(`📤 Senting Motors Command to ESP32: ${motorsOn ? 'ON' : 'OFF'}`);
 };
 
 // Logic function to set mode on all ESP32 clients
@@ -54,7 +54,7 @@ const setMode = (mode, wss, io) => {
         }
     });
     io.emit('modo', mode);
-    console.log(`📤 Enviando comando de MODO al ESP32: ${mode}`);
+    console.log(`📤 Senting MODE to ESP32: ${mode}`);
 };
 
 export { updateMode, setLedState, setMotorsState, setMode };

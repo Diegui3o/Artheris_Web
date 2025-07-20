@@ -34,7 +34,7 @@ const Tabs: React.FC<{
 
 const Trajectory3D = () => (
   <div className="text-gray-400 text-center">
-    (Visualización 3D no implementada)
+    (3D visualization not implemented)
   </div>
 );
 
@@ -171,7 +171,7 @@ const Simulator: React.FC = () => {
         });
         setSimActive(true);
       } catch {
-        alert("No se pudo iniciar la simulación");
+        alert("Failed to start the simulation");
       }
       setLoading(false);
     } else {
@@ -180,7 +180,7 @@ const Simulator: React.FC = () => {
         await axios.post("/simulate/stop");
         setSimActive(false);
       } catch {
-        alert("No se pudo detener la simulación");
+        alert("Failed to stop the simulation");
       }
       setLoading(false);
     }
@@ -217,7 +217,7 @@ const Simulator: React.FC = () => {
             y: velocityX,
             type: "scatter",
             mode: "lines+markers",
-            name: "Velocidad X",
+            name: "Speed X",
             line: { color: "#ef4444", width: 3 },
             marker: { size: 4, color: "#ef4444" },
             fill: "tonexty",
@@ -226,7 +226,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "🚀 Velocidad X (u)",
+            text: "🚀 Speed X (u)",
             font: {
               color: "#ef4444",
               size: 18,
@@ -234,7 +234,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#ef4444", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#ef4444", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -246,7 +246,7 @@ const Simulator: React.FC = () => {
           },
           yaxis: {
             title: {
-              text: "Velocidad (m/s)",
+              text: "Speed (m/s)",
               font: { color: "#ef4444", size: 12 },
             },
             tickfont: { color: "#222", size: 10 },
@@ -297,7 +297,7 @@ const Simulator: React.FC = () => {
             y: velocityY,
             type: "scatter",
             mode: "lines+markers",
-            name: "Velocidad Y",
+            name: "Speed Y",
             line: { color: "#f97316", width: 3 },
             marker: { size: 4, color: "#f97316" },
             fill: "tonexty",
@@ -306,7 +306,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "🚀 Velocidad Y (v)",
+            text: "🚀 Speed Y (v)",
             font: {
               color: "#f97316",
               size: 18,
@@ -314,7 +314,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#f97316", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#f97316", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -326,7 +326,7 @@ const Simulator: React.FC = () => {
           },
           yaxis: {
             title: {
-              text: "Velocidad (m/s)",
+              text: "Speed (m/s)",
               font: { color: "#f97316", size: 12 },
             },
             tickfont: { color: "#222", size: 10 },
@@ -377,7 +377,7 @@ const Simulator: React.FC = () => {
             y: velocityZ,
             type: "scatter",
             mode: "lines+markers",
-            name: "Velocidad Z",
+            name: "Speed Z",
             line: { color: "#eab308", width: 3 },
             marker: { size: 4, color: "#eab308" },
             fill: "tonexty",
@@ -386,7 +386,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "🚀 Velocidad Z (w)",
+            text: "🚀 Speed Z (w)",
             font: {
               color: "#eab308",
               size: 18,
@@ -394,7 +394,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#eab308", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#eab308", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -406,7 +406,7 @@ const Simulator: React.FC = () => {
           },
           yaxis: {
             title: {
-              text: "Velocidad (m/s)",
+              text: "Speed (m/s)",
               font: { color: "#eab308", size: 12 },
             },
             tickfont: { color: "#222", size: 10 },
@@ -458,7 +458,7 @@ const Simulator: React.FC = () => {
             y: rollRate,
             type: "scatter",
             mode: "lines+markers",
-            name: "Velocidad Angular Roll",
+            name: "Roll Angular Velocity",
             line: { color: "#8b5cf6", width: 3 },
             marker: { size: 4, color: "#8b5cf6" },
             fill: "tonexty",
@@ -467,7 +467,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "🔄 Velocidad Angular Roll (p)",
+            text: "🔄 Roll Angular Velocity (p)",
             font: {
               color: "#8b5cf6",
               size: 18,
@@ -475,7 +475,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#8b5cf6", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#8b5cf6", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -487,7 +487,7 @@ const Simulator: React.FC = () => {
           },
           yaxis: {
             title: {
-              text: "Velocidad Angular (rad/s)",
+              text: "Angular Velocity (rad/s)",
               font: { color: "#8b5cf6", size: 12 },
             },
             tickfont: { color: "#222", size: 10 },
@@ -538,7 +538,7 @@ const Simulator: React.FC = () => {
             y: pitchRate,
             type: "scatter",
             mode: "lines+markers",
-            name: "Velocidad Angular Pitch",
+            name: "Pitch Angular Velocity",
             line: { color: "#ec4899", width: 3 },
             marker: { size: 4, color: "#ec4899" },
             fill: "tonexty",
@@ -547,7 +547,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "🔄 Velocidad Angular Pitch (q)",
+            text: "🔄 Pitch Angular Velocity (q)",
             font: {
               color: "#ec4899",
               size: 18,
@@ -555,7 +555,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#ec4899", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#ec4899", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -618,7 +618,7 @@ const Simulator: React.FC = () => {
             y: yawRate,
             type: "scatter",
             mode: "lines+markers",
-            name: "Velocidad Angular Yaw",
+            name: "Yaw Angular Velocity",
             line: { color: "#06b6d4", width: 3 },
             marker: { size: 4, color: "#06b6d4" },
             fill: "tonexty",
@@ -627,7 +627,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "🔄 Velocidad Angular Yaw (r)",
+            text: "🔄 Yaw Angular Velocity (r)",
             font: {
               color: "#06b6d4",
               size: 18,
@@ -635,7 +635,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#06b6d4", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#06b6d4", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -647,7 +647,7 @@ const Simulator: React.FC = () => {
           },
           yaxis: {
             title: {
-              text: "Velocidad Angular (rad/s)",
+              text: "Angular Velocity (rad/s)",
               font: { color: "#06b6d4", size: 12 },
             },
             tickfont: { color: "#222", size: 10 },
@@ -680,7 +680,7 @@ const Simulator: React.FC = () => {
     );
   };
 
-  // --- NUEVO: Función de sincronización temporal perfecta ---
+  // Perfect Time Synchronization Feature
   const syncTimePerfectly = (
     esp32TimeArray: number[],
     simTimeArray: number[]
@@ -689,23 +689,23 @@ const Simulator: React.FC = () => {
       return esp32TimeArray;
     }
 
-    // Usar exactamente el mismo tiempo de simulación para ambos
+    // Use exactly the same simulation time for both
     const simStart = simTimeArray[0];
     const simEnd = simTimeArray[simTimeArray.length - 1];
     const simDuration = simEnd - simStart;
 
-    // Mapear los datos del ESP32 al tiempo de simulación
+    // Map the ESP32 data to the simulation time
     return esp32TimeArray.map((_, index) => {
       const progress = index / (esp32TimeArray.length - 1);
       return simStart + progress * simDuration;
     });
   };
 
-  // --- NUEVO: Función para obtener los últimos N puntos ---
+  // Function to retrieve the last N points
   const getLastN = <T,>(arr: T[], n: number) =>
     arr.slice(Math.max(arr.length - n, 0));
 
-  // --- NUEVO: Gráficas de ángulos simplificadas para mostrar claramente los datos simulados ---
+  // Simplified angle charts to clearly display simulated data
   const RollChartImproved = () => {
     const N = 200;
     const simTime = getLastN(time, N);
@@ -720,7 +720,7 @@ const Simulator: React.FC = () => {
       states.map((s) => s[6]),
       N
     );
-    // Rango Y automático pero centrado
+    // Automatic but centered Y-axis range
     const yMin = Math.min(...rollRef, ...rollSim, -1);
     const yMax = Math.max(...rollRef, ...rollSim, 1);
     return (
@@ -731,7 +731,7 @@ const Simulator: React.FC = () => {
             y: rollRef,
             type: "scatter",
             mode: "lines+markers",
-            name: "Roll Referencia (ESP32)",
+            name: "Roll Reference (ESP32)",
             line: { color: "#10b981", width: 3, dash: "dash" },
             marker: { size: 4, color: "#10b981" },
           },
@@ -740,7 +740,7 @@ const Simulator: React.FC = () => {
             y: rollSim,
             type: "scatter",
             mode: "lines+markers",
-            name: "Roll Simulado",
+            name: "Simulated Roll",
             line: { color: "#0ea5e9", width: 3 },
             marker: { size: 4, color: "#0ea5e9" },
             fill: "tonexty",
@@ -749,7 +749,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "📐 Roll (φ) - Referencia ESP32 vs Simulado",
+            text: "📐 Roll (φ) - ESP32 Reference vs Simulated",
             font: {
               color: "#0ea5e9",
               size: 18,
@@ -757,7 +757,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#0ea5e9", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#0ea5e9", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -813,7 +813,7 @@ const Simulator: React.FC = () => {
       states.map((s) => s[7]),
       N
     );
-    // Rango Y automático pero centrado
+    // Auto-centered Y-axis range
     const yMin = Math.min(...pitchRef, ...pitchSim, -1);
     const yMax = Math.max(...pitchRef, ...pitchSim, 1);
     return (
@@ -824,7 +824,7 @@ const Simulator: React.FC = () => {
             y: pitchRef,
             type: "scatter",
             mode: "lines+markers",
-            name: "Pitch Referencia (ESP32)",
+            name: "Pitch Reference (ESP32)",
             line: { color: "#10b981", width: 3, dash: "dash" },
             marker: { size: 4, color: "#10b981" },
           },
@@ -833,7 +833,7 @@ const Simulator: React.FC = () => {
             y: pitchSim,
             type: "scatter",
             mode: "lines+markers",
-            name: "Pitch Simulado",
+            name: "Simulated Pitch",
             line: { color: "#22d3ee", width: 3 },
             marker: { size: 4, color: "#22d3ee" },
             fill: "tonexty",
@@ -842,7 +842,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "📐 Pitch (θ) - Referencia ESP32 vs Simulado",
+            text: "📐 Pitch (θ) - ESP32 Reference vs Simulated",
             font: {
               color: "#22d3ee",
               size: 18,
@@ -850,7 +850,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#22d3ee", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#22d3ee", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -909,7 +909,7 @@ const Simulator: React.FC = () => {
       states.map((s) => s[8]),
       N
     );
-    // Rango Y automático pero centrado
+    // Auto-centered Y-axis range
     const yMin = Math.min(...yawRef, ...yawSim, -1);
     const yMax = Math.max(...yawRef, ...yawSim, 1);
     return (
@@ -920,7 +920,7 @@ const Simulator: React.FC = () => {
             y: yawRef,
             type: "scatter",
             mode: "lines+markers",
-            name: "Yaw Referencia (ESP32)",
+            name: "Yaw Reference (ESP32)",
             line: { color: "#10b981", width: 3, dash: "dash" },
             marker: { size: 4, color: "#10b981" },
           },
@@ -929,7 +929,7 @@ const Simulator: React.FC = () => {
             y: yawSim,
             type: "scatter",
             mode: "lines+markers",
-            name: "Yaw Simulado",
+            name: "Simulated Yaw",
             line: { color: "#38bdf8", width: 3 },
             marker: { size: 4, color: "#38bdf8" },
             fill: "tonexty",
@@ -938,7 +938,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "📐 Yaw (ψ) - Referencia ESP32 vs Simulado",
+            text: "📐 Yaw (ψ) - ESP32 Reference vs Simulated",
             font: {
               color: "#38bdf8",
               size: 18,
@@ -946,7 +946,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#38bdf8", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#38bdf8", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -988,7 +988,7 @@ const Simulator: React.FC = () => {
     );
   };
 
-  // --- NUEVO: Gráficas de ángulos en grados mejoradas ---
+  // Improved angle charts in degrees
   const RollDegChartImproved = () => {
     const N = 200;
     const simTime = getLastN(time, N);
@@ -1003,7 +1003,7 @@ const Simulator: React.FC = () => {
       states.map((s) => (s[6] * 180) / Math.PI),
       N
     );
-    // Rango Y automático pero centrado
+    // Auto-centered Y-axis range
     const yMin = Math.min(...rollRef, ...rollSim, -1);
     const yMax = Math.max(...rollRef, ...rollSim, 1);
     return (
@@ -1014,7 +1014,7 @@ const Simulator: React.FC = () => {
             y: rollRef,
             type: "scatter",
             mode: "lines+markers",
-            name: "Roll Referencia (ESP32)",
+            name: "Roll Reference (ESP32)",
             line: { color: "#10b981", width: 3, dash: "dash" },
             marker: { size: 4, color: "#10b981" },
           },
@@ -1023,7 +1023,7 @@ const Simulator: React.FC = () => {
             y: rollSim,
             type: "scatter",
             mode: "lines+markers",
-            name: "Roll Simulado",
+            name: "Simulated Roll",
             line: { color: "#0ea5e9", width: 3 },
             marker: { size: 4, color: "#0ea5e9" },
             fill: "tonexty",
@@ -1032,7 +1032,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "📐 Roll (φ) - Referencia ESP32 vs Simulado",
+            text: "📐 Roll (φ) - ESP32 Reference vs Simulated",
             font: {
               color: "#0ea5e9",
               size: 18,
@@ -1040,7 +1040,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#0ea5e9", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#0ea5e9", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -1096,7 +1096,7 @@ const Simulator: React.FC = () => {
       states.map((s) => (s[7] * 180) / Math.PI),
       N
     );
-    // Rango Y automático pero centrado
+    // Auto-centered Y-axis range
     const yMin = Math.min(...pitchRef, ...pitchSim, -1);
     const yMax = Math.max(...pitchRef, ...pitchSim, 1);
     return (
@@ -1107,7 +1107,7 @@ const Simulator: React.FC = () => {
             y: pitchRef,
             type: "scatter",
             mode: "lines+markers",
-            name: "Pitch Referencia (ESP32)",
+            name: "Pitch Reference (ESP32)",
             line: { color: "#10b981", width: 3, dash: "dash" },
             marker: { size: 4, color: "#10b981" },
           },
@@ -1116,7 +1116,7 @@ const Simulator: React.FC = () => {
             y: pitchSim,
             type: "scatter",
             mode: "lines+markers",
-            name: "Pitch Simulado",
+            name: "Simulated Pitch",
             line: { color: "#22d3ee", width: 3 },
             marker: { size: 4, color: "#22d3ee" },
             fill: "tonexty",
@@ -1125,7 +1125,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "📐 Pitch (θ) - Referencia ESP32 vs Simulado",
+            text: "📐 Pitch (θ) - ESP32 Reference vs Simulated",
             font: {
               color: "#22d3ee",
               size: 18,
@@ -1133,7 +1133,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#22d3ee", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#22d3ee", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -1192,7 +1192,7 @@ const Simulator: React.FC = () => {
       states.map((s) => (s[8] * 180) / Math.PI),
       N
     );
-    // Rango Y automático pero centrado
+    // Auto-centered Y-axis range
     const yMin = Math.min(...yawRef, ...yawSim, -1);
     const yMax = Math.max(...yawRef, ...yawSim, 1);
     return (
@@ -1203,7 +1203,7 @@ const Simulator: React.FC = () => {
             y: yawRef,
             type: "scatter",
             mode: "lines+markers",
-            name: "Yaw Referencia (ESP32)",
+            name: "Yaw Reference (ESP32)",
             line: { color: "#10b981", width: 3, dash: "dash" },
             marker: { size: 4, color: "#10b981" },
           },
@@ -1212,7 +1212,7 @@ const Simulator: React.FC = () => {
             y: yawSim,
             type: "scatter",
             mode: "lines+markers",
-            name: "Yaw Simulado",
+            name: "Simulated Yaw",
             line: { color: "#38bdf8", width: 3 },
             marker: { size: 4, color: "#38bdf8" },
             fill: "tonexty",
@@ -1221,7 +1221,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "📐 Yaw (ψ) - Referencia ESP32 vs Simulado",
+            text: "📐 Yaw (ψ) - ESP32 Reference vs Simulated",
             font: {
               color: "#38bdf8",
               size: 18,
@@ -1229,7 +1229,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#38bdf8", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#38bdf8", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -1295,14 +1295,14 @@ const Simulator: React.FC = () => {
             z: z,
             type: "scatter3d",
             mode: "lines+markers",
-            name: "Trayectoria 3D",
+            name: "3D Trajectory",
             line: { color: "#3b82f6", width: 4 },
             marker: { size: 3, color: "#3b82f6" },
           },
         ]}
         layout={{
           title: {
-            text: "🛸 Trayectoria 3D del Dron",
+            text: "🛸 Drone 3D Trajectory",
             font: {
               color: "#3b82f6",
               size: 18,
@@ -1373,7 +1373,7 @@ const Simulator: React.FC = () => {
             y: torqueX,
             type: "scatter",
             mode: "lines+markers",
-            name: "Torque X Simulado",
+            name: "Simulated Torque X",
             line: { color: "#dc2626", width: 4 },
             marker: { size: 6, color: "#dc2626" },
             fill: "tonexty",
@@ -1382,7 +1382,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "⚡ Torque X (τx) - Simulado",
+            text: "⚡ Torque X (τx) - Simulated",
             font: {
               color: "#dc2626",
               size: 18,
@@ -1390,7 +1390,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#dc2626", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#dc2626", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -1402,7 +1402,7 @@ const Simulator: React.FC = () => {
           },
           yaxis: {
             title: {
-              text: "Torque (N⋅m) × 1000",
+              text: "Torque (N·m) × 1000",
               font: { color: "#dc2626", size: 12 },
             },
             tickfont: { color: "#222", size: 10 },
@@ -1450,7 +1450,7 @@ const Simulator: React.FC = () => {
             y: torqueY,
             type: "scatter",
             mode: "lines+markers",
-            name: "Torque Y Simulado",
+            name: "Simulated Torque Y",
             line: { color: "#ea580c", width: 4 },
             marker: { size: 6, color: "#ea580c" },
             fill: "tonexty",
@@ -1459,7 +1459,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "⚡ Torque Y (τy) - Simulado",
+            text: "⚡ Torque Y (τy) - Simulated",
             font: {
               color: "#ea580c",
               size: 18,
@@ -1467,7 +1467,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#ea580c", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#ea580c", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -1527,7 +1527,7 @@ const Simulator: React.FC = () => {
             y: torqueZ,
             type: "scatter",
             mode: "lines+markers",
-            name: "Torque Z Simulado",
+            name: "Simulated Torque Z",
             line: { color: "#d97706", width: 4 },
             marker: { size: 6, color: "#d97706" },
             fill: "tonexty",
@@ -1536,7 +1536,7 @@ const Simulator: React.FC = () => {
         ]}
         layout={{
           title: {
-            text: "⚡ Torque Z (τz) - Simulado",
+            text: "⚡ Torque Z (τz) - Simulated",
             font: {
               color: "#d97706",
               size: 18,
@@ -1544,7 +1544,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#d97706", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#d97706", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -1625,7 +1625,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#ef4444", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#ef4444", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -1787,7 +1787,7 @@ const Simulator: React.FC = () => {
             },
           },
           xaxis: {
-            title: { text: "Tiempo (s)", font: { color: "#eab308", size: 12 } },
+            title: { text: "Time (s)", font: { color: "#eab308", size: 12 } },
             tickfont: { color: "#222", size: 10 },
             color: "#222",
             gridcolor: "#e5e7eb",
@@ -1835,15 +1835,15 @@ const Simulator: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white py-8 px-2">
       <div className="max-w-7xl mx-auto">
-        {/* Título y controles */}
+        {/* Title and controls */}
         <header className="mb-8 text-center">
           <h1 className="text-3xl md:text-4xl font-extrabold mb-2 tracking-tight text-blue-300 drop-shadow">
-            🛸 Simulación del Dron
+            Drone simulation
           </h1>
           <p className="mb-4 text-gray-300 text-lg">
-            Visualiza el modelo del dron y los comandos{" "}
+            Displays the drone model and commands{" "}
             <span className="text-blue-300 font-semibold">T, τx, τy, τz</span>{" "}
-            simulados en tiempo real.
+            simulated in real time.
           </p>
           <form
             className="flex flex-wrap justify-center items-end gap-4 mt-2 mb-4 bg-gray-800 p-4 rounded-xl shadow"
@@ -1852,7 +1852,7 @@ const Simulator: React.FC = () => {
             }}
           >
             <div className="flex flex-col items-start">
-              <label className="text-sm mb-1">Masa (kg)</label>
+              <label className="text-sm mb-1">Mass (kg)</label>
               <input
                 type="number"
                 step="0.01"
@@ -1932,40 +1932,40 @@ const Simulator: React.FC = () => {
               onClick={handleSimToggle}
               disabled={loading}
             >
-              {simActive ? "Detener Simulación" : "Iniciar Simulación"}
+              {simActive ? "Stop Simulation" : "Start Simulation"}
             </button>
             <span
               className={`px-3 py-2 rounded-lg text-sm font-bold ${
                 simActive ? "bg-green-700" : "bg-gray-700"
               }`}
             >
-              Simulación: {simActive ? "Activa" : "Inactiva"}
+              Simulation: {simActive ? "Active" : "Inactive"}
             </span>
           </div>
         </header>
 
-        {/* Dashboard de gráficas separadas */}
+        {/* Separate charts dashboard */}
         <div className="grid grid-cols-1 w-full justify-center items-start">
           <div className="flex flex-col gap-8 w-full max-w-7xl mx-auto">
             <div className="bg-gray-800 rounded-2xl shadow-lg p-6 flex flex-col items-center">
               <h2 className="text-2xl font-bold mb-4 text-purple-400">
-                🛸 Visualización 3D del Dron
+                🛸 3D visualization of the drone
               </h2>
               <div className="w-full flex justify-center">
                 <Trajectory3D />
               </div>
               <div className="mt-4 text-center text-gray-300 text-sm">
                 <span className="block">
-                  La orientación y trayectoria se actualizan en tiempo real
-                  según los comandos recibidos.
+                  The orientation and trajectory update in real time according
+                  to the received commands.
                 </span>
               </div>
             </div>
-            {/* --- NUEVO: Botón para mostrar más gráficas en tabs --- */}
+            {/* Button to show more charts in tabs */}
             <Tabs
               tabs={[
                 {
-                  label: "📐 Ángulos (rad)",
+                  label: "📐 Angles (rad)",
                   content: (
                     <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
                       <div className="flex-1 flex flex-col gap-8">
@@ -1977,7 +1977,7 @@ const Simulator: React.FC = () => {
                   ),
                 },
                 {
-                  label: "📐 Ángulos (deg)",
+                  label: "📐 Angles (deg)",
                   content: (
                     <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
                       <div className="flex-1 flex flex-col gap-8">
@@ -1989,7 +1989,7 @@ const Simulator: React.FC = () => {
                   ),
                 },
                 {
-                  label: "🚀 Velocidades Lineales",
+                  label: "🚀 Linear velocities",
                   content: (
                     <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
                       <div className="flex-1 flex flex-col gap-8">
@@ -2001,7 +2001,7 @@ const Simulator: React.FC = () => {
                   ),
                 },
                 {
-                  label: "🔄 Velocidades Angulares",
+                  label: "🔄 Angular velocities",
                   content: (
                     <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
                       <div className="flex-1 flex flex-col gap-8">
@@ -2013,7 +2013,7 @@ const Simulator: React.FC = () => {
                   ),
                 },
                 {
-                  label: "⚡ Torques Simulados",
+                  label: "⚡ Simulated torques",
                   content: (
                     <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
                       <div className="flex-1 flex flex-col gap-8">
@@ -2037,7 +2037,7 @@ const Simulator: React.FC = () => {
                   ),
                 },
                 {
-                  label: "📊 Análisis",
+                  label: "📊 Analysis",
                   content: (
                     <div className="flex flex-col md:flex-row gap-8 justify-center items-stretch w-full">
                       <div className="flex-1 flex flex-col gap-8">
@@ -2053,7 +2053,7 @@ const Simulator: React.FC = () => {
                     <div className="flex flex-col items-center justify-center h-64">
                       <div className="text-gray-400 text-center">
                         <h3 className="text-xl font-bold mb-4">🔍 Debug</h3>
-                        <p>Área de debug disponible para análisis avanzado</p>
+                        <p>Debug Area Available for Advanced Analysis</p>
                       </div>
                     </div>
                   ),

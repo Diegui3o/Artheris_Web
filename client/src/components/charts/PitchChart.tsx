@@ -39,15 +39,15 @@ const PitchChart: React.FC<PitchChartProps> = ({
       ]}
       layout={{
         title: {
-          text: "Pitch (θ) en radianes",
+          text: "Pitch (θ) in degrees",
           font: { color: "#0ea5e9", size: 20 },
         },
         xaxis: {
-          title: { text: "Tiempo (s)", font: { color: "#0ea5e9" } },
+          title: { text: "Time (s)", font: { color: "#0ea5e9" } },
           color: "#222",
         },
         yaxis: {
-          title: { text: "Ángulo (rad)", font: { color: "#0ea5e9" } },
+          title: { text: "Angle (rad)", font: { color: "#0ea5e9" } },
           color: "#222",
           range: [-Math.PI, Math.PI],
         },

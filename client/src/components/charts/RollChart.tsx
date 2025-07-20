@@ -38,15 +38,15 @@ const RollChart: React.FC<RollChartProps> = ({
       ]}
       layout={{
         title: {
-          text: "Roll (φ) en radianes",
+          text: "Roll (φ) in degrees",
           font: { color: "#6366f1", size: 20 },
         },
         xaxis: {
-          title: { text: "Tiempo (s)", font: { color: "#6366f1" } },
+          title: { text: "Time (s)", font: { color: "#6366f1" } },
           color: "#222",
         },
         yaxis: {
-          title: { text: "Ángulo (rad)", font: { color: "#6366f1" } },
+          title: { text: "Angle (rad)", font: { color: "#6366f1" } },
           color: "#222",
           range: [-Math.PI, Math.PI],
         },

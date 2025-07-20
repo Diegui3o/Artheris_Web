@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from "react";
 import { io } from "socket.io-client";
-import SwitchControl from "./SwitchMode";
+import SwitchControl from "./SwitchOp";
 import Plot from "react-plotly.js";
 
 const socket = io("http://localhost:3002");
@@ -291,7 +291,7 @@ const MotorDashboard = () => {
   const render3DTrajectory = () => {
     if (data.length < 2) return null;
 
-    // Extrae los valores de cada ángulo
+    // Extract the values of each angle
     const yaw = data.map((d) => Number(d.AngleYaw) || 0);
     const kalmanRoll = data.map((d) => Number(d.KalmanAngleRoll) || 0);
     const kalmanPitch = data.map((d) => Number(d.KalmanAnglePitch) || 0);
@@ -299,7 +299,7 @@ const MotorDashboard = () => {
     return (
       <div style={{ maxWidth: 700, margin: "40px auto" }}>
         <h3 style={{ color: "#fff", textAlign: "center", marginBottom: 10 }}>
-          Trayectoria 3D de Roll, Pitch y Yaw
+          3D trajectory of Roll, Pitch, and Yaw
         </h3>
         <Plot
           data={[
@@ -346,11 +346,14 @@ const MotorDashboard = () => {
       <h1
         style={{
           textAlign: "center",
-          marginBottom: "30px",
-          color: "#fff",
+          marginBottom: "40px",
+          color: "#ffffffff",
+          fontSize: "2.5rem",
+          fontWeight: "bold",
+          letterSpacing: "1px",
         }}
       >
-        Panel de Control de Motores PWM
+        PWM Motor Control Panel
       </h1>
       <div
         style={{
@@ -374,13 +377,13 @@ const MotorDashboard = () => {
             fontSize: "1.5rem",
           }}
         >
-          Modo de Conmutación
+          Switching Mode
         </h3>
         <SwitchControl />
         {renderAnglesBars()}
       </div>
 
-      {/* Grid de motores */}
+      {/* Motor grid */}
       <div
         style={{
           display: "grid",
@@ -395,24 +398,12 @@ const MotorDashboard = () => {
           margin: "0 auto",
         }}
       >
-        {renderMotorQuadrant(
-          "MotorInput4",
-          "Motor Delantero Izquierdo",
-          "motor4"
-        )}
-        {renderMotorQuadrant(
-          "MotorInput1",
-          "Motor Delantero Derecho",
-          "motor1"
-        )}
-        {renderMotorQuadrant(
-          "MotorInput3",
-          "Motor Trasero Izquierdo",
-          "motor3"
-        )}
-        {renderMotorQuadrant("MotorInput2", "Motor Trasero Derecho", "motor2")}
+        {renderMotorQuadrant("MotorInput4", "Front Left Motor", "motor4")}
+        {renderMotorQuadrant("MotorInput1", "Front Right Motor", "motor1")}
+        {renderMotorQuadrant("MotorInput3", "Rear Left Motor", "motor3")}
+        {renderMotorQuadrant("MotorInput2", "Rear Right Motor", "motor2")}
       </div>
-      {/* Renderizar la trayectoria 3D */}
+      {/* Render the 3D trajectory */}
       {render3DTrajectory()}
     </div>
   );

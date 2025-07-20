@@ -15,7 +15,7 @@ export default function DronProfileEditor({
 
   return (
     <div className="bg-gray-900 rounded p-6 shadow w-full max-w-md">
-      <h2 className="text-xl font-bold mb-2 text-white">Perfil de dron</h2>
+      <h2 className="text-xl font-bold mb-2 text-white">Drone profile</h2>
       <div className="flex items-center gap-2 mb-2">
         <span className="px-2 py-1 rounded bg-blue-800 text-blue-100 text-xs">
           ID: {deviceProfile.id}
@@ -25,7 +25,7 @@ export default function DronProfileEditor({
         </span>
       </div>
       <div className="mb-3">
-        <label className="block text-gray-300 text-sm mb-1">Nombre:</label>
+        <label className="block text-gray-300 text-sm mb-1">Name:</label>
         {editando ? (
           <form
             onSubmit={(e) => {
@@ -46,7 +46,7 @@ export default function DronProfileEditor({
               type="submit"
               className="px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700"
             >
-              Guardar
+              Save
             </button>
             <button
               type="button"
@@ -56,7 +56,7 @@ export default function DronProfileEditor({
                 setEditando(false);
               }}
             >
-              Cancelar
+              Cancel
             </button>
           </form>
         ) : (
@@ -68,19 +68,19 @@ export default function DronProfileEditor({
               className="px-2 py-1 rounded bg-blue-700 text-white hover:bg-blue-800 text-xs"
               onClick={() => setEditando(true)}
             >
-              Editar
+              Edit
             </button>
           </div>
         )}
       </div>
       <div className="text-gray-300 text-sm mb-2">
-        Última conexión:{" "}
+        Last connection:{" "}
         {deviceProfile.ultimaConexion
           ? new Date(deviceProfile.ultimaConexion).toLocaleString()
           : "-"}
       </div>
       <div className="text-gray-400 text-xs">
-        Registrado: {deviceProfile.registrado ? "Sí" : "No"}
+        Registered: {deviceProfile.registrado ? "Sí" : "No"}
       </div>
     </div>
   );

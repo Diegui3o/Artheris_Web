@@ -36,15 +36,15 @@ const PositionChart: React.FC<PositionChartProps> = ({ time, states }) => (
     ]}
     layout={{
       title: {
-        text: "Posición vs Tiempo",
+        text: "Position vs time",
         font: { color: "#3b82f6", size: 18 },
       },
       xaxis: {
-        title: { text: "Tiempo (s)", font: { color: "#3b82f6" } },
+        title: { text: "Time (s)", font: { color: "#3b82f6" } },
         color: "#222",
       },
       yaxis: {
-        title: { text: "Posición (m)", font: { color: "#3b82f6" } },
+        title: { text: "Position (m)", font: { color: "#3b82f6" } },
         color: "#222",
       },
       font: { color: "#3b82f6" },

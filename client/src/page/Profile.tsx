@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { fetchDevices } from "../utils/deviceApi";
 
-// Nueva función para obtener todos los drones registrados
+// New function to retrieve all registered drones
 async function fetchRegisteredDrones(): Promise<DeviceProfileType[]> {
   const res = await fetch("http://localhost:3002/api/drones");
   if (!res.ok)
-    throw new Error("No se pudo obtener la lista de drones registrados");
+    throw new Error("Failed to retrieve the list of registered drones");
   return res.json();
 }
 import RegisterForm from "./RegisterForm";
@@ -24,14 +24,8 @@ function Profile() {
   );
   const [mensaje, setMensaje] = useState<string | null>(null);
 
-  const LOGROS = [
-    { nombre: "Primer vuelo", icono: "🚀" },
-    { nombre: "10 vuelos", icono: "🎯" },
-    { nombre: "Altura máxima", icono: "🏔️" },
-  ];
-
   useEffect(() => {
-    // Fetch conectados y registrados en paralelo
+    // Fetch connected and registered in parallel
     Promise.all([fetchDevices(), fetchRegisteredDrones()])
       .then(([conectados, registrados]) => {
         setConnectedDevices(
@@ -41,7 +35,7 @@ function Profile() {
           (registrados || []).filter((d) => d.id && d.id.trim() !== "")
         );
       })
-      .catch(() => setMensaje("Error al obtener dispositivos o drones"));
+      .catch(() => setMensaje("Error fetching devices or drones"));
   }, []);
 
   useEffect(() => {
@@ -52,40 +46,37 @@ function Profile() {
         skin: "azul",
         conectado: true,
         ultimaConexion: new Date().toISOString(),
-        registrado: false, // O true, según corresponda
+        registrado: false,
       });
     } else {
       setDeviceProfile(null);
     }
   }, [deviceProfile]);
 
-  // Drones conectados que NO están registrados (mostrar solo formulario de registro para estos)
+  // Connected drones that are NOT registered (only show registration form for these)
   const conectadosNoRegistrados = connectedDevices.filter(
     (d) => !registeredDrones.some((r) => r.id === d.id)
   );
 
-  // Todos los drones registrados (pueden estar o no conectados)
+  // All registered drones (may or may not be connected)
   const dronesRegistrados = registeredDrones;
 
-  // Función placeholder para entrar al perfil
+  // Placeholder function to enter the profile
   const entrarAlPerfil = (id: string) => {
-    // Aquí puedes navegar o mostrar el perfil
-    alert(`Entrando al perfil de ${id}`);
+    alert(`Entering the profile of ... ${id}`);
   };
 
   return (
     <div className="flex flex-col items-center p-6">
-      {/* Apartado 1: Drones conectados y registrados (pueden ingresar) */}
+      {/* Connected and registered drones (can enter) */}
       <h2 className="text-lg font-bold mt-4 mb-2 text-green-400">
-        Drones conectados
+        Connected drones
       </h2>
       <ul className="w-full max-w-md mb-4">
         {dronesRegistrados.filter((d) =>
           connectedDevices.some((cd) => cd.id === d.id)
         ).length === 0 && (
-          <li className="text-gray-400">
-            No hay drones conectados registrados
-          </li>
+          <li className="text-gray-400">No connected registered drones</li>
         )}
         {dronesRegistrados
           .filter((d) => connectedDevices.some((cd) => cd.id === d.id))
@@ -99,24 +90,22 @@ function Profile() {
                 className="px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
                 onClick={() => entrarAlPerfil(d.id)}
               >
-                Ingresar
+                Log in
               </button>
               <span className="ml-2 px-2 py-0.5 rounded bg-green-700/70 text-green-200 text-xs font-mono tracking-widest shadow">
-                Conectado
+                Connected
               </span>
             </li>
           ))}
       </ul>
 
-      {/* Apartado 2: Drones conectados y NO registrados (pueden registrar) */}
+      {/* Connected and NOT registered drones (can register) */}
       <h2 className="text-lg font-bold mt-4 mb-2 text-yellow-400">
-        Drones conectados sin registrar
+        Unregistered connected drones
       </h2>
       <ul className="w-full max-w-md mb-4">
         {conectadosNoRegistrados.length === 0 && (
-          <li className="text-gray-400">
-            No hay drones conectados sin registrar
-          </li>
+          <li className="text-gray-400">No unregistered connected drones</li>
         )}
         {conectadosNoRegistrados.map((d) => (
           <li
@@ -137,17 +126,15 @@ function Profile() {
         ))}
       </ul>
 
-      {/* Apartado 3: Drones registrados pero desconectados (no pueden ingresar) */}
+      {/* Registered but disconnected drones (cannot enter) */}
       <h2 className="text-lg font-bold mt-4 mb-2 text-red-400">
-        Drones registrados desconectados
+        Disconnected registered drones
       </h2>
       <ul className="w-full max-w-md">
         {dronesRegistrados.filter(
           (d) => !connectedDevices.some((cd) => cd.id === d.id)
         ).length === 0 && (
-          <li className="text-gray-400">
-            No hay drones registrados desconectados
-          </li>
+          <li className="text-gray-400">No disconnected registered drones</li>
         )}
         {dronesRegistrados
           .filter((d) => !connectedDevices.some((cd) => cd.id === d.id))
@@ -158,55 +145,12 @@ function Profile() {
             >
               <span>{d.nombre || d.id}</span>
               <span className="ml-2 px-2 py-0.5 rounded bg-red-700/70 text-red-200 text-xs font-mono tracking-widest shadow">
-                Desconectado
+                Offline
               </span>
-              {/* No mostrar botón de ingresar si está desconectado */}
             </li>
           ))}
       </ul>
       <div className="flex flex-col items-center mt-6">
-        <svg width="112" height="112" viewBox="0 0 112 112">
-          <circle
-            cx="56"
-            cy="56"
-            r="50"
-            stroke="#22d3ee"
-            strokeWidth="8"
-            fill="none"
-            strokeDasharray={314}
-            strokeDashoffset={314 * (1 - 0 / 100)}
-            style={{ transition: "stroke-dashoffset 0.5s" }}
-          />
-          <text
-            x="56"
-            y="62"
-            textAnchor="middle"
-            fontSize="22"
-            fill="#fff"
-            fontWeight="bold"
-          >
-            0%
-          </text>
-        </svg>
-        <div className="flex items-center gap-2 mt-4">
-          <span className="font-bold text-lg text-white">
-            {deviceProfile?.nombre || "Sin nombre"}
-          </span>
-          <span className="ml-2 px-2 py-0.5 rounded bg-green-700/70 text-green-200 text-xs font-mono tracking-widest shadow">
-            Nivel 7
-          </span>
-        </div>
-        <div className="flex items-center gap-2 mt-1">
-          {LOGROS.map((l) => (
-            <span
-              key={l.nombre}
-              title={l.nombre}
-              className="text-xl select-none"
-            >
-              {l.icono}
-            </span>
-          ))}
-        </div>
         {typeof mensaje === "string" && mensaje && (
           <div className="mt-2 text-sm text-yellow-200 bg-gray-800 px-3 py-1 rounded shadow">
             {mensaje}
@@ -226,7 +170,7 @@ function Profile() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       ...deviceProfile,
-                      nombre: nuevoNombre,
+                      Name: nuevoNombre,
                     }),
                   }
                 );
@@ -236,20 +180,20 @@ function Profile() {
                 setRegisteredDrones((prev: DeviceProfileType[]) =>
                   prev.map((d: DeviceProfileType) =>
                     d.id === actualizado.id
-                      ? { ...d, nombre: actualizado.nombre }
+                      ? { ...d, Name: actualizado.nombre }
                       : d
                   )
                 );
-                setMensaje("Nombre actualizado correctamente");
+                setMensaje("Name updated successfully");
               } catch {
-                setMensaje("Error al actualizar el nombre");
+                setMensaje("Error updating the name");
               }
               setTimeout(() => setMensaje(null), 1500);
             }}
           />
         ) : (
           <div className="text-gray-400 p-6 text-lg">
-            Selecciona un ESP32 conectado para ver su perfil.
+            Select a connected ESP32 to view its profile.
           </div>
         )}
       </div>

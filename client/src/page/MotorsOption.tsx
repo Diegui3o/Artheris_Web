@@ -9,21 +9,21 @@ export default function ControlPanel() {
       const response = await fetch(`http://localhost:3002${endpoint}`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
       });
       if (response.ok) {
         setMotorStatus(state.toUpperCase());
       }
     } catch (error) {
-      console.error("Error al controlar el LED", error);
+      console.error("Error controlling the MOTORS", error);
     }
   };
 
   return (
     <div className="flex flex-col items-center bg-gray-900 p-6 rounded-2xl shadow-xl max-w-md mx-auto border border-gray-700">
       <h1 className="text-2xl font-bold text-white mb-4 text-center uppercase tracking-wide">
-        Control de Motores
+        Motor control
       </h1>
 
       <div
@@ -34,7 +34,7 @@ export default function ControlPanel() {
       ></div>
 
       <p className="text-gray-400 text-lg mb-4 text-center">
-        Estado de los motores:{" "}
+        Motor status:{" "}
         <span className="font-bold text-white">{motorStatus}</span>
       </p>
 
@@ -43,13 +43,13 @@ export default function ControlPanel() {
           onClick={() => toggleMotors("on")}
           className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-all"
         >
-          Encender
+          Turn on
         </button>
         <button
           onClick={() => toggleMotors("off")}
           className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg transition-all"
         >
-          Apagar
+          Turn off
         </button>
       </div>
     </div>

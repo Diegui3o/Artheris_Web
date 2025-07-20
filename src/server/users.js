@@ -6,7 +6,7 @@ app.use(express.json());
 
 const USERS_FILE = path.join(__dirname, 'users.json');
 
-// Utilidades para leer y escribir usuarios
+// Users to read and write users
 function readUsers() {
   if (!fs.existsSync(USERS_FILE)) return [];
   return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
@@ -15,25 +15,25 @@ function writeUsers(users) {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
 }
 
-// Crear usuario nuevo
+// Create new user
 app.post('/api/users', (req, res) => {
   const { id, nombre, email } = req.body;
-  if (!id || !nombre) return res.status(400).json({ error: 'Faltan campos' });
+  if (!id || !nombre) return res.status(400).json({ error: 'Fields are missing' });
   const users = readUsers();
-  if (users.find(u => u.id === id)) return res.status(409).json({ error: 'Ya existe' });
+  if (users.find(u => u.id === id)) return res.status(409).json({ error: 'It already exists' });
   const nuevo = { id, nombre, email, drones: [] };
   users.push(nuevo);
   writeUsers(users);
   res.json(nuevo);
 });
 
-// Añadir o actualizar dron personalizado a un usuario
+// Add or update custom drone to a user
 app.put('/api/users/:userId/drones/:droneId', (req, res) => {
   const { userId, droneId } = req.params;
   const droneData = req.body;
   const users = readUsers();
   const user = users.find(u => u.id === userId);
-  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (!user) return res.status(404).json({ error: 'User not found' });
   let drone = user.drones.find(d => d.id === droneId);
   if (drone) {
     Object.assign(drone, droneData);
@@ -44,15 +44,15 @@ app.put('/api/users/:userId/drones/:droneId', (req, res) => {
   res.json({ ok: true, drone: user.drones.find(d => d.id === droneId) });
 });
 
-// Obtener usuario y sus drones
+// Get user and their drones
 app.get('/api/users/:userId', (req, res) => {
   const users = readUsers();
   const user = users.find(u => u.id === req.params.userId);
-  if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (!user) return res.status(404).json({ error: 'User not found' });
   res.json(user);
 });
 
 // Inicia el servidor (puerto 3002)
 app.listen(3002, () => {
-  console.log('Servidor de usuarios y drones en http://localhost:3002');
+  console.log('User and drones server in http://localhost:3002');
 });

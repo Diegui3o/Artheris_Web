@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { io } from "socket.io-client";
-import { Card, CardContent } from "../components/ui/Card"; // Corrected import path
-import "./AnglesDisplay.css"; // Import the CSS file for neon styling
+import { Card, CardContent } from "../components/ui/Card";
+import "./AnglesDisplay.css";
 
 const DroneAngles = () => {
   const [angles, setAngles] = useState<{
@@ -69,11 +69,11 @@ const DroneAngles = () => {
     const socket = io("http://localhost:3002");
 
     socket.on("angles", (data) => {
-      //console.log("📡 Datos recibidos:", data);
+      //console.log("📡 Data received:", data);
       setAngles((prevAngles) => ({
         ...prevAngles,
-        roll: data?.roll ?? prevAngles.roll, // Cambiado a 'roll'
-        pitch: data?.pitch ?? prevAngles.pitch, // Cambiado a 'pitch'
+        roll: data?.roll ?? prevAngles.roll,
+        pitch: data?.pitch ?? prevAngles.pitch,
         yaw: data?.yaw ?? prevAngles.yaw,
         RateRoll: data?.RateRoll ?? prevAngles.RateRoll,
         RatePitch: data?.RatePitch ?? prevAngles.RatePitch,
@@ -129,11 +129,9 @@ const DroneAngles = () => {
   return (
     <Card className="p-4 shadow-lg rounded-lg bg-black neon-card">
       <CardContent>
-        <h2 className="main-title">
-          Drone Telemetría
-        </h2>
+        <h2 className="main-title">Drone Telemetry</h2>
 
-        <Section title="Ángulos">
+        <Section title="Angles">
           <p className="label-text">
             Roll: <span className="value-text">{angles.roll.toFixed(3)}</span>
           </p>
@@ -145,7 +143,7 @@ const DroneAngles = () => {
           </p>
         </Section>
 
-        <Section title="Kalman">
+        <Section title="Kalman Angles">
           <p className="label-text">
             KalmanAngleRoll:{" "}
             <span className="value-text">
@@ -160,7 +158,7 @@ const DroneAngles = () => {
           </p>
         </Section>
 
-        <Section title="Velocidades Angulares">
+        <Section title="Angular Velocities">
           <p className="label-text">
             Rate Roll:{" "}
             <span className="value-text">{angles.RateRoll.toFixed(3)}</span>
@@ -175,7 +173,7 @@ const DroneAngles = () => {
           </p>
         </Section>
 
-        <Section title="Errores y Torques">
+        <Section title="Errors and Torques">
           <Field label="Error phi" value={angles.error_phi} />
           <Field label="Error theta" value={angles.error_theta} />
           <Field label="Tau X" value={angles.tau_x} />
@@ -183,23 +181,23 @@ const DroneAngles = () => {
           <Field label="Tau Z" value={angles.tau_z} />
         </Section>
 
-        <Section title="Entradas de Control">
+        <Section title="Control Inputs">
           <Field label="InputThrottle" value={angles.InputThrottle} />
           <Field label="InputRoll" value={angles.InputRoll} />
           <Field label="InputPitch" value={angles.InputPitch} />
           <Field label="InputYaw" value={angles.InputYaw} />
         </Section>
 
-        <Section title="Motores">
+        <Section title="Motors">
           <Field label="Motor 1" value={angles.MotorInput1} />
           <Field label="Motor 2" value={angles.MotorInput2} />
           <Field label="Motor 3" value={angles.MotorInput3} />
           <Field label="Motor 4" value={angles.MotorInput4} />
         </Section>
 
-        <Section title="Otros">
-          <Field label="Altura" value={angles.Altura} />
-          <Field label="Modo" value={angles.modo} />
+        <Section title="Others">
+          <Field label="Height" value={angles.Altura} />
+          <Field label="Mode" value={angles.modo} />
         </Section>
       </CardContent>
     </Card>

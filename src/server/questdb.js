@@ -11,9 +11,9 @@ const pool = new pg.Pool({
 
 // Verify connection to Questdb at the start
 pool.query('SELECT 1')
-    .then(() => console.log('✅ Conexión a QuestDB establecida'))
+    .then(() => console.log('✅ Connection to Questdb Established'))
     .catch(err => {
-        console.error('❌ No se pudo conectar a QuestDB');
+        console.error('❌ Could not be connected to Questdb');
     });
 
 function safe(value) {
@@ -95,7 +95,7 @@ export async function insertNewFlight(Kc, Ki, mass = null, armLength = null) {
         await executeQueryWithRetry(query);
         return flightId;
     } catch (err) {
-        console.error('❌ Error al insertar nuevo vuelo:', err);
+        console.error('❌ Error when inserting new flight:', err);
         throw err;
     }
 }
@@ -154,7 +154,7 @@ export async function insertSensorData(sensor, flightId) {
     const requiredFields = ['AngleRoll', 'AnglePitch', 'AngleYaw', 'RateRoll', 'RatePitch', 'RateYaw'];
     for (const field of requiredFields) {
         if (sensor[field] === undefined) {
-            console.warn(`⚠️ Campo requerido faltante: ${field}, se usará 0`);
+            console.warn(`⚠️ Failure required field: ${field}, 0 will be used`);
         }
     }
     try {
@@ -181,10 +181,10 @@ export async function printLastSensorData(n = 10, returnRows = false) {
     try {
         const result = await pool.query(`SELECT * FROM sensor_data ORDER BY time DESC LIMIT ${n}`);
         if (returnRows) return result.rows;
-        console.log('Últimos registros de sensor_data:');
+        console.log('Latest sensor_data records:');
         console.table(result.rows);
     } catch (err) {
-        console.error('❌ Error al consultar sensor_data:', err.message);
+        console.error('❌ Error when consulting sensor_data:', err.message);
         if (returnRows) return [];
     }
 }
@@ -192,10 +192,10 @@ export async function printLastSensorData(n = 10, returnRows = false) {
 export async function checkQuestDBConnection() {
     try {
         const res = await pool.query('SELECT 1');
-        console.log('✅ Conexión a QuestDB verificada correctamente');
+        console.log('✅ CONNECTION TO QUESTDB correctly verified');
         return true;
     } catch (err) {
-        console.error('❌ Error al conectar con QuestDB:', err);
+        console.error('❌ Error connecting with Questdb:', err);
         return false;
     }
 }

@@ -10,5 +10,5 @@ for line in sys.stdin:
         )
         sys.stdout.flush()
     except Exception as e:
-        print(f"Error al procesar datos: {e}")
+        print(f"Error when processing data: {e}")
         sys.stdout.flush()

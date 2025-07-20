@@ -15,7 +15,7 @@ const PORT = 3002;
 app.use(cors());
 app.use(express.json());
 
-// --- ENDPOINTS BÁSICOS PARA REGISTRO Y CONSULTA DE DRONES POR ID ---
+//  Basic endpoints for drone registration and consultation by ID
 import fs from "fs";
 import path from "path";
 
@@ -29,7 +29,7 @@ function writeDrones(drones) {
   fs.writeFileSync(DRONES_FILE, JSON.stringify(drones, null, 2));
 }
 
-// Registrar o actualizar dron por ID
+// Register or update dron by ID
 app.put("/api/drones/:id", (req, res) => {
   const { id } = req.params;
   const data = req.body;
@@ -45,22 +45,21 @@ app.put("/api/drones/:id", (req, res) => {
   res.json(dron);
 });
 
-// Obtener dron por ID
+// Get drone by ID
 app.get("/api/drones/:id", (req, res) => {
   const { id } = req.params;
   const drones = readDrones();
   const dron = drones.find((d) => d.id === id);
-  if (!dron) return res.status(404).json({ error: "No encontrado" });
+  if (!dron) return res.status(404).json({ error: "Not found" });
   res.json(dron);
 });
 
-// Listar todos los drones (opcional)
+// List all drones (optional)
 app.get("/api/drones", (req, res) => {
   res.json(readDrones());
 });
 
-// --- Lista global de dispositivos conectados ---
-// Endpoint para obtener los dispositivos conectados
+// Endpoint to obtain connected devices
 app.get("/api/devices", (req, res) => {
   res.json(Object.values(dispositivosConectados));
 });
@@ -121,7 +120,6 @@ const simState = {
 
 // WebSocket - Clientes
 io.on("connection", (socket) => {
-  // Al conectar un cliente web, enviar el estado de todos los dispositivos
   const estados = Object.values(dispositivosConectados).map((device) => ({
     id: device.id,
     status: device.conectado ? "connected" : "disconnected",
@@ -148,7 +146,7 @@ function emitirEstadoDispositivos() {
 // WebSocket - ESP32
 wss.on("connection", (ws, req) => {
   const clientIP = req.socket.remoteAddress;
-  console.log(`✅ ESP32 conectado por WebSocket puro desde ${clientIP}`);
+  console.log(`✅ ESP32 connected by websocket from ${clientIP}`);
   ws.on("message", (message) => {
     let identificador = null;
     try {
@@ -179,7 +177,7 @@ wss.on("connection", (ws, req) => {
         ultimoContacto[identificador] = Date.now();
         emitirEstadoDispositivos();
       }
-    } catch (e) {}
+    } catch (e) { }
     let data;
     let parsed = false;
     if (ws.deviceId) {
@@ -239,7 +237,7 @@ wss.on("connection", (ws, req) => {
       return;
     }
     if (typeof data.modo !== "undefined") {
-      io.emit("modo", data.modo);
+      io.emit("mode", data.modo);
     }
     if (typeof data.led !== "undefined") {
       io.emit("led", { led: !!data.led });
@@ -259,7 +257,7 @@ wss.on("connection", (ws, req) => {
       ) {
         const phi_ref = (data.KalmanAngleRoll * Math.PI) / 180;
         const theta_ref = (data.KalmanAnglePitch * Math.PI) / 180;
-        console.log("[ESP32 DEBUG] Actualizando referencias del simulador:", {
+        console.log("[ESP32 DEBUG] Updating simulator references:", {
           KalmanAngleRoll: data.KalmanAngleRoll,
           KalmanAnglePitch: data.KalmanAnglePitch,
           phi_ref: phi_ref.toFixed(4),
@@ -272,8 +270,8 @@ wss.on("connection", (ws, req) => {
           typeof data.T === "number"
             ? data.T
             : typeof data.InputThrottle === "number"
-            ? data.InputThrottle
-            : simState.simControl.T,
+              ? data.InputThrottle
+              : simState.simControl.T,
         tau_x:
           typeof data.tau_x === "number"
             ? clampWithThreshold(data.tau_x)
@@ -300,20 +298,20 @@ wss.on("connection", (ws, req) => {
     if (state.isRecording) state.telemetries.push(combined);
     if (state.isRecording && state.flightId) {
       insertSensorData(combined, state.flightId).catch((err) =>
-        console.error("❌ Error guardando datos en QuestDB:", err)
+        console.error("❌ Error saving data in Questdb:", err)
       );
     }
   });
   ws.on("close", () => {
-    // Elimina completamente el dispositivo del registro
+    // Completely eliminate the registration device
     if (ws.deviceId && dispositivosConectados[ws.deviceId]) {
       delete dispositivosConectados[ws.deviceId];
     }
     if (ws.deviceId && esp32Sockets[ws.deviceId]) {
       delete esp32Sockets[ws.deviceId];
     }
-    console.log("❌ ESP32 desconectado (ws)");
-    // Notificar a los clientes web el estado completo actualizado
+    console.log("❌ ESP32 offline (ws)");
+    // Notify Web clients the complete state updated
     emitirEstadoDispositivos();
   });
 });
@@ -323,17 +321,16 @@ function clamp(val, min = -5, max = 5) {
 
 function clampWithThreshold(val, threshold = 0.01, min = -5, max = 5) {
   if (typeof val !== "number" || isNaN(val)) return 0;
-  // Si el valor absoluto es menor que el umbral, forzar a cero
+  // If the absolute value is less than the threshold, forcing to zero
   if (Math.abs(val) < threshold) return 0;
   return Math.min(Math.max(val, min), max);
 }
 
 app.get("/modo/actual", (req, res) => {
-  console.log("🔎 [DEBUG] GET /modo/actual called");
   res.json({
     modo:
       typeof state.latestTelemetry.modo === "number" &&
-      !isNaN(state.latestTelemetry.modo)
+        !isNaN(state.latestTelemetry.modo)
         ? state.latestTelemetry.modo
         : 1,
   });
@@ -344,10 +341,10 @@ app.get("/modo/:mode", (req, res) => {
   if (isNaN(mode) || mode < 0 || mode > 10) {
     return res
       .status(400)
-      .json({ error: "Modo inválido. Debe ser un número entre 0 y 10." });
+      .json({ error: "Invalid mode It must be a number between 0 and 10." });
   }
 
-  console.log(`🔄 [DEBUG] Cambiando modo a: ${mode}`);
+  console.log(`🔄 [DEBUG] Changing mode a: ${mode}`);
 
   // Send command to all connected Esp32
   wss.clients.forEach((client) => {
@@ -357,17 +354,17 @@ app.get("/modo/:mode", (req, res) => {
         payload: { mode },
       });
       client.send(command);
-      console.log(`📤 Enviando comando de modo al ESP32: ${command}`);
+      console.log(`📤 Senting Mode to ESP32: ${command}`);
     }
   });
   state.latestTelemetry.modo = mode;
   io.emit("modo", mode);
 
-  res.json({ modo: mode, message: `Modo cambiado a ${mode}` });
+  res.json({ modo: mode, message: `Mode changed to ${mode}` });
 });
 
 app.post("/led/on", (req, res) => {
-  console.log("💡 [DEBUG] Encendiendo LED");
+  console.log("💡 [DEBUG] Lighting LED");
 
   wss.clients.forEach((client) => {
     if (client.readyState === 1) {
@@ -376,16 +373,16 @@ app.post("/led/on", (req, res) => {
         payload: { led: true },
       });
       client.send(command);
-      console.log(`📤 Enviando comando LED ON al ESP32: ${command}`);
+      console.log(`📤 Senting LED On to ESP32: ${command}`);
     }
   });
-  io.emit("led", { led: true });
+  io.emit("LED", { led: true });
 
-  res.json({ led: true, message: "LED encendido" });
+  res.json({ led: true, message: "LED On" });
 });
 
 app.post("/led/off", (req, res) => {
-  console.log("💡 [DEBUG] Apagando LED");
+  console.log("💡 [DEBUG] Turning off LED");
 
   // Send command to all connected Esp32
   wss.clients.forEach((client) => {
@@ -395,16 +392,16 @@ app.post("/led/off", (req, res) => {
         payload: { led: false },
       });
       client.send(command);
-      console.log(`📤 Enviando comando LED OFF al ESP32: ${command}`);
+      console.log(`📤 Sending LED off command to ESP32: ${command}`);
     }
   });
-  io.emit("led", { led: false });
+  io.emit("LED", { led: false });
 
-  res.json({ led: false, message: "LED apagado" });
+  res.json({ led: false, message: "LED off" });
 });
 
 app.post("/motores/on", (req, res) => {
-  console.log("🚁 [DEBUG] Encendiendo motores");
+  console.log("🚁 [DEBUG] Lighting MOTORS");
 
   // Send command to all connected Esp32
   wss.clients.forEach((client) => {
@@ -414,16 +411,16 @@ app.post("/motores/on", (req, res) => {
         payload: { motors: true },
       });
       client.send(command);
-      console.log(`📤 Enviando comando MOTORES ON al ESP32: ${command}`);
+      console.log(`📤 Senting MOTORS ON to Esp32: ${command}`);
     }
   });
   io.emit("motors", { motors: true });
 
-  res.json({ motors: true, message: "Motores encendidos" });
+  res.json({ motors: true, message: "MOTORS ON" });
 });
 
 app.post("/motores/off", (req, res) => {
-  console.log("🚁 [DEBUG] Apagando motores");
+  console.log("🚁 [DEBUG] Turning off MOTORS");
 
   // Send command to all connected Esp32
   wss.clients.forEach((client) => {
@@ -433,13 +430,13 @@ app.post("/motores/off", (req, res) => {
         payload: { motors: false },
       });
       client.send(command);
-      console.log(`📤 Enviando comando MOTORES OFF al ESP32: ${command}`);
+      console.log(`📤 Sending command MOTORS OFF to ESP32: ${command}`);
     }
   });
 
   io.emit("motors", { motors: false });
 
-  res.json({ motors: false, message: "Motores apagados" });
+  res.json({ motors: false, message: "MOTORS OFF" });
 });
 
 app.get("/api/devices", (req, res) => {
@@ -451,9 +448,9 @@ app.post("/led/on/:id", (req, res) => {
   const ws = esp32Sockets[id];
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: "command", payload: { led: true } }));
-    res.json({ ok: true, message: `LED encendido en ${id}` });
+    res.json({ ok: true, message: `LED lit on ${id}` });
   } else {
-    res.status(404).json({ ok: false, message: `ESP32 ${id} no conectado` });
+    res.status(404).json({ ok: false, message: `ESP32 ${id} not connected` });
   }
 });
 
@@ -501,7 +498,7 @@ io.on("connection", (socket) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Servidor escuchando en http://0.0.0.0:${PORT}`);
+  console.log(`🚀 Server listening in http://0.0.0.0:${PORT}`);
 });
 
 export { io, wss, state };

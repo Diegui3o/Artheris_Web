@@ -38,15 +38,15 @@ const PitchDegChart: React.FC<PitchDegChartProps> = ({
       ]}
       layout={{
         title: {
-          text: "Pitch (θ) en grados",
+          text: "Pitch (θ) in degrees",
           font: { color: "#0ea5e9", size: 20 },
         },
         xaxis: {
-          title: { text: "Tiempo (s)", font: { color: "#0ea5e9" } },
+          title: { text: "Time (s)", font: { color: "#0ea5e9" } },
           color: "#222",
         },
         yaxis: {
-          title: { text: "Ángulo (°)", font: { color: "#0ea5e9" } },
+          title: { text: "Angle (°)", font: { color: "#0ea5e9" } },
           color: "#222",
           range: [-180, 180],
         },

@@ -1,5 +1,4 @@
-"use client";
-import SwitchControl from "./SwitchMode";
+import SwitchControl from "./SwitchOp";
 
 import { useState } from "react";
 
@@ -58,17 +57,15 @@ export default function Settings() {
       });
 
       const data = await response.json();
-      console.log("🚀 Grabación iniciada, flightId:", data.flightId);
+      console.log("🚀 Recording initiated, flightId:", data.flightId);
 
       // Stop the recording automatically after 20 seconds
       setTimeout(() => {
         setRecording(false);
-        console.log(
-          "⏹️ Grabación detenida automáticamente después de 20 segundos"
-        );
+        console.log("⏹️ Automatically stopped recording after 20 seconds");
       }, 20000); // 20 seconds in milliseconds
     } catch (error) {
-      console.error("❌ Error al iniciar grabación:", error);
+      console.error("❌ Error at the start recording:", error);
       setRecording(false);
     }
   };
@@ -76,19 +73,19 @@ export default function Settings() {
   return (
     <div className="p-6 text-white max-w-4xl mx-auto space-y-8">
       <h1 className="text-3xl font-bold mb-6 text-center">
-        ⚙️ Configuración del Dron
+        ⚙️ Drone configuration
       </h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Flight data */}
         <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
           <h2 className="text-xl font-semibold mb-4 border-b border-gray-600 pb-2">
-            ✈️ Datos de Vuelo
+            ✈️ Flight data
           </h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block mb-2 font-medium">Masa (kg)</label>
+              <label className="block mb-2 font-medium">Mass (kg)</label>
               <input
                 type="number"
                 value={mass}
@@ -97,9 +94,7 @@ export default function Settings() {
               />
             </div>
             <div>
-              <label className="block mb-2 font-medium">
-                Longitud del Brazo (m)
-              </label>{" "}
+              <label className="block mb-2 font-medium">Arm length (m)</label>{" "}
               <input
                 type="number"
                 value={armLength}
@@ -114,7 +109,7 @@ export default function Settings() {
         {/* Switching mode */}
         <div className="bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col items-center">
           <h2 className="text-lg font-semibold text-white mb-4 uppercase tracking-wide border-b border-gray-600 pb-2">
-            Modo de Conmutación
+            Switching mode
           </h2>
           <SwitchControl />
         </div>
@@ -178,7 +173,7 @@ export default function Settings() {
               : "bg-green-600 hover:bg-green-700 focus:ring-2 focus:ring-green-500"
           }`}
         >
-          {recording ? "Grabando..." : "🎥 Grabar Vuelo (20s)"}
+          {recording ? "Recording..." : "🎥 Record flight (20s)"}
         </button>
       </div>
     </div>

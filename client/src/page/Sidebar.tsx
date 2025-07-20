@@ -78,7 +78,7 @@ export default function Layout() {
         {/* Search bar */}
         <TextField
           fullWidth={false}
-          placeholder="Buscar..."
+          placeholder="Search..."
           variant="outlined"
           size="small"
           value={searchTerm}
@@ -153,7 +153,7 @@ export default function Layout() {
                   mb: 2,
                 }}
               >
-                No se encontraron resultados
+                No results found
               </Box>
             ) : (
               routes.map((route) => (

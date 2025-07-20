@@ -4,7 +4,7 @@ import Plot from "react-plotly.js";
 export interface YawChartProps {
   time: number[];
   modelYaw: number[];
-  esp32RefYaw: number[]; // Puede ser Kalman si existe, si no, crudo
+  esp32RefYaw: number[];
   esp32Time: number[];
 }
 
@@ -39,15 +39,15 @@ const YawChart: React.FC<YawChartProps> = ({
       ]}
       layout={{
         title: {
-          text: "Yaw (ψ) en radianes",
+          text: "Yaw (ψ) in degrees",
           font: { color: "#14b8a6", size: 20 },
         },
         xaxis: {
-          title: { text: "Tiempo (s)", font: { color: "#14b8a6" } },
+          title: { text: "Time (s)", font: { color: "#14b8a6" } },
           color: "#222",
         },
         yaxis: {
-          title: { text: "Ángulo (rad)", font: { color: "#14b8a6" } },
+          title: { text: "Angle (rad)", font: { color: "#14b8a6" } },
           color: "#222",
           range: [-Math.PI, Math.PI],
         },

@@ -11,13 +11,13 @@ export default function createSimulationRouter({
     router.post('/simulate/start', (req, res) => {
         console.log('[DEBUG] POST /simulate/start called. simMode:', simState.simMode, 'IP:', req.ip, 'Body:', req.body);
         if (simState.simMode) {
-            console.warn('[WARN] Simulación ya activa. Rejecting new start.');
-            return res.status(400).json({ error: 'Simulación ya activa' });
+            console.warn('[WARN] Simulation already active. Rejecting New Start.');
+            return res.status(400).json({ error: 'Simulation already active' });
         }
         if (simState.simInterval) {
             clearInterval(simState.simInterval);
             simState.simInterval = null;
-            console.log('[INFO] Intervalo de simulación anterior limpiado antes de iniciar uno nuevo.');
+            console.log('[INFO] Cleaned previous simulation interval before starting a new.');
         }
         if (req.body && typeof req.body === 'object') {
             Object.assign(simState.simulationParams, req.body);
@@ -50,7 +50,7 @@ export default function createSimulationRouter({
 
             if (simState.simulator.phi_ref === 0 && simState.simulator.theta_ref === 0) {
                 simState.simulator.generateTestReferences(simState.simulator.simTime);
-                console.log('[SIM] Usando referencias de prueba - phi_ref:', simState.simulator.phi_ref.toFixed(4), 'theta_ref:', simState.simulator.theta_ref.toFixed(4));
+                console.log('[SIM] Using test references - phi_ref:', simState.simulator.phi_ref.toFixed(4), 'theta_ref:', simState.simulator.theta_ref.toFixed(4));
             }
 
             // Use PID
@@ -85,20 +85,20 @@ export default function createSimulationRouter({
                 inputs: [calculatedT, calculatedTauX, calculatedTauY, calculatedTauZ, safeRoll, safePitch, safeYaw]
             };
             simState.simHistory.push(simData);
-            io.emit("datosSimulacion", simData);
+            io.emit("Simulation data", simData);
         }, 30);
-        res.json({ message: 'Simulación iniciada', params: simState.simulationParams });
+        res.json({ message: 'Simulation initiated', params: simState.simulationParams });
     });
     router.post('/simulate/stop', (req, res) => {
         if (!simState.simMode) {
-            return res.status(400).json({ error: 'No hay simulación activa' });
+            return res.status(400).json({ error: 'There is no active simulation' });
         }
         simState.simMode = false;
         if (simState.simInterval) {
             clearInterval(simState.simInterval);
             simState.simInterval = null;
         }
-        res.json({ message: 'Simulación detenida' });
+        res.json({ message: 'Stop simulation' });
     });
     router.get('/simulate/status', (req, res) => {
         res.json({ simActive: !!simState.simMode });
@@ -163,7 +163,7 @@ export default function createSimulationRouter({
             simState.simControl = { T, tau_x, tau_y, tau_z };
             return res.json({ ok: true, simControl: simState.simControl });
         }
-        res.status(400).json({ error: 'Valores de control inválidos' });
+        res.status(400).json({ error: 'Invalid control values' });
     });
 
     return router;

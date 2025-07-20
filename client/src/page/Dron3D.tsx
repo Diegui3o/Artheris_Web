@@ -16,13 +16,12 @@ function Drone({
   const obj = useLoader(OBJLoader, "/src/models/base(2).obj");
   useFrame(() => {
     if (droneRef.current) {
-      // Aplicar rotaciones en el orden correcto: YAW -> PITCH -> ROLL
-      // Esto asegura que pitch y roll se apliquen en el sistema de coordenadas local del dron
+      // Apply rotations in the correct order: YAW -> PITCH -> ROLL
       droneRef.current.rotation.order = "YXZ"; // Yaw (Y), Pitch (X), Roll (Z)
       droneRef.current.rotation.set(
-        kalmanAngles.pitch, // X: Pitch (aplicado después del yaw)
-        anglesData.yaw, // Y: Yaw (aplicado primero)
-        kalmanAngles.roll // Z: Roll (aplicado al final)
+        kalmanAngles.pitch,
+        anglesData.yaw,
+        kalmanAngles.roll
       );
     }
   });
@@ -44,7 +43,7 @@ export default function Dron3D() {
         roll: THREE.MathUtils.degToRad(data?.KalmanAngleRoll ?? 0),
         pitch: THREE.MathUtils.degToRad(data?.KalmanAnglePitch ?? 0),
       });
-      // Usar el primer valor disponible: Yaw, yaw, AngleYaw
+      // Use the first available value: Yaw, yaw, AngleYaw
       const yawValue = data?.Yaw ?? data?.yaw ?? data?.AngleYaw ?? 0;
       setAnglesData({
         yaw: THREE.MathUtils.degToRad(yawValue),
@@ -59,7 +58,7 @@ export default function Dron3D() {
 
   return (
     <div style={{ position: "relative", width: "70vw", height: "70vh" }}>
-      {/* 🔷 Cuadro flotante con ángulos Kalman */}
+      {/* Floating box with Kalman angles */}
       <div
         style={{
           position: "absolute",
@@ -85,7 +84,6 @@ export default function Dron3D() {
         </p>
       </div>
 
-      {/* 🛸 Escena 3D */}
       <Canvas
         camera={{
           position: [0, 1, 2.9],

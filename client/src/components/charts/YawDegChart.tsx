@@ -38,15 +38,15 @@ const YawDegChart: React.FC<YawDegChartProps> = ({
       ]}
       layout={{
         title: {
-          text: "Yaw (ψ) en grados",
+          text: "Yaw (ψ) in degrees",
           font: { color: "#14b8a6", size: 20 },
         },
         xaxis: {
-          title: { text: "Tiempo (s)", font: { color: "#14b8a6" } },
+          title: { text: "Time (s)", font: { color: "#14b8a6" } },
           color: "#222",
         },
         yaxis: {
-          title: { text: "Ángulo (°)", font: { color: "#14b8a6" } },
+          title: { text: "Angle (°)", font: { color: "#14b8a6" } },
           color: "#222",
           range: [-180, 180],
         },

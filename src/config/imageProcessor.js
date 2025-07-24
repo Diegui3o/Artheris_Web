@@ -2,7 +2,6 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
-// Helper para obtener la ruta del directorio actual en ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -10,77 +9,104 @@ let pythonProcess;
 let resolvePromise = null;
 let rejectPromise = null;
 
-/**
- * Inicia el script de Python como un proceso hijo.
- */
 function startPythonProcess() {
-    // Corregimos la ruta para que apunte a la carpeta 'server'
     const scriptPath = path.join(__dirname, '..', 'server', 'pdi.py');
     console.log(`🐍 Iniciando script de Python en: ${scriptPath}`);
 
-    // Cambiamos 'python3' a 'python' para que funcione en Windows
-    pythonProcess = spawn('python', [scriptPath]);
+    // Opción multiplataforma para el comando Python
+    const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
 
-    // Escucha la salida estándar (resultados exitosos)
+    pythonProcess = spawn(pythonCommand, [scriptPath]);
+
     pythonProcess.stdout.on('data', (data) => {
         const resultStr = data.toString().trim();
-        if (resolvePromise) {
-            try {
-                const parsedResult = JSON.parse(resultStr);
-                resolvePromise(parsedResult); // Resuelve con el objeto parseado
-            } catch (e) {
-                rejectPromise(new Error(`Error al parsear la respuesta JSON de Python: ${resultStr}`));
-            }
+        if (!resolvePromise) return;
+
+        try {
+            const parsedResult = JSON.parse(resultStr);
+            resolvePromise(parsedResult);
+        } catch (e) {
+            console.error('Error parsing Python output:', resultStr);
+            rejectPromise(new Error(`Invalid JSON from Python: ${resultStr}`));
+        } finally {
             resolvePromise = null;
             rejectPromise = null;
         }
     });
 
-    // Escucha la salida de error
     pythonProcess.stderr.on('data', (data) => {
         const errorStr = data.toString().trim();
-        console.error(`[Python STDERR]: ${errorStr}`);
+        console.error(`[Python Error]: ${errorStr}`);
+
         if (rejectPromise) {
+            // Intenta extraer el mensaje de error si es JSON
+            let errorMsg = errorStr;
             try {
-                const parsedError = JSON.parse(errorStr);
-                rejectPromise(new Error(parsedError.error || 'Error desconocido desde Python.'));
-            } catch (e) {
-                rejectPromise(new Error(errorStr)); // Fallback si el error no es JSON
-            }
+                const errorObj = JSON.parse(errorStr);
+                errorMsg = errorObj.error || errorStr;
+            } catch (_) { }
+
+            rejectPromise(new Error(errorMsg));
             resolvePromise = null;
             rejectPromise = null;
         }
     });
 
     pythonProcess.on('close', (code) => {
-        console.log(`El script de Python terminó con código ${code}`);
-        pythonProcess = null; // Marcar como terminado
-        if (rejectPromise) {
-            rejectPromise(new Error('El proceso de Python terminó inesperadamente.'));
+        console.log(`Python process exited with code ${code}`);
+        if (code !== 0 && rejectPromise) {
+            rejectPromise(new Error(`Python process exited with code ${code}`));
         }
+        pythonProcess = null;
     });
 
     pythonProcess.on('error', (err) => {
-        console.error('❌ Error al iniciar el proceso de Python:', err);
+        console.error('Failed to start Python process:', err);
+        if (rejectPromise) {
+            rejectPromise(err);
+        }
     });
 }
 
-/**
- * Envía una imagen en base64 al script de Python y devuelve una promesa con el resultado.
- * @param {string} base64Image La imagen codificada en base64.
- * @returns {Promise<object>} Una promesa que resuelve con el objeto de resultados.
- */
 function processImage(base64Image) {
     return new Promise((resolve, reject) => {
         if (!pythonProcess || pythonProcess.killed) {
-            return reject(new Error('El proceso de Python no está corriendo.'));
+            startPythonProcess(); // Auto-reinicio si el proceso no está corriendo
         }
 
         resolvePromise = resolve;
         rejectPromise = reject;
 
-        pythonProcess.stdin.write(base64Image + '\n');
+        // Validación básica del input
+        if (!base64Image || typeof base64Image !== 'string') {
+            reject(new Error('Invalid base64 image data'));
+            return;
+        }
+
+        // Limpieza del string base64
+        const cleanBase64 = base64Image.split(',')[1] || base64Image;
+
+        if (!pythonProcess.stdin.writable) {
+            reject(new Error('Python process stdin is not writable'));
+            return;
+        }
+
+        pythonProcess.stdin.write(cleanBase64 + '\n', (err) => {
+            if (err) {
+                console.error('Error writing to Python stdin:', err);
+                reject(err);
+                resolvePromise = null;
+                rejectPromise = null;
+            }
+        });
     });
 }
+
+// Manejo de cierre limpio
+process.on('exit', () => {
+    if (pythonProcess) {
+        pythonProcess.kill();
+    }
+});
 
 export { startPythonProcess, processImage };

@@ -20,14 +20,12 @@ const CameraPage: React.FC = () => {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
-  const analysisIntervalRef = useRef<NodeJS.Timeout | null>(null); // CORRECCIÓN: Declarar la referencia para el intervalo
-
+  const analysisIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const roomId = "test-room";
 
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [isCameraOn, setIsCameraOn] = useState(false);
-  // CORRECCIÓN: Obtener el setter 'setAnalysis' de useState
   const [analysis, setAnalysis] = useState<AnalysisResults | null>(null);
 
   // Cleanup WebRTC resources
@@ -68,24 +66,27 @@ const CameraPage: React.FC = () => {
     }
   }, []);
 
-  // CORRECCIÓN: Declarar la función para capturar y analizar frames
   const captureAndAnalyzeFrame = useCallback(() => {
-    // Aquí iría la lógica para:
-    // 1. Dibujar el frame del video en un canvas.
-    // 2. Obtener el frame como una imagen (ej. base64).
-    // 3. Emitir la imagen a través del socket para su análisis.
-    // console.log("Capturing frame for analysis...");
-    if (socketRef.current && videoRef.current) {
-      // Ejemplo de cómo capturar y enviar (requiere implementación del lado del servidor)
-      // const canvas = document.createElement('canvas');
-      // canvas.width = videoRef.current.videoWidth;
-      // canvas.height = videoRef.current.videoHeight;
-      // const ctx = canvas.getContext('2d');
-      // ctx?.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      // const frame = canvas.toDataURL('image/jpeg');
-      // socketRef.current.emit('analyze_frame', { frame, roomId });
+    if (socketRef.current && videoRef.current && videoRef.current.readyState >= 2) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current!.videoWidth;
+      canvas.height = videoRef.current!.videoHeight;
+      const ctx = canvas.getContext('2d');
+      
+      if (ctx) {
+        ctx.drawImage(videoRef.current!, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+        
+        const timestamp = Date.now();
+        console.log(`Sending frame for analysis (${imageData.length} bytes) at ${new Date(timestamp).toISOString()}`);
+        socketRef.current!.emit('process-frame', { 
+          image: imageData,
+          roomId,
+          timestamp
+        });
+      }
     }
-  }, []);
+  }, [roomId]);
 
   const toggleAnalysis = useCallback(() => {
     setStatus((prev) => {
@@ -101,14 +102,12 @@ const CameraPage: React.FC = () => {
           clearInterval(analysisIntervalRef.current);
           analysisIntervalRef.current = null;
         }
-        setAnalysis(null); // Limpiar resultados del análisis
+        setAnalysis(null);
       }
       return newStatus;
     });
   }, [captureAndAnalyzeFrame]);
 
-  // CORRECCIÓN: La lógica principal de conexión se movió a toggleCamera
-  // para ser iniciada por el usuario, evitando duplicados y ejecuciones no deseadas.
   const toggleCamera = useCallback(async () => {
     if (isCameraOn) {
       // Turn off camera
@@ -126,8 +125,6 @@ const CameraPage: React.FC = () => {
     try {
       setStatus("connecting");
       setError(null);
-
-      // Initialize new connection
       socketRef.current = io("http://localhost:3002/webrtc");
       const socket = socketRef.current;
 
@@ -166,6 +163,24 @@ const CameraPage: React.FC = () => {
       socket.on("connect", () => {
         console.log("Connected to signaling server, joining room...");
         socket.emit("join", roomId);
+      });
+
+      // Handle analysis results from server
+      socket.on('analysis-result', (data: AnalysisResults) => {
+        console.log('Analysis results received:', data);
+        setAnalysis({
+          pasto: data.pasto || 0,
+          tierra: data.tierra || 0,
+          otros: data.otros || 0,
+          tiempo: data.tiempo || 0
+        });
+      });
+
+      // Handle analysis errors
+      socket.on('analysis-error', (error: { error: string; details?: string; timestamp: number }) => {
+        console.error('Analysis error:', error);
+        setError(`Analysis error: ${error.error}`);
+        setStatus('error');
       });
 
       socket.on("offer", async (data: { sdp: string; type: RTCSdpType }) => {
@@ -228,7 +243,7 @@ const CameraPage: React.FC = () => {
           <div className="text-white text-center p-4 rounded-lg">
             {!isCameraOn && status === "idle" && (
               <button
-                onClick={toggleCamera} // CORRECCIÓN: Usar toggleCamera
+                onClick={toggleCamera}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xl font-bold"
               >
                 Start Camera
@@ -245,7 +260,7 @@ const CameraPage: React.FC = () => {
                 <p className="font-bold">Error:</p>
                 <p>{error}</p>
                 <button
-                  onClick={toggleCamera} // CORRECCIÓN: Usar toggleCamera para reintentar
+                  onClick={toggleCamera}
                   className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
                   Retry Connection
@@ -292,7 +307,7 @@ const CameraPage: React.FC = () => {
       {isCameraOn && (
         <div className="absolute bottom-4 right-4 flex space-x-2">
           <button
-            onClick={toggleCamera} // CORRECCIÓN: Botón para detener la cámara
+            onClick={toggleCamera}
             className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
           >
             Stop Camera

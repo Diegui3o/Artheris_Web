@@ -44,20 +44,47 @@ export function configureWebRTC(io, processImage) {
       socket.to(roomId).emit("candidate", { candidate, from: socket.id });
     });
 
-    socket.on("process-frame", async ({ image, roomId }) => {
-      if (!image || !processImage) return;
+    socket.on("process-frame", async ({ image, roomId, timestamp }) => {
+      if (!image) {
+        console.error(`[${roomId}] ❌ Frame vacío recibido de ${socket.id}`);
+        return socket.emit("analysis-error", {
+          error: "No se recibieron datos de la imagen",
+          timestamp: timestamp || Date.now()
+        });
+      }
+
+      if (typeof processImage !== 'function') {
+        console.error(`[${roomId}] ❌ Función de procesamiento no disponible`);
+        return socket.emit("analysis-error", {
+          error: "El servidor no está configurado correctamente",
+          timestamp: timestamp || Date.now()
+        });
+      }
 
       try {
-        // Llama a la función de procesamiento que recibimos como parámetro
+        console.log(`[${roomId}] 🖼️ Procesando frame de ${socket.id} (${image.length} bytes)`);
         const result = await processImage(image);
+        
+        if (!result || typeof result !== 'object') {
+          throw new Error('El resultado del procesamiento no es válido');
+        }
 
-        // Emite el resultado de vuelta únicamente al cliente que lo envió
-        socket.emit("analysis-result", result);
+        // Añadir metadatos al resultado
+        const response = {
+          ...result,
+          timestamp: timestamp || Date.now(),
+          processedAt: new Date().toISOString()
+        };
+
+        console.log(`[${roomId}] ✅ Análisis completado para ${socket.id}`);
+        socket.emit("analysis-result", response);
 
       } catch (error) {
-        console.error(`[${roomId}] ❌ Error procesando frame de ${socket.id}: ${error.message}`);
+        console.error(`[${roomId}] ❌ Error procesando frame de ${socket.id}:`, error);
         socket.emit("analysis-error", {
-          error: "Error al procesar el frame en el servidor.",
+          error: "Error al procesar el frame en el servidor",
+          details: error.message,
+          timestamp: timestamp || Date.now()
         });
       }
     });

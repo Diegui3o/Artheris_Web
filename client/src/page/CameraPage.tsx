@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, memo } from "react";
 import io, { type Socket } from "socket.io-client";
 
 type AnalysisResults = {
@@ -19,18 +19,42 @@ const CameraPage: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const socketRef = useRef<Socket | null>(null);
-  const roomId = "test-room";
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const analysisIntervalRef = useRef<NodeJS.Timeout | null>(null); // CORRECCIÓN: Declarar la referencia para el intervalo
+
+  const roomId = "test-room";
 
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
-  // Analysis state will be used when implementing the analysis feature
-  const [analysis] = useState<AnalysisResults | null>({
-    pasto: 0,
-    tierra: 0,
-    otros: 0,
-    tiempo: 0,
-  });
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  // CORRECCIÓN: Obtener el setter 'setAnalysis' de useState
+  const [analysis, setAnalysis] = useState<AnalysisResults | null>(null);
+
+  // Cleanup WebRTC resources
+  const cleanupWebRTC = useCallback(() => {
+    console.log("Cleaning up WebRTC resources...");
+
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+      remoteStreamRef.current = null;
+    }
+
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
 
   // Handle remote stream when it becomes available
   const handleVideoClick = useCallback(() => {
@@ -44,107 +68,23 @@ const CameraPage: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    handleVideoClick();
-  }, [handleVideoClick]);
-
-  useEffect(() => {
-    // Conéctate al servidor de señalización usando la IP de la red local
-    socketRef.current = io("http://localhost:3002/webrtc");
-    const socket = socketRef.current;
-
-    const createPeerConnection = () => {
-      console.log("1. Creando PeerConnection...");
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      });
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate && socket) {
-          console.log("-> LOCAL: Enviando candidato ICE:", event.candidate);
-          socket.emit("candidate", { candidate: event.candidate, roomId });
-        }
-      };
-
-      pc.ontrack = (event) => {
-        console.log(
-          "✅ Stream recibido con tracks:",
-          event.streams[0].getTracks()
-        );
-        remoteStreamRef.current = event.streams[0];
-
-        // Verifica los tracks
-        const videoTracks = event.streams[0].getVideoTracks();
-        const audioTracks = event.streams[0].getAudioTracks();
-        console.log(
-          `Video tracks: ${videoTracks.length}, Audio tracks: ${audioTracks.length}`
-        );
-
-        if (videoTracks.length > 0) {
-          videoTracks[0].onended = () => console.log("Video track terminado");
-          videoTracks[0].onmute = () => console.log("Video track muteado");
-        }
-      };
-
-      pc.oniceconnectionstatechange = () => {
-        console.log(`ℹ️ Estado de conexión ICE: ${pc.iceConnectionState}`);
-      };
-
-      pc.onconnectionstatechange = () => {
-        console.log(`ℹ️ Estado de conexión Peer: ${pc.connectionState}`);
-      };
-
-      peerConnectionRef.current = pc;
-    };
-
-    socket.on("connect", () => {
-      console.log("✅ SUCCESS: Conectado al servidor de señalización!");
-      console.log(`2. Uniéndose a la sala: ${roomId}`);
-      socket.emit("join", roomId);
-    });
-
-    socket.on("offer", async (data: { sdp: string; type: RTCSdpType }) => {
-      console.log("<- REMOTE: Oferta recibida del par remoto.");
-      if (!peerConnectionRef.current) {
-        createPeerConnection();
-      }
-
-      const pc = peerConnectionRef.current;
-      if (!pc) return;
-
-      try {
-        await pc.setRemoteDescription(new RTCSessionDescription(data));
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-
-        console.log("-> LOCAL: Enviando respuesta al par remoto.");
-        socket.emit("answer", { sdp: answer.sdp, type: answer.type, roomId });
-      } catch (e) {
-        console.error("Error al manejar la oferta:", e);
-      }
-    });
-
-    socket.on("candidate", (data: { candidate: RTCIceCandidateInit }) => {
-      if (data.candidate) {
-        console.log("<- REMOTE: Candidato ICE recibido:", data.candidate);
-        peerConnectionRef.current
-          ?.addIceCandidate(new RTCIceCandidate(data.candidate))
-          .catch((e) => {
-            console.error("Error al añadir candidato ICE:", e);
-          });
-      }
-    });
-
-    createPeerConnection();
-
-    return () => {
-      if (socket) {
-        socket.disconnect();
-      }
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-      }
-    };
+  // CORRECCIÓN: Declarar la función para capturar y analizar frames
+  const captureAndAnalyzeFrame = useCallback(() => {
+    // Aquí iría la lógica para:
+    // 1. Dibujar el frame del video en un canvas.
+    // 2. Obtener el frame como una imagen (ej. base64).
+    // 3. Emitir la imagen a través del socket para su análisis.
+    // console.log("Capturing frame for analysis...");
+    if (socketRef.current && videoRef.current) {
+      // Ejemplo de cómo capturar y enviar (requiere implementación del lado del servidor)
+      // const canvas = document.createElement('canvas');
+      // canvas.width = videoRef.current.videoWidth;
+      // canvas.height = videoRef.current.videoHeight;
+      // const ctx = canvas.getContext('2d');
+      // ctx?.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      // const frame = canvas.toDataURL('image/jpeg');
+      // socketRef.current.emit('analyze_frame', { frame, roomId });
+    }
   }, []);
 
   const toggleAnalysis = useCallback(() => {
@@ -153,25 +93,127 @@ const CameraPage: React.FC = () => {
       console.log(
         `Analysis ${newStatus === "analyzing" ? "started" : "stopped"}`
       );
+
+      if (newStatus === "analyzing") {
+        analysisIntervalRef.current = setInterval(captureAndAnalyzeFrame, 500);
+      } else {
+        if (analysisIntervalRef.current) {
+          clearInterval(analysisIntervalRef.current);
+          analysisIntervalRef.current = null;
+        }
+        setAnalysis(null); // Limpiar resultados del análisis
+      }
       return newStatus;
     });
-  }, []);
+  }, [captureAndAnalyzeFrame]);
 
-  const setupWebRTC = useCallback(async () => {
+  // CORRECCIÓN: La lógica principal de conexión se movió a toggleCamera
+  // para ser iniciada por el usuario, evitando duplicados y ejecuciones no deseadas.
+  const toggleCamera = useCallback(async () => {
+    if (isCameraOn) {
+      // Turn off camera
+      cleanupWebRTC();
+      if (analysisIntervalRef.current) {
+        clearInterval(analysisIntervalRef.current);
+        analysisIntervalRef.current = null;
+      }
+      setStatus("idle");
+      setIsCameraOn(false);
+      return;
+    }
+
+    // Turn on camera
     try {
       setStatus("connecting");
       setError(null);
-      setStatus("connected");
+
+      // Initialize new connection
+      socketRef.current = io("http://localhost:3002/webrtc");
+      const socket = socketRef.current;
+
+      peerConnectionRef.current = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      });
+      const pc = peerConnectionRef.current;
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && socket) {
+          socket.emit("candidate", { candidate: event.candidate, roomId });
+        }
+      };
+
+      pc.ontrack = (event) => {
+        console.log("Track received:", event.streams[0]);
+        remoteStreamRef.current = event.streams[0];
+        handleVideoClick();
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log(`ICE Connection State: ${pc.iceConnectionState}`);
+        if (
+          pc.iceConnectionState === "disconnected" ||
+          pc.iceConnectionState === "failed"
+        ) {
+          setError("Connection lost. Please try again.");
+          setStatus("error");
+          setIsCameraOn(false);
+        } else if (pc.iceConnectionState === "connected") {
+          setStatus("connected");
+          setIsCameraOn(true);
+        }
+      };
+
+      socket.on("connect", () => {
+        console.log("Connected to signaling server, joining room...");
+        socket.emit("join", roomId);
+      });
+
+      socket.on("offer", async (data: { sdp: string; type: RTCSdpType }) => {
+        if (!pc) return;
+        try {
+          console.log("Offer received, creating answer...");
+          await pc.setRemoteDescription(new RTCSessionDescription(data));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit("answer", {
+            sdp: answer.sdp,
+            type: answer.type,
+            roomId,
+          });
+        } catch (e) {
+          console.error("Error handling offer:", e);
+          setError("Failed to establish connection");
+          setStatus("error");
+        }
+      });
+
+      socket.on("candidate", (data: { candidate: RTCIceCandidateInit }) => {
+        if (data.candidate && pc) {
+          pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch((e) =>
+            console.error("Error adding ICE candidate:", e)
+          );
+        }
+      });
     } catch (err) {
-      console.error("WebRTC setup error:", err);
-      setError(err instanceof Error ? err.message : "Failed to setup WebRTC");
+      console.error("Error toggling camera:", err);
+      setError("Failed to toggle camera. Please try again.");
       setStatus("error");
+      cleanupWebRTC();
     }
-  }, []);
+  }, [isCameraOn, cleanupWebRTC, handleVideoClick]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupWebRTC();
+      if (analysisIntervalRef.current) {
+        clearInterval(analysisIntervalRef.current);
+      }
+    };
+  }, [cleanupWebRTC]);
 
   return (
     <div className="relative w-full h-screen bg-gray-900">
-      {/* Video element */}
       <video
         ref={videoRef}
         autoPlay
@@ -181,9 +223,17 @@ const CameraPage: React.FC = () => {
       />
 
       {/* Status overlay */}
-      {(status === "connecting" || status === "error") && (
+      {(status === "connecting" || status === "error" || !isCameraOn) && (
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-70">
           <div className="text-white text-center p-4 rounded-lg">
+            {!isCameraOn && status === "idle" && (
+              <button
+                onClick={toggleCamera} // CORRECCIÓN: Usar toggleCamera
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xl font-bold"
+              >
+                Start Camera
+              </button>
+            )}
             {status === "connecting" && (
               <div className="flex flex-col items-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-2"></div>
@@ -195,7 +245,7 @@ const CameraPage: React.FC = () => {
                 <p className="font-bold">Error:</p>
                 <p>{error}</p>
                 <button
-                  onClick={setupWebRTC}
+                  onClick={toggleCamera} // CORRECCIÓN: Usar toggleCamera para reintentar
                   className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                 >
                   Retry Connection
@@ -207,7 +257,7 @@ const CameraPage: React.FC = () => {
       )}
 
       {/* Analysis results overlay */}
-      {analysis && (
+      {status === "analyzing" && analysis && (
         <div className="absolute top-4 right-4 bg-black bg-opacity-70 text-white p-3 rounded">
           <h3 className="font-bold mb-2">Analysis Results</h3>
           <div className="grid grid-cols-2 gap-2">
@@ -231,7 +281,7 @@ const CameraPage: React.FC = () => {
             </div>
             {analysis.tiempo !== undefined && (
               <div className="col-span-2 text-sm opacity-75">
-                Tiempo: {analysis.tiempo.toFixed(2)}ms
+                Analysis time: {analysis.tiempo.toFixed(2)}ms
               </div>
             )}
           </div>
@@ -239,26 +289,29 @@ const CameraPage: React.FC = () => {
       )}
 
       {/* Controls */}
-      <div className="absolute bottom-4 right-4 flex space-x-2">
-        <button
-          onClick={setupWebRTC}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-        >
-          Retry Connection
-        </button>
-        <button
-          onClick={toggleAnalysis}
-          className={`px-4 py-2 rounded ${
-            status === "analyzing"
-              ? "bg-red-600 hover:bg-red-700"
-              : "bg-blue-600 hover:bg-blue-700"
-          } text-white transition-colors`}
-        >
-          {status === "analyzing" ? "Stop Analysis" : "Start Analysis"}
-        </button>
-      </div>
+      {isCameraOn && (
+        <div className="absolute bottom-4 right-4 flex space-x-2">
+          <button
+            onClick={toggleCamera} // CORRECCIÓN: Botón para detener la cámara
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+          >
+            Stop Camera
+          </button>
+          <button
+            onClick={toggleAnalysis}
+            disabled={status === "connecting" || status === "error"}
+            className={`px-4 py-2 rounded ${
+              status === "analyzing"
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-green-600 hover:bg-green-700"
+            } text-white transition-colors disabled:opacity-50`}
+          >
+            {status === "analyzing" ? "Stop Analysis" : "Start Analysis"}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
 
-export default React.memo(CameraPage);
+export default memo(CameraPage);

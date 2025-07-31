@@ -6,6 +6,7 @@ type AnalysisResults = {
   tierra?: number;
   otros?: number;
   tiempo?: number;
+  overlay_image?: string;
 };
 
 type ConnectionStatus =
@@ -27,6 +28,7 @@ const CameraPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResults | null>(null);
+  const [overlayImage, setOverlayImage] = useState<string | null>(null);
 
   // Cleanup WebRTC resources
   const cleanupWebRTC = useCallback(() => {
@@ -67,22 +69,30 @@ const CameraPage: React.FC = () => {
   }, []);
 
   const captureAndAnalyzeFrame = useCallback(() => {
-    if (socketRef.current && videoRef.current && videoRef.current.readyState >= 2) {
-      const canvas = document.createElement('canvas');
+    if (
+      socketRef.current &&
+      videoRef.current &&
+      videoRef.current.readyState >= 2
+    ) {
+      const canvas = document.createElement("canvas");
       canvas.width = videoRef.current!.videoWidth;
       canvas.height = videoRef.current!.videoHeight;
-      const ctx = canvas.getContext('2d');
-      
+      const ctx = canvas.getContext("2d");
+
       if (ctx) {
         ctx.drawImage(videoRef.current!, 0, 0, canvas.width, canvas.height);
-        const imageData = canvas.toDataURL('image/jpeg', 0.8);
-        
+        const imageData = canvas.toDataURL("image/jpeg", 0.8);
+
         const timestamp = Date.now();
-        console.log(`Sending frame for analysis (${imageData.length} bytes) at ${new Date(timestamp).toISOString()}`);
-        socketRef.current!.emit('process-frame', { 
+        console.log(
+          `Sending frame for analysis (${imageData.length} bytes) at ${new Date(
+            timestamp
+          ).toISOString()}`
+        );
+        socketRef.current!.emit("process-frame", {
           image: imageData,
           roomId,
-          timestamp
+          timestamp,
         });
       }
     }
@@ -166,22 +176,28 @@ const CameraPage: React.FC = () => {
       });
 
       // Handle analysis results from server
-      socket.on('analysis-result', (data: AnalysisResults) => {
-        console.log('Analysis results received:', data);
+      socket.on("analysis-result", (data: AnalysisResults) => {
+        console.log("Analysis results received:", data);
         setAnalysis({
           pasto: data.pasto || 0,
           tierra: data.tierra || 0,
           otros: data.otros || 0,
-          tiempo: data.tiempo || 0
+          tiempo: data.tiempo || 0,
         });
+        if (data.overlay_image) {
+          setOverlayImage(data.overlay_image);
+        }
       });
 
       // Handle analysis errors
-      socket.on('analysis-error', (error: { error: string; details?: string; timestamp: number }) => {
-        console.error('Analysis error:', error);
-        setError(`Analysis error: ${error.error}`);
-        setStatus('error');
-      });
+      socket.on(
+        "analysis-error",
+        (error: { error: string; details?: string; timestamp: number }) => {
+          console.error("Analysis error:", error);
+          setError(`Analysis error: ${error.error}`);
+          setStatus("error");
+        }
+      );
 
       socket.on("offer", async (data: { sdp: string; type: RTCSdpType }) => {
         if (!pc) return;
@@ -236,6 +252,29 @@ const CameraPage: React.FC = () => {
         className="w-full h-full object-cover"
         onClick={handleVideoClick}
       />
+      {overlayImage && (
+        <div className="absolute inset-0 pointer-events-none">
+          <img 
+            src={overlayImage} 
+            alt="Análisis de cobertura"
+            className="w-full h-full object-cover"
+            style={{
+              mixBlendMode: 'multiply', // Mezcla los colores con el fondo
+            }}
+          />
+          {/* Leyenda de colores */}
+          <div className="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white p-2 rounded text-sm">
+            <div className="flex items-center mb-1">
+              <div className="w-4 h-4 bg-red-500 mr-2"></div>
+              <span>Pasto</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-4 h-4 bg-blue-500 mr-2"></div>
+              <span>Tierra</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status overlay */}
       {(status === "connecting" || status === "error" || !isCameraOn) && (

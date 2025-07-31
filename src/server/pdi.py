@@ -34,23 +34,43 @@ def procesar_imagen(base64_data_str):
     # --- Capa 1: Segmentación por Color (HSV) ---
     hsv = cv2.cvtColor(img_corregida, cv2.COLOR_BGR2HSV)
     
-    # Rangos de color (pueden ser ajustados)
-    mascara_pasto_color = cv2.inRange(hsv, (30, 40, 40), (90, 255, 255))
+    # Rangos de color para pasto (verde)
+    # Verde: H: 35-90, S: 40-255, V: 30-220 (evitar brillos y sombras extremas)
+    lower_green = np.array([25, 30, 30])  # H:25-100 (más amplio)
+    upper_green = np.array([100, 255, 220])  # S y V más flexibles
+    mascara_pasto_color = cv2.inRange(hsv, lower_green, upper_green)
     
-    tierra_r1 = cv2.inRange(hsv, (0, 30, 30), (25, 255, 220)) # Marrones/Rojizos
-    tierra_r2 = cv2.inRange(hsv, (160, 30, 30), (180, 255, 220)) # Rojizos
-    mascara_tierra_color = cv2.bitwise_or(tierra_r1, tierra_r2)
+    # Rangos para tierra (marrón/terroso)
+    # Marrones: H: 10-20, S: 50-200, V: 30-180 (tonos más apagados)
+    lower_brown = np.array([5, 40, 20])    # H:5-25 (más específico)
+    upper_brown = np.array([25, 200, 150])  # V máximo reducido
+    
+    # Rangos para rojizos oscuros (tipo tierra)
+    # Rojos oscuros: H: 0-10 y 170-180, S: 50-200, V: 20-120 (oscuros y poco saturados)
+    lower_red1 = np.array([0, 50, 20])
+    upper_red1 = np.array([10, 200, 120])
+    lower_red2 = np.array([170, 50, 20])
+    upper_red2 = np.array([180, 200, 120])
+    
+    # Combinar máscaras de tierra
+    mascara_tierra1 = cv2.inRange(hsv, lower_brown, upper_brown)
+    mascara_tierra2 = cv2.inRange(hsv, lower_red1, upper_red1)
+    mascara_tierra3 = cv2.inRange(hsv, lower_red2, upper_red2)
+    mascara_tierra_color = cv2.bitwise_or(mascara_tierra1, mascara_tierra2)
+    mascara_tierra_color = cv2.bitwise_or(mascara_tierra_color, mascara_tierra3)
 
     # --- Capa 2: Índice de Vegetación (VARI) ---
     # VARI = (Green - Red) / (Green + Red - Blue)
-    # Es muy efectivo para separar vegetación de otros objetos verdes.
     b, g, r = cv2.split(img_corregida.astype(np.float32))
     denominador = (g + r - b)
     denominador = np.where(denominador == 0, 1e-4, denominador)
     vari = (g - r) / denominador
     
-    # Crear una máscara donde el índice de vegetación es alto (umbral empírico)
-    _, mascara_vegetacion_vi = cv2.threshold(vari.astype(np.uint8), 2, 255, cv2.THRESH_BINARY)
+    # Normalizar VARI a 0-255 para umbralización
+    vari_norm = cv2.normalize(vari, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    
+    # Aplicar umbral adaptativo para mejor detección de vegetación
+    mascara_vegetacion_vi = np.uint8(255 * (vari > 0.1))  # Umbral optimizado
     
     # --- Capa 3: Análisis de Textura (Laplaciano) ---
     gray = cv2.cvtColor(img_corregida, cv2.COLOR_BGR2GRAY)
@@ -60,28 +80,60 @@ def procesar_imagen(base64_data_str):
     _, mascara_textura = cv2.threshold(abs_laplaciano, 20, 255, cv2.THRESH_BINARY)
     mascara_textura = mascara_textura.astype(np.uint8)
     pasto_fusion_1 = cv2.bitwise_and(mascara_pasto_color, mascara_vegetacion_vi)
-    mascara_pasto_final = cv2.bitwise_and(pasto_fusion_1, mascara_textura)
+    mascara_pasto_final = cv2.bitwise_and(mascara_pasto_color, mascara_vegetacion_vi)
     mascara_tierra_final = cv2.bitwise_and(mascara_tierra_color, cv2.bitwise_not(mascara_pasto_final))
 
     # 4. POST-PROCESAMIENTO Y CÁLCULO
     
-    # Limpiar ruido (pequeños pixeles aislados) de las máscaras finales
+    # Mejorar las máscaras con operaciones morfológicas
     kernel = np.ones((5, 5), np.uint8)
+    
+    # Para pasto: cerrar huecos pequeños y suavizar bordes
+    mascara_pasto_final = cv2.morphologyEx(mascara_pasto_final, cv2.MORPH_OPEN, kernel)
     mascara_pasto_final = cv2.morphologyEx(mascara_pasto_final, cv2.MORPH_CLOSE, kernel)
-    mascara_pasto_final = eliminar_pequenos_objetos(mascara_pasto_final, min_area=total_pixels * 0.001)
+    mascara_pasto_final = cv2.dilate(mascara_pasto_final, kernel, iterations=1)
+    mascara_pasto_final = eliminar_pequenos_objetos(mascara_pasto_final, min_area=total_pixels * 0.005)
 
+    # Para tierra: operaciones similares
+    mascara_tierra_final = cv2.morphologyEx(mascara_tierra_final, cv2.MORPH_OPEN, kernel)
     mascara_tierra_final = cv2.morphologyEx(mascara_tierra_final, cv2.MORPH_CLOSE, kernel)
-    mascara_tierra_final = eliminar_pequenos_objetos(mascara_tierra_final, min_area=total_pixels * 0.001)
+    mascara_tierra_final = eliminar_pequenos_objetos(mascara_tierra_final, min_area=total_pixels * 0.005)
+    
+    # Asegurar que las máscaras sean mutuamente excluyentes
+    mascara_tierra_final = cv2.bitwise_and(mascara_tierra_final, cv2.bitwise_not(mascara_pasto_final))
     
     # Calcular porcentajes finales
     porc_pasto = porcentaje_mascara(mascara_pasto_final, total_pixels)
     porc_tierra = porcentaje_mascara(mascara_tierra_final, total_pixels)
     porc_otros = max(0, 100 - porc_pasto - porc_tierra)
 
+    overlay = img.copy()
+    
+    # Color para pasto (rojo suave semitransparente)
+    overlay[mascara_pasto_final > 0] = [0, 0, 180]  # Rojo en BGR
+    # Color para tierra (azul suave semitransparente)
+    overlay[mascara_tierra_final > 0] = [180, 100, 0]  # Naranja en BGR
+    
+    # Mezclar con la imagen original (40% de transparencia para mejor visibilidad)
+    alpha = 0.4
+    img_with_overlay = cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0)
+    
+    # Añadir etiquetas de texto
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(img_with_overlay, f'Pasto: {porc_pasto:.1f}%', (20, 40), 
+                font, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(img_with_overlay, f'Tierra: {porc_tierra:.1f}%', (20, 80), 
+                font, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+    
+    # Codificar la imagen con overlay a base64
+    _, buffer = cv2.imencode('.jpg', img_with_overlay)
+    img_with_overlay_base64 = base64.b64encode(buffer).decode('utf-8')
+    
     return {
         "pasto": round(porc_pasto, 2),
         "tierra": round(porc_tierra, 2),
         "otros": round(porc_otros, 2),
+        "overlay_image": f"data:image/jpeg;base64,{img_with_overlay_base64}"
     }
 
 def eliminar_pequenos_objetos(mask, min_area):

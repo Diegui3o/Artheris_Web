@@ -107,23 +107,28 @@ def procesar_imagen(base64_data_str):
     porc_tierra = porcentaje_mascara(mascara_tierra_final, total_pixels)
     porc_otros = max(0, 100 - porc_pasto - porc_tierra)
 
-    overlay = img.copy()
+    # Crear una imagen de análisis a todo color
+    analysis_img = np.zeros_like(img)
     
-    # Color para pasto (rojo suave semitransparente)
-    overlay[mascara_pasto_final > 0] = [0, 0, 180]  # Rojo en BGR
-    # Color para tierra (azul suave semitransparente)
-    overlay[mascara_tierra_final > 0] = [180, 100, 0]  # Naranja en BGR
-    
-    # Mezclar con la imagen original (40% de transparencia para mejor visibilidad)
-    alpha = 0.4
-    img_with_overlay = cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0)
+    # Color para pasto (rojo intenso)
+    analysis_img[mascara_pasto_final > 0] = [0, 0, 255]  # Rojo en BGR
+    # Color para tierra (azul intenso)
+    analysis_img[mascara_tierra_final > 0] = [255, 165, 0]  # Naranja en BGR
     
     # Añadir etiquetas de texto
     font = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(img_with_overlay, f'Pasto: {porc_pasto:.1f}%', (20, 40), 
-                font, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(img_with_overlay, f'Tierra: {porc_tierra:.1f}%', (20, 80), 
-                font, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(analysis_img, f'Pasto: {porc_pasto:.1f}%', (20, 40), 
+                font, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(analysis_img, f'Tierra: {porc_tierra:.1f}%', (20, 80), 
+                font, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+    
+    # Añadir leyenda de colores
+    cv2.rectangle(analysis_img, (20, 100), (40, 120), (0, 0, 255), -1)  # Rojo para pasto
+    cv2.putText(analysis_img, 'Pasto', (50, 120), font, 0.8, (255, 255, 255), 2)
+    cv2.rectangle(analysis_img, (150, 100), (170, 120), (255, 165, 0), -1)  # Naranja para tierra
+    cv2.putText(analysis_img, 'Tierra', (180, 120), font, 0.8, (255, 255, 255), 2)
+    
+    img_with_overlay = analysis_img
     
     # Codificar la imagen con overlay a base64
     _, buffer = cv2.imencode('.jpg', img_with_overlay)

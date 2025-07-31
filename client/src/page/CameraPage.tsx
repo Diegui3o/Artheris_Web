@@ -244,37 +244,40 @@ const CameraPage: React.FC = () => {
   }, [cleanupWebRTC]);
 
   return (
-    <div className="relative w-full h-screen bg-gray-900">
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        className="w-full h-full object-cover"
-        onClick={handleVideoClick}
-      />
-      {overlayImage && (
-        <div className="absolute inset-0 pointer-events-none">
-          <img 
-            src={overlayImage} 
-            alt="Análisis de cobertura"
-            className="w-full h-full object-cover"
-            style={{
-              mixBlendMode: 'multiply', // Mezcla los colores con el fondo
-            }}
-          />
-          {/* Leyenda de colores */}
-          <div className="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white p-2 rounded text-sm">
-            <div className="flex items-center mb-1">
-              <div className="w-4 h-4 bg-red-500 mr-2"></div>
-              <span>Pasto</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-4 h-4 bg-blue-500 mr-2"></div>
-              <span>Tierra</span>
-            </div>
-          </div>
+    <div className="relative w-full h-screen bg-gray-900 p-4 flex flex-col md:flex-row gap-4">
+      {/* Vista de video original */}
+      <div className="relative flex-1 border-2 border-gray-600 rounded-lg overflow-hidden">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="w-full h-full object-cover"
+          onClick={handleVideoClick}
+        />
+        <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-sm">
+          Vista Original
         </div>
-      )}
+      </div>
+
+      {/* Vista de análisis */}
+      <div className="relative flex-1 border-2 border-gray-600 rounded-lg overflow-hidden">
+        {overlayImage ? (
+          <>
+            <img 
+              src={overlayImage}
+              alt="Análisis de cobertura"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-sm">
+              Análisis - Pasto: {analysis?.pasto?.toFixed(1) ?? '0.0'}% | Tierra: {analysis?.tierra?.toFixed(1) ?? '0.0'}%
+            </div>
+          </>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">
+            <p>El análisis aparecerá aquí</p>
+          </div>
+        )}
+      </div>
 
       {/* Status overlay */}
       {(status === "connecting" || status === "error" || !isCameraOn) && (

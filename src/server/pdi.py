@@ -66,9 +66,6 @@ def procesar_imagen(base64_data_str):
     denominador = np.where(denominador == 0, 1e-4, denominador)
     vari = (g - r) / denominador
     
-    # Normalizar VARI a 0-255 para umbralización
-    vari_norm = cv2.normalize(vari, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-    
     # Aplicar umbral adaptativo para mejor detección de vegetación
     mascara_vegetacion_vi = np.uint8(255 * (vari > 0.1))  # Umbral optimizado
     
@@ -93,12 +90,14 @@ def procesar_imagen(base64_data_str):
     mascara_pasto_final = cv2.morphologyEx(mascara_pasto_final, cv2.MORPH_CLOSE, kernel)
     mascara_pasto_final = cv2.dilate(mascara_pasto_final, kernel, iterations=1)
     mascara_pasto_final = eliminar_pequenos_objetos(mascara_pasto_final, min_area=total_pixels * 0.005)
+    mascara_pasto_final = cv2.GaussianBlur(mascara_pasto_final, (5, 5), 0)
 
     # Para tierra: operaciones similares
     mascara_tierra_final = cv2.morphologyEx(mascara_tierra_final, cv2.MORPH_OPEN, kernel)
     mascara_tierra_final = cv2.morphologyEx(mascara_tierra_final, cv2.MORPH_CLOSE, kernel)
     mascara_tierra_final = eliminar_pequenos_objetos(mascara_tierra_final, min_area=total_pixels * 0.005)
-    
+    mascara_tierra_final = cv2.GaussianBlur(mascara_tierra_final, (5, 5), 0)
+
     # Asegurar que las máscaras sean mutuamente excluyentes
     mascara_tierra_final = cv2.bitwise_and(mascara_tierra_final, cv2.bitwise_not(mascara_pasto_final))
     
@@ -107,31 +106,22 @@ def procesar_imagen(base64_data_str):
     porc_tierra = porcentaje_mascara(mascara_tierra_final, total_pixels)
     porc_otros = max(0, 100 - porc_pasto - porc_tierra)
 
-    # Crear una imagen de análisis a todo color
-    analysis_img = np.zeros_like(img)
+    # Crear una imagen transparente para el overlay
+    overlay = np.zeros((*img.shape[:2], 4), dtype=np.uint8)
     
-    # Color para pasto (rojo intenso)
-    analysis_img[mascara_pasto_final > 0] = [0, 0, 255]  # Rojo en BGR
-    # Color para tierra (azul intenso)
-    analysis_img[mascara_tierra_final > 0] = [255, 165, 0]  # Naranja en BGR
+    color_pasto  = [200, 180, 60, 110]   # Verde brillante y más vívido
+    color_tierra = [120, 87, 120, 110]   # Marrón ladrillo fuerte (tipo "brown")
     
-    # Añadir etiquetas de texto
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    cv2.putText(analysis_img, f'Pasto: {porc_pasto:.1f}%', (20, 40), 
-                font, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(analysis_img, f'Tierra: {porc_tierra:.1f}%', (20, 80), 
-                font, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+    # Aplicar colores a las máscaras
+    overlay[mascara_pasto_final > 0] = color_pasto
+    overlay[mascara_tierra_final > 0] = color_tierra
     
-    # Añadir leyenda de colores
-    cv2.rectangle(analysis_img, (20, 100), (40, 120), (0, 0, 255), -1)  # Rojo para pasto
-    cv2.putText(analysis_img, 'Pasto', (50, 120), font, 0.8, (255, 255, 255), 2)
-    cv2.rectangle(analysis_img, (150, 100), (170, 120), (255, 165, 0), -1)  # Naranja para tierra
-    cv2.putText(analysis_img, 'Tierra', (180, 120), font, 0.8, (255, 255, 255), 2)
-    
-    img_with_overlay = analysis_img
-    
+    # Convertir a RGBA para mantener la transparencia
+    img_base = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+    img_final = cv2.addWeighted(img_base, 1.0, overlay, 0.4, 0)  # de 0.6 a 0.4
+
     # Codificar la imagen con overlay a base64
-    _, buffer = cv2.imencode('.jpg', img_with_overlay)
+    _, buffer = cv2.imencode('.jpg', img_final)
     img_with_overlay_base64 = base64.b64encode(buffer).decode('utf-8')
     
     return {

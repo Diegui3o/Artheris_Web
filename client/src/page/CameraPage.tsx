@@ -106,7 +106,7 @@ const CameraPage: React.FC = () => {
       );
 
       if (newStatus === "analyzing") {
-        analysisIntervalRef.current = setInterval(captureAndAnalyzeFrame, 500);
+        analysisIntervalRef.current = setInterval(captureAndAnalyzeFrame, 100);
       } else {
         if (analysisIntervalRef.current) {
           clearInterval(analysisIntervalRef.current);
@@ -263,14 +263,11 @@ const CameraPage: React.FC = () => {
       <div className="relative flex-1 border-2 border-gray-600 rounded-lg overflow-hidden">
         {overlayImage ? (
           <>
-            <img 
+            <img
               src={overlayImage}
               alt="Análisis de cobertura"
               className="w-full h-full object-cover"
             />
-            <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-sm">
-              Análisis - Pasto: {analysis?.pasto?.toFixed(1) ?? '0.0'}% | Tierra: {analysis?.tierra?.toFixed(1) ?? '0.0'}%
-            </div>
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-800 text-gray-400">

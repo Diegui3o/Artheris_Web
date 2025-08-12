@@ -184,12 +184,9 @@ webSocket.onEvent(webSocketEvent);
 webSocket.setReconnectInterval(3000);
 webSocket.enableHeartbeat(15000, 3000, 2);
 ```
-How to Use — Sending Telemetry Data
+## Sending Telemetry Data
+
 The function prepareAndSendMessage() collects important data from your drone’s sensors and control system, then combines all this information into a single text message. This message is sent through a WebSocket connection to the web interface, so you can see the drone’s status live on your screen.
-
-What the function does step-by-step:
-
-Collect Data: It takes values like the current time, sensor readings (angles, gyroscope rates, accelerometer data), motor commands, and the current flight mode.
 
 Create a Message: It puts all these values together into one string separated by commas. This is like making a list of numbers in order.
 

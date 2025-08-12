@@ -192,36 +192,37 @@ Create a Message: It puts all these values together into one string separated by
 
 Send the Message: It sends this string to the web interface using WebSocket, which allows real-time communication between the drone and your computer.
 
-Why do it this way?
+## Why do it this way?
 
-Sending all data in a single message keeps communication fast and organized.
+Sending all data in a single message helps keep communication simple and well-organized.
 
-Using commas to separate values makes it easy to split and read the data on the receiving side.
+Separating values with commas makes it easier to split and interpret the data on the receiving side.
 
-Real-time sending means you can monitor your drone’s behavior instantly and send commands back if needed.
+Sending data in real time allows you to monitor your drone’s status instantly and respond with commands if needed.
 
-How to replicate this in your own drone code:
+## How to replicate this in your own drone code:
 
-Collect the data you want to monitor (time, sensor values, motor outputs).
+Collect the data you want to send (such as time, sensor readings, motor outputs).
 
-Convert these data points into strings.
+Convert each data point to a string.
 
-Join them all in a single line separated by commas.
+Join all the strings into one single line, separated by commas.
 
-Use your WebSocket connection’s send function to transmit the string.
+Use your WebSocket connection to send this combined string.
 
-This simple approach helps beginners send complex telemetry with minimal code and makes the web interface’s job easier when displaying live data.
-The ESP32 will automatically connect to the WebSocket server, and you will see output similar to this on the backend terminal:
+This approach makes it easier for beginners to send telemetry data with minimal code and helps the web interface display live data smoothly.
+
+When the ESP32 connects successfully to the WebSocket server, your backend terminal will show a message like:
 
 ```bash
-✅ ESP32 conectado por WebSocket puro desde ${clientIP}
+✅ ESP32 connected via pure WebSocket from ${clientIP}
 ```
 
-Abre la interfaz web (http://localhost:5173) para visualizar datos de vuelo y enviar comandos.
+Open the web interface at http://localhost:5173 to view flight data and send commands.
 
-Si QuestDB está activado, los vuelos pueden almacenarse y analizarse posteriormente.
+If QuestDB is enabled, flight data can be stored and analyzed later.
 
-## 📄 Licencia
+## 📄 License
 
-Este proyecto está licenciado bajo la Licencia MIT.
+This project is licensed under the MIT License.
 

@@ -1,8 +1,8 @@
-# Artheris FlightControl – Interfaz WebSocket para monitoreo y control de un dron IoT en tiempo real
+# Artheris FlightControl – WebSocket Interface for Real-Time Monitoring and Control of an IoT Drone
 
-**Artheris FlightControl** es una estación base moderna y de código abierto, desarrollada con tecnologías web, que permite el monitoreo y control en tiempo real de un cuadricóptero IoT. Utiliza comunicación WebSocket pura para lograr baja latencia y alta fiabilidad en la transmisión de datos entre el dron (basado en ESP32) y una interfaz web intuitiva construida en React + TypeScript.
+**Artheris FlightControl** is a modern, open-source ground station developed with web technologies, designed for real-time monitoring and control of an IoT quadcopter. It uses pure WebSocket communication to ensure low latency and high reliability in data transmission between the drone (based on an ESP32) and an intuitive web interface built with **React + TypeScript**.
 
-Este software fue diseñado como plataforma de pruebas para experimentación y validación de algoritmos de control en vehículos aéreos no tripulados (UAV), priorizando la accesibilidad, la visualización clara de telemetría y el registro robusto de datos para análisis científico y reproducibilidad.
+This software was designed as a testing platform for experimentation and validation of control algorithms in **Unmanned Aerial Vehicles (UAVs)**, with a focus on accessibility, clear telemetry visualization, and robust data logging for scientific analysis and reproducibility.
 
 ---
 
@@ -11,126 +11,125 @@ Este software fue diseñado como plataforma de pruebas para experimentación y v
 ![React](https://img.shields.io/badge/React-18%2B-blue)
 ![WebSocket](https://img.shields.io/badge/WebSocket-Real%20Time-orange)
 
-## 🛰️ Características principales
+## 🛰️ Key Features
 
-- Comunicación bidireccional en tiempo real mediante WebSocket puro.
-- Visualización avanzada de telemetría (ángulos, altura, PWM de motores, estado de sensores, etc.).
-- Envío de comandos remotos al dron: control de LED, motores y selección de modos de vuelo.
-- Registro automático y almacenamiento seguro de vuelos en una base de datos de series temporales (QuestDB), facilitando el análisis y la trazabilidad.
-- Modo simulación (en desarrollo) para pruebas sin hardware físico.
-- Interfaz web intuitiva y responsiva, desarrollada en React + TypeScript, compatible con dispositivos móviles y de escritorio.
-
----
-### 🚦 Integración de hardware flexible
-
-- Compatible con múltiples sensores (IMU, magnetómetro, temperatura, presión, etc.).
-- Arquitectura modular: puedes adaptar el sistema fácilmente a diferentes modelos de drones o añadir nuevos periféricos.
-
-### 📡 WebSocket puro y arquitectura moderna
-
-- Comunicación en tiempo real sin dependencias externas, logrando baja latencia y alta robustez.
-- Backend y frontend desacoplados: puedes conectar otras interfaces (CLI, móvil, etc.) fácilmente.
-
-### 📊 Visualización y análisis en tiempo real
-
-- Gráficas interactivas para telemetría y comandos.
-- Historial de vuelos accesible desde la web para análisis y comparación.
-
-### 🛠️ Exportación y reproducibilidad
-
-- Exporta tus vuelos y experimentos a CSV/JSON para análisis en Python, Matlab, R, etc.
-- Scripts y plantillas incluidos para facilitar la configuración y conexión del ESP32.
-
-### 🧑‍💻 Casos de uso destacados
-
-- **Educación:** Ideal para prácticas de laboratorio en universidades y formación técnica.
-- **Investigación:** Plataforma base para experimentos en control, robótica o IoT.
-- **Prototipado rápido:** Perfecto para makers y startups que quieran validar ideas de drones conectados.
+- Real-time bidirectional communication via pure WebSocket.
+- Advanced telemetry visualization (angles, altitude, motor PWM, sensor status, etc.).
+- Remote command transmission to the drone: LED control, motor activation, and flight mode selection.
+- Automatic flight logging and secure storage in a time-series database (QuestDB), enabling analysis and traceability.
+- Simulation mode (in development) for testing without physical hardware.
+- Intuitive and responsive web interface, built with React + TypeScript, compatible with both desktop and mobile devices.
 
 ---
+### 🚦 Flexible Hardware Integration
 
-## 🔧 Requisitos
+- Compatible with multiple sensors (IMU, magnetometer, temperature, pressure, etc.).
+- Modular architecture: easily adapt the system to different drone models or add new peripherals.
 
+### 📡 Pure WebSocket and Modern Architecture
+
+- Real-time communication without external dependencies, achieving low latency and high robustness.
+- Decoupled backend and frontend: easily connect other interfaces (CLI, mobile, etc.).
+
+### 📊 Real-Time Visualization and Analysis
+
+- Interactive graphs for telemetry and commands.
+- Flight history accessible from the web for analysis and comparison.
+
+### 🛠️ Export and Reproducibility
+
+- Export your flights and experiments to CSV/JSON for analysis in Python, Matlab, R, etc.
+- Included scripts and templates to simplify ESP32 setup and connection.
+
+### 🧑‍💻 Highlighted Use Cases
+
+- **Education:** Ideal for lab practices in universities and technical training.
+- **Research:** Base platform for experiments in control, robotics, or IoT.
+- **Rapid Prototyping:** Perfect for makers and startups looking to validate connected drone ideas.
+
+---
+
+## 🔧 Requirements
 ### Hardware:
 
-- Placa **ESP32** (o similar)
-- Cuadricóptero funcional con sensores (ej. MPU6050, Magnetometro)
-- Red Ethernet(sin necesidad de internet)
+- **ESP32** board (or similar)
+- Functional quadcopter with sensors (e.g., MPU6050, magnetometer)
+- Ethernet network (no internet required)
 
 ### Software:
 
-- Node.js (versión 22 o superior)
-- Visual Studio Code (u otro editor)
-- Navegador (Chrome, Firefox, etc.)
-- Docker Desktop (opcional para QuestDB)
+- Node.js (version 22 or higher)
+- Visual Studio Code (or any other editor)
+- Web browser (Chrome, Firefox, etc.)
+- Docker Desktop (optional for QuestDB)
 
 ---
 
-## 🗂️ Estructura del proyecto
+## 🗂️ Project Structure
 
-El proyecto está organizado en dos partes principales:
+The project is organized into two main parts:
 
-- `/server`: Código backend en Node.js para gestión de WebSocket, almacenamiento y API.
-- `/client`: Interfaz web en React + TypeScript para visualización y control.
+- `/server`: Backend code in Node.js for WebSocket handling, data storage, and API.
+- `/client`: Web interface in React + TypeScript for visualization and control.
 
-![Diagrama del sistema](./assets/diagram.svg)
-_Imagen referencial de la arquitectura del sistema._
+![System diagram](./assets/diagram.svg)
+_Reference image of the system architecture._
 
-## ⚙️ Instalación
+## ⚙️ Installation
 
-**Requisitos previos:**
+**Prerequisites:**
 
-- Node.js (versión 22 o superior)
+- Node.js (version 22 or higher)
 - npm
-- (Opcional) Docker Desktop para QuestDB
-- Acceso a un ESP32 y red local (no requieres de internet)
+- (Optional) Docker Desktop for QuestDB
+- Access to an ESP32 and local network (internet connection not required)
 
-**Pasos de instalación:**
+**Installation Steps:**
 
-1. Clona este repositorio:
+1. Clone this repository:
 
    ```bash
    git clone https://github.com/Diegui3o/websockets_web.git
    cd websockets_web
    ```
 
-   O descarga el .zip comprimido directamente.
+   Or download the compressed .zip file directly.
 
-2. Instala las dependencias del backend:
+2. Install backend dependencies:
 
    ```bash
    npm install
    ```
 
-3. Inicia el servidor backend:
+3. Start the backend server:
 
    ```bash
    npm run dev
    ```
 
-4. Abre una nueva terminal e instala las dependencias del frontend:
+4. Open a new terminal and install frontend dependencies:
 
    ```bash
    cd client
    npm install
    ```
 
-5. Inicia el servidor frontend:
+5. Start the frontend server:
 
    ```bash
    npm run dev
    ```
 
-6. Abre tu navegador en [http://localhost:5173](http://localhost:5173) para acceder a la interfaz web.
+6. Open your browser at [http://localhost:5173](http://localhost:5173) to access the web interface.
 
-**Nota:** Si deseas almacenar vuelos, asegúrate de tener QuestDB corriendo en Docker antes de iniciar el backend.
+**Note:** If you want to store flight data, make sure to have QuestDB running in Docker before starting the backend.
 
-## 🚀 Modo de uso
+## 🚀 How to Use
 
-Conecta el ESP32 con la siguiente configuracion.
+Connect your ESP32 with the following configuration:
 
 ```bash
-// ================= CONFIGURACIÓN =================
+// ================= CONFIGURATION =================
 const char *ssid = "Name_Wifi";
 const char *password = "Password";
 const char *websocket_server = "IP";
@@ -138,36 +137,36 @@ const int websocket_port = 3003;
 const char *websocket_path = "/esp32";
 ```
 
-Notamos que para "websocket_server" se debe colocar una IP para eso debe ir a
+For the "websocket_server", you need to set the IP address of your machine running the backend. To find it, open your command prompt:
 
 ```bash
 cmd
 ```
 
-luego
+Then run:
 
 ```bash
 ipconfig
 ```
 
-y buscar
+Look for the Ethernet adapter section, for example:
 
 ```bash
-Adaptador de Ethernet Ethernet:
-   Sufijo DNS específico para la conexión. . :
-   Vínculo: dirección IPv6 local. . . : oooo::oooo:oooo:oooo:oooo%o
-   Dirección IPv4. . . . . . . . . . . . . . : xxx.xxx.1.11
-   Máscara de subred . . . . . . . . . . . . : yyy.yyy.yyy.0
-   Puerta de enlace predeterminada . . . . . : zzz.zzz.1.1
+Ethernet adapter Ethernet::
+   Specific DNS suffix  . . . . . . . :
+   Link-local IPv6 Address . . . . . : oooo::oooo:oooo:oooo:oooo%o
+   IPv4 Address. . . . . . . . . . . : xxx.xxx.1.11
+   Subnet Mask . . . . . . . . . . . : yyy.yyy.yyy.0
+   Default Gateway . . . . . . . . . : zzz.zzz.1.1
 ```
 
-Entonces rellenamos los siguientes campos con esos datos
+Fill the following fields with those values:
 
 ```bash
-// ================= CONFIGURACIÓN =================
+// ================= CONFIGURATION =================
 const char *websocket_server = "xxx.xxx.1.11";
 
-// Configuración IP fija
+// Static IP configuration
 IPAddress local_IP(xxx, xxx, 1, 200);
 IPAddress gateway(xxx, xxx, 1, 1);
 IPAddress subnet(yyy, yyy, yyy, 0);
@@ -175,7 +174,7 @@ IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);
 ```
 
-Para usar esas variables en los siguientes campos
+Use these variables in your WiFi and WebSocket setup:
 
 ```bash
 WiFi.begin(ssid, password);
@@ -185,8 +184,37 @@ webSocket.onEvent(webSocketEvent);
 webSocket.setReconnectInterval(3000);
 webSocket.enableHeartbeat(15000, 3000, 2);
 ```
+How to Use — Sending Telemetry Data
+The function prepareAndSendMessage() collects important data from your drone’s sensors and control system, then combines all this information into a single text message. This message is sent through a WebSocket connection to the web interface, so you can see the drone’s status live on your screen.
 
-El ESP32 se conecta automáticamente al servidor WebSocket y en la terminal de backend aparecerá
+What the function does step-by-step:
+
+Collect Data: It takes values like the current time, sensor readings (angles, gyroscope rates, accelerometer data), motor commands, and the current flight mode.
+
+Create a Message: It puts all these values together into one string separated by commas. This is like making a list of numbers in order.
+
+Send the Message: It sends this string to the web interface using WebSocket, which allows real-time communication between the drone and your computer.
+
+Why do it this way?
+
+Sending all data in a single message keeps communication fast and organized.
+
+Using commas to separate values makes it easy to split and read the data on the receiving side.
+
+Real-time sending means you can monitor your drone’s behavior instantly and send commands back if needed.
+
+How to replicate this in your own drone code:
+
+Collect the data you want to monitor (time, sensor values, motor outputs).
+
+Convert these data points into strings.
+
+Join them all in a single line separated by commas.
+
+Use your WebSocket connection’s send function to transmit the string.
+
+This simple approach helps beginners send complex telemetry with minimal code and makes the web interface’s job easier when displaying live data.
+The ESP32 will automatically connect to the WebSocket server, and you will see output similar to this on the backend terminal:
 
 ```bash
 ✅ ESP32 conectado por WebSocket puro desde ${clientIP}

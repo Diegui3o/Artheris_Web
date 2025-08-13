@@ -4,7 +4,7 @@ import numpy as np
 import base64
 import json
 import time
-import os  # Módulo faltante
+import sys
 
 def procesar_imagen(base64_data_str):
     # 1. DECODIFICACIÓN Y PREPROCESAMIENTO (similar al original)
@@ -17,8 +17,6 @@ def procesar_imagen(base64_data_str):
     except Exception as e:
         raise ValueError(f"Error decodificando imagen: {str(e)}")
 
-    # Reducir resolución para mayor velocidad
-    img = cv2.resize(img, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
     total_pixels = img.shape[0] * img.shape[1]
 
     # Corrección de iluminación con CLAHE
@@ -33,11 +31,14 @@ def procesar_imagen(base64_data_str):
 
     # --- Capa 1: Segmentación por Color (HSV) ---
     hsv = cv2.cvtColor(img_corregida, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
+    v = cv2.equalizeHist(v)
+    hsv = cv2.merge([h, s, v])
     
     # Rangos de color para pasto (verde)
     # Verde: H: 35-90, S: 40-255, V: 30-220 (evitar brillos y sombras extremas)
-    lower_green = np.array([25, 30, 30])  # H:25-100 (más amplio)
-    upper_green = np.array([100, 255, 220])  # S y V más flexibles
+    lower_green = np.array([25, 5, 5])
+    upper_green = np.array([100, 255, 255])
     mascara_pasto_color = cv2.inRange(hsv, lower_green, upper_green)
     
     # Rangos para tierra (marrón/terroso)
@@ -67,7 +68,7 @@ def procesar_imagen(base64_data_str):
     vari = (g - r) / denominador
     
     # Aplicar umbral adaptativo para mejor detección de vegetación
-    mascara_vegetacion_vi = np.uint8(255 * (vari > 0.1))  # Umbral optimizado
+    mascara_vegetacion_vi = np.uint8(255 * (vari > 0.03))
     
     # --- Capa 3: Análisis de Textura (Laplaciano) ---
     gray = cv2.cvtColor(img_corregida, cv2.COLOR_BGR2GRAY)
@@ -76,7 +77,6 @@ def procesar_imagen(base64_data_str):
     abs_laplaciano = cv2.normalize(abs_laplaciano, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
     _, mascara_textura = cv2.threshold(abs_laplaciano, 20, 255, cv2.THRESH_BINARY)
     mascara_textura = mascara_textura.astype(np.uint8)
-    pasto_fusion_1 = cv2.bitwise_and(mascara_pasto_color, mascara_vegetacion_vi)
     mascara_pasto_final = cv2.bitwise_and(mascara_pasto_color, mascara_vegetacion_vi)
     mascara_tierra_final = cv2.bitwise_and(mascara_tierra_color, cv2.bitwise_not(mascara_pasto_final))
 
@@ -89,7 +89,7 @@ def procesar_imagen(base64_data_str):
     mascara_pasto_final = cv2.morphologyEx(mascara_pasto_final, cv2.MORPH_OPEN, kernel)
     mascara_pasto_final = cv2.morphologyEx(mascara_pasto_final, cv2.MORPH_CLOSE, kernel)
     mascara_pasto_final = cv2.dilate(mascara_pasto_final, kernel, iterations=1)
-    mascara_pasto_final = eliminar_pequenos_objetos(mascara_pasto_final, min_area=total_pixels * 0.005)
+    mascara_pasto_final = eliminar_pequenos_objetos(mascara_pasto_final, min_area=total_pixels * 0.001)
     mascara_pasto_final = cv2.GaussianBlur(mascara_pasto_final, (5, 5), 0)
 
     # Para tierra: operaciones similares
@@ -120,16 +120,27 @@ def procesar_imagen(base64_data_str):
     img_base = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
     img_final = cv2.addWeighted(img_base, 1.0, overlay, 0.4, 0)  # de 0.6 a 0.4
 
-    # Codificar la imagen con overlay a base64
-    _, buffer = cv2.imencode('.jpg', img_final)
+    # Codificar la imagen con overlay a base64 con compresión
+    _, buffer = cv2.imencode('.jpg', img_final, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
     img_with_overlay_base64 = base64.b64encode(buffer).decode('utf-8')
     
-    return {
+    # Crear el diccionario de respuesta
+    response = {
         "pasto": round(porc_pasto, 2),
         "tierra": round(porc_tierra, 2),
         "otros": round(porc_otros, 2),
-        "overlay_image": f"data:image/jpeg;base64,{img_with_overlay_base64}"
+        "overlay_image": f"data:image/jpeg;base64,{img_with_overlay_base64}",
+        "timestamp": time.time()
     }
+    
+    # Validar el tamaño del JSON
+    json_str = json.dumps(response)
+    if len(json_str) > 1_000_000:
+        _, buffer = cv2.imencode('.jpg', img_final, [int(cv2.IMWRITE_JPEG_QUALITY), 65])
+        img_with_overlay_base64 = base64.b64encode(buffer).decode('utf-8')
+        response['overlay_image'] = f"data:image/jpeg;base64,{img_with_overlay_base64}"
+    
+    return response
 
 def eliminar_pequenos_objetos(mask, min_area):
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8, cv2.CV_32S)
@@ -143,12 +154,7 @@ def porcentaje_mascara(mask, total_pixels):
         return 0
     return (cv2.countNonZero(mask) / total_pixels) * 100
 
-def es_imagen_borrosa(img, threshold=500):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    fm = cv2.Laplacian(gray, cv2.CV_64F).var()
-    return fm < threshold
-
-if __name__ == '__main__':
+def main():
     while True:
         try:
             line = sys.stdin.readline().strip()
@@ -158,18 +164,36 @@ if __name__ == '__main__':
             
             start_time = time.time()
             
-            # --- Llama a la NUEVA función mejorada ---
-            resultado = procesar_imagen(line)
-            
-            elapsed = time.time() - start_time
-            resultado["tiempo_procesamiento"] = round(elapsed, 3)
-            
-            # Imprime el resultado como JSON para que Node.js lo reciba
-            print(json.dumps(resultado), flush=True)
+            try:
+                # Procesar la imagen
+                resultado = procesar_imagen(line)
+                elapsed = time.time() - start_time
+                resultado["tiempo_procesamiento"] = round(elapsed, 3)
+                
+                # Serializar a JSON con manejo de errores
+                try:
+                    json_str = json.dumps(resultado)
+                    sys.stdout.write(json_str + "\n")
+                    sys.stdout.flush()
+                except Exception as e:
+                    raise Exception(f"Error serializando JSON: {str(e)}")
+                    
+            except Exception as e:
+                error_msg = json.dumps({
+                    "error": f"Error procesando imagen: {str(e)}",
+                    "timestamp": time.time()
+                })
+                sys.stderr.write(f"{len(error_msg)}\n{error_msg}\n")
+                sys.stderr.flush()
         
         except Exception as e:
             error_msg = json.dumps({
-                "error": str(e),
+                "error": f"Error en el bucle principal: {str(e)}",
                 "timestamp": time.time()
             })
-            print(error_msg, file=sys.stderr, flush=True)
+            sys.stderr.write(f"{len(error_msg)}\n{error_msg}\n")
+            sys.stderr.flush()
+            time.sleep(1)  # Prevenir bucles rápidos de error
+
+if __name__ == '__main__':
+    main()

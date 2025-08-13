@@ -81,7 +81,7 @@ const CameraPage: React.FC = () => {
 
       if (ctx) {
         ctx.drawImage(videoRef.current!, 0, 0, canvas.width, canvas.height);
-        const imageData = canvas.toDataURL("image/jpeg", 0.8);
+        const imageData = canvas.toDataURL("image/jpeg", 0.7);
 
         const timestamp = Date.now();
         console.log(
@@ -106,7 +106,7 @@ const CameraPage: React.FC = () => {
       );
 
       if (newStatus === "analyzing") {
-        analysisIntervalRef.current = setInterval(captureAndAnalyzeFrame, 100);
+        analysisIntervalRef.current = setInterval(captureAndAnalyzeFrame, 260);
       } else {
         if (analysisIntervalRef.current) {
           clearInterval(analysisIntervalRef.current);

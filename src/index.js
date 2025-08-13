@@ -201,7 +201,7 @@ wss.on("connection", (ws, req) => {
         ultimoContacto[identificador] = Date.now();
         emitirEstadoDispositivos();
       }
-    } catch (e) {}
+    } catch (e) { }
     let data;
     let parsed = false;
     if (ws.deviceId) {
@@ -244,6 +244,7 @@ wss.on("connection", (ws, req) => {
         KalmanAnglePitch: getVal(14),
         error_phi: getVal(15),
         error_theta: getVal(16),
+        InputThrottle: getVal(17),
         InputRoll: getVal(18),
         InputPitch: getVal(19),
         InputYaw: getVal(20),
@@ -294,8 +295,8 @@ wss.on("connection", (ws, req) => {
           typeof data.T === "number"
             ? data.T
             : typeof data.InputThrottle === "number"
-            ? data.InputThrottle
-            : simState.simControl.T,
+              ? data.InputThrottle
+              : simState.simControl.T,
         tau_x:
           typeof data.tau_x === "number"
             ? clampWithThreshold(data.tau_x)
@@ -355,7 +356,7 @@ app.get("/modo/actual", (req, res) => {
   res.json({
     modo:
       typeof state.latestTelemetry.modo === "number" &&
-      !isNaN(state.latestTelemetry.modo)
+        !isNaN(state.latestTelemetry.modo)
         ? state.latestTelemetry.modo
         : 1,
   });

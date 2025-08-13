@@ -64,7 +64,7 @@ export function configureWebRTC(io, processImage) {
       try {
         console.log(`[${roomId}] 🖼️ Procesando frame de ${socket.id} (${image.length} bytes)`);
         const result = await processImage(image);
-        
+
         if (!result || typeof result !== 'object') {
           throw new Error('El resultado del procesamiento no es válido');
         }

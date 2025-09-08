@@ -117,14 +117,26 @@ const DroneAngles = () => {
     </div>
   );
 
-  const Field: React.FC<{ label: string; value: number | undefined }> = ({
+  const Field: React.FC<{ label: string; value: number | string | undefined }> = ({
     label,
     value,
-  }) => (
-    <p className="label-text">
-      {label}: <span className="value-text">{(value ?? 0).toFixed(3)}</span>
-    </p>
-  );
+  }) => {
+    // Convert value to number if it's a string, default to 0 if undefined or not a number
+    const numericValue = typeof value === 'string' ? parseFloat(value) || 0 : value ?? 0;
+    
+    return (
+      <p className="label-text">
+        {label}: <span className="value-text">{Number(numericValue).toFixed(3)}</span>
+      </p>
+    );
+  };
+
+  // Utility function to safely format numbers
+  const safeNumberFormat = (value: number | string | undefined, decimals: number = 3): string => {
+    if (value === undefined || value === null) return '0.000';
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    return Number.isFinite(num) ? num.toFixed(decimals) : '0.000';
+  };
 
   return (
     <Card className="p-4 shadow-lg rounded-lg bg-black neon-card">
@@ -133,13 +145,13 @@ const DroneAngles = () => {
 
         <Section title="Angles">
           <p className="label-text">
-            Roll: <span className="value-text">{angles.roll.toFixed(3)}</span>
+            Roll: <span className="value-text">{safeNumberFormat(angles.roll)}</span>
           </p>
           <p className="label-text">
-            Pitch: <span className="value-text">{angles.pitch.toFixed(3)}</span>
+            Pitch: <span className="value-text">{safeNumberFormat(angles.pitch)}</span>
           </p>
           <p className="label-text">
-            Yaw: <span className="value-text">{angles.yaw.toFixed(3)}</span>
+            Yaw: <span className="value-text">{safeNumberFormat(angles.yaw)}</span>
           </p>
         </Section>
 
@@ -147,13 +159,13 @@ const DroneAngles = () => {
           <p className="label-text">
             KalmanAngleRoll:{" "}
             <span className="value-text">
-              {angles.KalmanAngleRoll.toFixed(3)}
+              {safeNumberFormat(angles.KalmanAngleRoll)}
             </span>
           </p>
           <p className="label-text">
             KalmanAnglePitch:{" "}
             <span className="value-text">
-              {angles.KalmanAnglePitch.toFixed(3)}
+              {safeNumberFormat(angles.KalmanAnglePitch)}
             </span>
           </p>
         </Section>
@@ -161,15 +173,15 @@ const DroneAngles = () => {
         <Section title="Angular Velocities">
           <p className="label-text">
             Rate Roll:{" "}
-            <span className="value-text">{angles.RateRoll.toFixed(3)}</span>
+            <span className="value-text">{safeNumberFormat(angles.RateRoll)}</span>
           </p>
           <p className="label-text">
             Rate Pitch:{" "}
-            <span className="value-text">{angles.RatePitch.toFixed(3)}</span>
+            <span className="value-text">{safeNumberFormat(angles.RatePitch)}</span>
           </p>
           <p className="label-text">
             Rate Yaw:{" "}
-            <span className="value-text">{angles.RateYaw.toFixed(3)}</span>
+            <span className="value-text">{safeNumberFormat(angles.RateYaw)}</span>
           </p>
         </Section>
 

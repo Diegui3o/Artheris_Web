@@ -1,22 +1,31 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, useParams } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useParams,
+} from "react-router-dom";
 import { CssBaseline, Box, Toolbar } from "@mui/material";
 import Sidebar from "./page/Sidebar";
 import Home from "./page/Home";
 import Dron3D from "./page/Dron3D";
 import Graphics from "./page/GrapMetrics";
 import Settings from "./page/Settings";
+
+// Ensure Settings is a valid React component
+const SettingsComponent = Settings as React.FC;
 import Profile from "./page/Profile";
 import DeviceProfilePage from "./page/DeviceProfile";
 import Calibration from "./page/Calibration";
 import MotorSimulation from "./page/MotorSimulation";
 import Simulator from "./page/Simulator";
 import CameraPage from "./page/CameraPage";
+import MetricsLastFlight from "./page/MetricsLastFlight";
 
 const App: React.FC = () => {
   const DeviceProfileWrapper = () => {
     const { id } = useParams();
-    return <DeviceProfilePage deviceId={id || ''} />;
+    return <DeviceProfilePage deviceId={id || ""} />;
   };
 
   return (
@@ -39,7 +48,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/dron" element={<Dron3D />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings" element={<SettingsComponent />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/device/:id" element={<DeviceProfileWrapper />} />
             <Route path="/graphics" element={<Graphics />} />
@@ -47,6 +56,7 @@ const App: React.FC = () => {
             <Route path="/motor-simulation" element={<MotorSimulation />} />
             <Route path="/simulation" element={<Simulator />} />
             <Route path="/camera" element={<CameraPage />} />
+            <Route path="/metrics/last" element={<MetricsLastFlight />} />
           </Routes>
         </Box>
       </Box>

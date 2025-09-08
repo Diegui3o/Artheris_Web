@@ -37,11 +37,31 @@ export function handleSocketConnection(socket, state) {
         socket.broadcast.emit('motors', val);
     });
 
-    // Receive telemetry data from ESP32 (Websockt)
-    socket.on('Telemetry', (data) => {
-        console.log("Telemetry received from ESP32:", data);
+    // Receive telemetry data from ESP32 (Websocket)
+    socket.on('Telemetry', async (data) => {
+        console.log("📡 Telemetry received from ESP32");
+        console.log("📊 Telemetry data structure:", JSON.stringify(data, null, 2));
         state.latestTelemetry = data;
         socket.server.emit('sensorUpdate', data);
-        if (state.isRecording) state.telemetries.push(data);
+        
+        // Save telemetry to database if recording is active
+        if (state.isRecording && state.flightId) {
+            try {
+                const { insertSensorData } = await import('../server/questdb.js');
+                await insertSensorData(data, state.flightId);
+                console.log(`💾 Saved telemetry to flight ${state.flightId}`);
+            } catch (error) {
+                console.error('❌ Error saving telemetry to database:', error);
+            }
+        }
+        
+        // Keep the last 100 telemetries in memory
+        if (state.isRecording) {
+            state.telemetries = state.telemetries || [];
+            state.telemetries.push(data);
+            if (state.telemetries.length > 100) {
+                state.telemetries.shift();
+            }
+        }
     });
 }

@@ -58,34 +58,32 @@ async function executeQueryWithRetry(query, retries = 5, delay = 1000) {
 }
 
 export async function finalizeStaleFlights(idleMs = 5000) {
-  const idleSec = Math.max(0, Math.ceil(Number(idleMs) / 1000) || 0);
+  // Umbral absoluto en ISO (UTC)
+  const thresholdIso = new Date(Date.now() - idleMs).toISOString();
 
   const getStaleFlightsQuery = `
-    SELECT flight_id
-    FROM (
-      SELECT s.flight_id, max(s.timestamp) AS last_update
-      FROM sensor_data s
-      WHERE s.flight_id IN (SELECT f.flight_id FROM flights f WHERE f.end_time IS NULL)
-      GROUP BY s.flight_id
-    )
-    WHERE last_update < dateadd('s', -${idleSec}, now())
+    SELECT f.flight_id
+    FROM flights f
+    LEFT JOIN (
+      SELECT flight_id, max(timestamp) AS last_update
+      FROM sensor_data
+      GROUP BY flight_id
+    ) s ON f.flight_id = s.flight_id
+    WHERE f.end_time IS NULL
+      AND (
+        (s.last_update IS NOT NULL AND s.last_update < cast('${thresholdIso}' AS timestamp))
+        OR (s.last_update IS NULL    AND f.start_time   < cast('${thresholdIso}' AS timestamp))
+      )
   `;
 
   try {
-    const result = await pool.query(getStaleFlightsQuery);
-    if (!result.rows?.length) return;
-
-    // Cierra en una sola sentencia (menos roundtrips)
-    const ids = result.rows
-      .map((r) => `'${r.flight_id.replace(/'/g, "''")}'`)
-      .join(", ");
-    const update = `
-      UPDATE flights
-      SET end_time = now()
-      WHERE end_time IS NULL
-        AND flight_id IN (${ids})
-    `;
-    await pool.query(update);
+    const { rows } = await pool.query(getStaleFlightsQuery);
+    for (const { flight_id } of rows) {
+      await pool.query(
+        `UPDATE flights SET end_time = now() WHERE flight_id = $1 AND end_time IS NULL`,
+        [flight_id]
+      );
+    }
   } catch (e) {
     console.error(
       "finalizeStaleFlights error:",
@@ -93,7 +91,6 @@ export async function finalizeStaleFlights(idleMs = 5000) {
       "\nQuery was:\n",
       getStaleFlightsQuery
     );
-    throw e;
   }
 }
 

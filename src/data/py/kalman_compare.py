@@ -143,43 +143,21 @@ def whiteness(innov: np.ndarray, lags=20, alpha=0.05):
     if len(v) < max(30, lags + 5):
         return {"available": False}
 
-    # Si la varianza es ~0, Ljung-Box suele dar NaN → ir a ACF
-    if np.allclose(v - np.mean(v), 0.0):
-        T = len(v)
-        band = 1.96 / math.sqrt(T)
-        acfs = []
-        for k in range(1, lags + 1):
-            x1, x2 = v[:-k] - np.mean(v[:-k]), v[k:] - np.mean(v[k:])
-            den = np.std(x1) * np.std(x2)
-            acf = float(np.mean(x1 * x2) / den) if den > 0 else 0.0
-            acfs.append(acf)
-        pass_rate = float(np.mean(np.abs(acfs) < band))
-        return {"available": True, "method": "acf_fallback", "lags": lags,
-                "band": band, "pass_rate": pass_rate, "pass": bool(pass_rate >= 0.95)}
-
     if acorr_ljungbox is not None:
         try:
             df = acorr_ljungbox(v, lags=[lags], return_df=True)
             pval = float(df["lb_pvalue"].iloc[-1])
-            if not np.isfinite(pval):
-                raise ValueError("nan pvalue")
-            return {"available": True, "method": "ljung_box", "lags": lags,
-                    "pvalue": pval, "pass": bool(pval > alpha)}
+            if not math.isfinite(pval):
+                raise ValueError("non-finite pvalue")
+            return {
+                "available": True, "method": "ljung_box",
+                "lags": lags, "pvalue": pval, "pass": bool(pval > alpha)
+            }
         except Exception:
-            # Fallback ACF si Ljung-Box no está o da NaN
-            T = len(v)
-            band = 1.96 / math.sqrt(T)
-            acfs = []
-            for k in range(1, lags + 1):
-                x1, x2 = v[:-k] - np.mean(v[:-k]), v[k:] - np.mean(v[k:])
-                den = np.std(x1) * np.std(x2)
-                acf = float(np.mean(x1 * x2) / den) if den > 0 else 0.0
-                acfs.append(acf)
-            pass_rate = float(np.mean(np.abs(acfs) < band))
-            return {"available": True, "method": "acf_fallback", "lags": lags,
-                    "band": band, "pass_rate": pass_rate, "pass": bool(pass_rate >= 0.95)}
+            # cae a ACF si LB no es usable (var≈0, etc.)
+            pass
 
-    # Fallback final (sin statsmodels)
+    # Fallback ACF (siempre finito)
     T = len(v)
     band = 1.96 / math.sqrt(T)
     acfs = []
@@ -189,8 +167,12 @@ def whiteness(innov: np.ndarray, lags=20, alpha=0.05):
         acf = float(np.mean(x1 * x2) / den) if den > 0 else 0.0
         acfs.append(acf)
     pass_rate = float(np.mean(np.abs(acfs) < band))
-    return {"available": True, "method": "acf_fallback", "lags": lags,
-            "band": band, "pass_rate": pass_rate, "pass": bool(pass_rate >= 0.95)}
+    return {
+        "available": True, "method": "acf_fallback",
+        "lags": lags, "band": band, "pass_rate": pass_rate,
+        "pass": pass_rate >= 0.95
+    }
+
 
 def nees_series(xhat: np.ndarray, xtrue: np.ndarray, P_var: np.ndarray, alpha=0.05):
     xhat = nan_clean(xhat, 0.0)
@@ -394,14 +376,15 @@ def main():
     pb = sub.add_parser("batch"); pb.add_argument("--csv", required=True)
     sub.add_parser("live")
     args = p.parse_args()
-
+    
     if args.command == "batch":
         result = do_batch(args.csv)
     else:
         payload_raw = sys.stdin.read() or "{}"
         result = do_live(json.loads(payload_raw))
 
-    print(json.dumps(result))
+    # ÚNICA salida a stdout:
+    print(json.dumps(result, allow_nan=False))
 
 if __name__ == "__main__":
     main()

@@ -24,9 +24,7 @@ export function configureWebRTC(io) {
     });
 
     socket.on("offer", ({ sdp, type, roomId }) => {
-      console.log(
-        `[${roomId}] ➡️ Received ${socket.id} offer.`
-      );
+      console.log(`[${roomId}] ➡️ Received ${socket.id} offer.`);
       socket.to(roomId).emit("offer", { sdp, type, from: socket.id });
     });
 

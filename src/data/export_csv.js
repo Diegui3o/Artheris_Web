@@ -80,7 +80,7 @@ export async function exportFlightToCSV(flightId) {
 
   // Get table columns first
   const tableCols = await getTableColumns(TABLE_SENSOR_DATA);
-  
+
   // Filter out any undefined, null, or empty string columns and log them for debugging
   let validCols = cols.filter((col, index) => {
     if (col === undefined || col === null || col === "") {
@@ -91,7 +91,7 @@ export async function exportFlightToCSV(flightId) {
   });
 
   // Filter out columns that don't exist in the table
-  validCols = validCols.filter(col => tableCols.includes(col));
+  validCols = validCols.filter((col) => tableCols.includes(col));
 
   if (validCols.length !== cols.length) {
     console.warn("Some columns were filtered out. Original columns:", cols);

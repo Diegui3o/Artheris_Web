@@ -53,13 +53,11 @@ app.get("/flight-metrics/:flightId", async (req, res) => {
 
     res.json({ ok: true, flight_time_seconds: t });
   } catch (e) {
-    res
-      .status(500)
-      .json({
-        ok: false,
-        error: "flight_metrics_failed",
-        message: String(e.message),
-      });
+    res.status(500).json({
+      ok: false,
+      error: "flight_metrics_failed",
+      message: String(e.message),
+    });
   }
 });
 
@@ -153,12 +151,10 @@ async function initializeServer() {
         "Raw WebSocket server for ESP32 listening on port 3003 (path /esp32)"
       );
     });
-
-    // State is already initialized with default values
-
     // Mount recording router
     const recordingRouter = createRecordingRouter({
       io,
+      espNamespace: null,
       wss,
       esp32Socket: null,
       state,

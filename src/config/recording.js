@@ -127,7 +127,7 @@ export default function createRecordingRouter({
       }));
       return res.json(rows);
     } catch (e) {
-      console.error("/recording/recent-flights error:", e);
+      //console.error("/recording/recent-flights error:", e);
       return res.status(500).json({
         ok: false,
         error: "recent_flights_failed",

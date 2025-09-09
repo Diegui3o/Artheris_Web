@@ -950,17 +950,6 @@ export default function MetricsLastFlight() {
         >
           ← Volver al Inicio
         </a>
-        {currentFlightId && (
-          <button
-            onClick={runBatch}
-            disabled={loadingBatch}
-            className={`px-4 py-2 rounded ${
-              loadingBatch ? "bg-gray-600" : "bg-blue-600 hover:bg-blue-700"
-            }`}
-          >
-            {loadingBatch ? "Analizando..." : "Analizar Vuelo Actual"}
-          </button>
-        )}
       </div>
     </div>
   );

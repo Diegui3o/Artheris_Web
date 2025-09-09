@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import KalmanComparePanel from "../components/KalmanComparePanel";
+import AnalysisPanel from "../components/ui/AnalysisPanel";
 
 /* ===== Tipos de backend/QuestDB ===== */
 interface FlightRecord {
@@ -383,21 +384,28 @@ export default function MetricsLastFlight() {
         </div>
       )}
 
-      {/* Procesamiento batch */}
+      {/* Procesamiento gráfico */}
       <div className="bg-gray-800 p-4 rounded-lg">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xl font-semibold">Procesamiento de Vuelo</h2>
-          <button
-            onClick={runBatch}
-            disabled={loadingBatch || !selectedFlight}
-            className={`px-4 py-2 rounded ${
-              loadingBatch || !selectedFlight
-                ? "bg-gray-600"
-                : "bg-blue-600 hover:bg-blue-700"
-            }`}
-          >
-            {loadingBatch ? "Calculando…" : "Calcular métricas completas"}
-          </button>
+          <AnalysisPanel autoRun={false} />
+        </div>
+
+        {/* Procesamiento batch */}
+        <div className="bg-gray-800 p-4 rounded-lg mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl font-semibold">Procesamiento de Vuelo</h2>
+            <button
+              onClick={runBatch}
+              disabled={loadingBatch || !selectedFlight}
+              className={`px-4 py-2 rounded ${
+                loadingBatch || !selectedFlight
+                  ? "bg-gray-600"
+                  : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
+              {loadingBatch ? "Calculando…" : "Calcular métricas completas"}
+            </button>
+          </div>
         </div>
 
         {batch?.metrics && (

@@ -14,10 +14,12 @@ import {
 } from "./server/questdb.js";
 import { configureWebRTC } from "./config/webrtc.js";
 import createDataMetricsRouter from "./data/metrics_router.js";
+import createAnalysisRouter from "./data/analysis_router.js";
 
 const app = express();
 const PORT = 3002;
-
+export const dispositivosConectados = {};
+export const esp32Sockets = {};
 // Initialize state with default values
 export let state = {
   isRecording: false,
@@ -31,6 +33,7 @@ setInterval(() => finalizeStaleFlights(5000).catch(() => {}), 4000);
 app.use(cors());
 app.use(express.json());
 app.use("/", createDataMetricsRouter({ state }));
+app.use("/analysis", createAnalysisRouter({ pool }));
 
 app.get("/flight-metrics/:flightId", async (req, res) => {
   try {
@@ -106,7 +109,7 @@ app.get("/api/drones", (req, res) => {
 });
 
 // Endpoint to obtain connected devices
-app.get("/api/devices", (req, res) => {
+app.get("/api/devices", (_req, res) => {
   res.json(Object.values(dispositivosConectados));
 });
 export let io = null;
@@ -527,11 +530,6 @@ async function initializeServer() {
 
       res.json({ motors: false, message: "MOTORS OFF" });
     });
-
-    app.get("/api/devices", (req, res) => {
-      res.json(Object.values(dispositivosConectados));
-    });
-
     app.post("/led/on/:id", (req, res) => {
       const id = req.params.id;
       const ws = esp32Sockets[id];

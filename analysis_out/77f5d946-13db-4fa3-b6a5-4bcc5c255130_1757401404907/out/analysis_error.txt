@@ -1,1 +1,0 @@
-Analysis failed: Designated timestamp column cannot be updated

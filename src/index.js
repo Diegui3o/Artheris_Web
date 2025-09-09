@@ -151,10 +151,8 @@ async function initializeServer() {
         "Raw WebSocket server for ESP32 listening on port 3003 (path /esp32)"
       );
     });
-    // Mount recording router
     const recordingRouter = createRecordingRouter({
       io,
-      espNamespace: null,
       wss,
       esp32Socket: null,
       state,

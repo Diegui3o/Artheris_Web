@@ -1,12 +1,24 @@
-# src/data/py/analyze_flight.py
-import os, sys, json, math
+import os, sys, json, math, argparse
 import numpy as np
 import pandas as pd
 from typing import Optional
 from pathlib import Path
+import metrics as M
+import importlib
+from pro import run_pro_analysis
 
-# Importa tus métricas
-import metrics as M  # usa M.compute(rows)
+# Parse command line arguments
+def parse_args():
+    p = argparse.ArgumentParser(description="Analyze flight CSV -> JSONs")
+    p.add_argument("input_csv", help="Ruta del CSV de vuelo")
+    p.add_argument("--output-dir", "-o", default="out", help="Carpeta de salida")
+    p.add_argument("--plot", action="store_true", help="(opcional) generar PNGs si los tuvieras")
+    p.add_argument("--pro", action="store_true", help="Exportar análisis PRO (pasos/FRF/latencia)")
+    return p.parse_args()
+
+# Global variables
+pro_payload = None
+pro_metrics = None
 
 # ---------- helpers de export para las gráficas ----------
 def _estimate_fs(time_series: np.ndarray) -> float:
@@ -36,7 +48,7 @@ def _psd_export(y, fs):
     power = (np.abs(yf)**2) / len(y)
     return {"freq_hz": _decimate(freqs).tolist(), "power": _decimate(power).tolist()}
 
-def save_plot_payloads(df: pd.DataFrame, outdir: str):
+def save_plot_payloads(df: pd.DataFrame, outdir: str, pro_payload=None):
     os.makedirs(outdir, exist_ok=True)
     t = df["time_seconds"].to_numpy()
     fs = _estimate_fs(t)
@@ -75,22 +87,29 @@ def save_plot_payloads(df: pd.DataFrame, outdir: str):
             "pitch_est": _psd_export(pitch_est, fs),
         },
     }
+    if pro_payload is not None:
+        payload["pro"] = pro_payload
+    plot_path = Path(outdir, "plot_data.json")
+    plot_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
-    Path(outdir, "plot_data.json").write_text(json.dumps(payload), encoding="utf-8")
-
-    # CSV planito para puntos (opcionales)
+    # Write points CSV files
     def write_points_csv(name, y_raw, y_est, y_ref=None):
         p = Path(outdir, f"{name}_points.csv")
+        t = df["time_seconds"].to_numpy()
         cols = ["t_s", "raw", "est"] + (["ref"] if y_ref is not None else [])
         with p.open("w", encoding="utf-8") as f:
             f.write(",".join(cols) + "\n")
-            for i in range(len(t)):
+            for i in range(len(y_raw)):
                 row = [t[i], y_raw[i], y_est[i]]
-                if y_ref is not None: row.append(y_ref[i])
+                if y_ref is not None: 
+                    row.append(y_ref[i] if i < len(y_ref) else "")
                 f.write(",".join(str(x) if x is not None else "" for x in row) + "\n")
 
-    write_points_csv("roll",  roll_raw,  roll_est,  ref_roll)
-    write_points_csv("pitch", pitch_raw, pitch_est, ref_pitch)
+    # Generate CSV files for roll and pitch
+    if len(roll_raw) > 0 and len(roll_est) > 0:
+        write_points_csv("roll", roll_raw, roll_est, ref_roll if ref_roll is not None else None)
+    if len(pitch_raw) > 0 and len(pitch_est) > 0:
+        write_points_csv("pitch", pitch_raw, pitch_est, ref_pitch if ref_pitch is not None else None)
 
 # ---------- lectura del CSV y normalización mínima ----------
 def read_flight_data(csv_path: str) -> pd.DataFrame:
@@ -128,13 +147,7 @@ def read_flight_data(csv_path: str) -> pd.DataFrame:
     return df
 
 def main():
-    import argparse
-    p = argparse.ArgumentParser(description="Analyze flight CSV -> JSONs")
-    p.add_argument("input_csv", help="Ruta del CSV de vuelo")
-    p.add_argument("--output-dir", "-o", default="out", help="Carpeta de salida")
-    p.add_argument("--plot", action="store_true", help="(opcional) generar PNGs si los tuvieras")
-    args = p.parse_args()
-
+    args = parse_args()
     outdir = Path(args.output_dir)
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -142,15 +155,29 @@ def main():
         # 1) leer & preparar
         df = read_flight_data(args.input_csv)
 
-        # 2) plot payloads
-        save_plot_payloads(df, str(outdir))
+        # 1.5) si se pidió PRO, calcúlalo primero
+        pro_payload = None
+        pro_metrics = None
+        if args.pro:
+            try:
+                pro_payload, pro_metrics = run_pro_analysis(df)
+            except Exception as e:
+                print(f"[warn] PRO analysis failed: {e}", file=sys.stderr)
+
+        # 2) plot payloads (inyecta pro si existe)
+        save_plot_payloads(df, str(outdir), pro_payload=pro_payload)
 
         # 3) métricas -> flight_metrics.json (usando tu metrics.py)
         try:
             rows = df.to_dict(orient="records")
             metrics = M.compute(rows)  # llama a metrics.compute(...)
+            # adjunta PRO si existe (no rompe tu UI)
+            if pro_metrics:
+                if isinstance(metrics, dict) and isinstance(metrics.get("metrics"), dict):
+                    metrics["metrics"]["pro"] = pro_metrics
+                else:
+                    metrics["pro"] = pro_metrics
         except Exception as e:
-            # fallback mínimo si fallan las métricas
             fs_est = float(1.0 / max(1e-9, df["time_seconds"].diff().median())) if "time_seconds" in df.columns else 0.0
             dur_s = float(df["time_seconds"].iloc[-1] - df["time_seconds"].iloc[0]) if "time_seconds" in df.columns else 0.0
             metrics = {

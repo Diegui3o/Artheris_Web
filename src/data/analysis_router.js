@@ -496,6 +496,7 @@ export default function createAnalysisRouter({
     csvPath,
     outDir,
     debug = false,
+    pro = true,
     timeoutMs = 300000,
     jobId,
   }) {
@@ -505,6 +506,7 @@ export default function createAnalysisRouter({
         csvPath,
         `--output-dir=${outDir}`,
         ...(debug ? ["--debug"] : ["--plot"]),
+        ...(pro ? ["--pro"] : []),
       ];
 
       let stdout = "";
@@ -521,9 +523,19 @@ export default function createAnalysisRouter({
       console.log(`[Python] Running: ${pythonBin} ${pythonArgs.join(" ")}`);
       const python = spawn(pythonBin, pythonArgs, {
         cwd: path.dirname(analyzerPy),
-        env: { ...process.env, PYTHONUNBUFFERED: "1" },
+        env: {
+          ...process.env,
+          PYTHONUNBUFFERED: "1",
+          PYTHONPATH:
+            path.resolve(process.cwd(), path.dirname(analyzerPy)) +
+            (process.env.PYTHONPATH
+              ? path.delimiter + process.env.PYTHONPATH
+              : ""),
+        },
+        detached: process.platform !== "win32", // para matar grupo en Unix
       });
-
+      // track
+      if (jobId) activeProcesses.set(jobId, python);
       const timeout = setTimeout(() => {
         python.kill("SIGTERM");
         reject(new Error(`Python script timed out after ${timeoutMs}ms`));
@@ -543,7 +555,7 @@ export default function createAnalysisRouter({
 
       python.on("close", (code, signal) => {
         clearTimeout(timeout);
-
+        if (jobId) activeProcesses.delete(jobId);
         // Save full output to file for debugging
         const outputPath = path.join(outDir, "python_output.log");
         fs.writeFileSync(outputPath, output, "utf8");
@@ -673,7 +685,12 @@ export default function createAnalysisRouter({
           const { exec } = await import("node:child_process");
           exec(`taskkill /F /T /PID ${proc.pid}`, () => {});
         } else {
-          process.kill(-proc.pid, "SIGKILL");
+          try {
+            process.kill(-proc.pid, "SIGTERM");
+          } catch {}
+          try {
+            process.kill(proc.pid, "SIGKILL");
+          } catch {}
         }
         activeProcesses.delete(jobId);
       } catch (e) {
@@ -706,7 +723,7 @@ export default function createAnalysisRouter({
       }
 
       // --- validar body
-      const { flightId, debug = false } = req.body || {};
+      const { flightId, debug = false, pro = true } = req.body || {};
       if (!flightId) {
         console.warn(`${logPrefix} Missing flightId in request`);
         return res.status(400).json({
@@ -781,12 +798,16 @@ export default function createAnalysisRouter({
           if (exportedCsvPath && exportedCsvPath !== csvPath) {
             fs.copyFileSync(exportedCsvPath, csvPath);
           }
-
+          try {
+            const csvInOut = path.join(jobOutDir, path.basename(csvPath));
+            fs.copyFileSync(csvPath, csvInOut);
+          } catch {}
           console.log(`[${job.id}] Running Python…`);
           await runPython({
             csvPath,
             outDir: jobOutDir,
             debug,
+            pro,
             timeoutMs: 300000,
             jobId: job.id,
           });
@@ -866,6 +887,26 @@ export default function createAnalysisRouter({
     if (!fs.existsSync(p))
       return res.status(404).json({ ok: false, error: "not_found" });
 
+    res.type("application/json").send(fs.readFileSync(p, "utf8"));
+  });
+
+  router.get("/metrics/:jobId", async (req, res) => {
+    const job = await getJob(req.params.jobId);
+    if (!job)
+      return res.status(404).json({ ok: false, error: "job_not_found" });
+    const p = path.join(job.out_dir, "flight_metrics.json");
+    if (!fs.existsSync(p))
+      return res.status(404).json({ ok: false, error: "not_found" });
+    res.type("application/json").send(fs.readFileSync(p, "utf8"));
+  });
+
+  router.get("/metrics-pro/:jobId", async (req, res) => {
+    const job = await getJob(req.params.jobId);
+    if (!job)
+      return res.status(404).json({ ok: false, error: "job_not_found" });
+    const p = path.join(job.out_dir, "metrics_pro.json");
+    if (!fs.existsSync(p))
+      return res.status(404).json({ ok: true, exists: false, metrics: null });
     res.type("application/json").send(fs.readFileSync(p, "utf8"));
   });
 
@@ -956,14 +997,6 @@ export default function createAnalysisRouter({
         const rel = abs.replace(job.out_dir, "").replace(/^[\\/]/, "");
         return { name: rel, url: `${base}/${rel.replace(/\\/g, "/")}` };
       });
-
-      if (job.csv_path && fs.existsSync(job.csv_path)) {
-        assets.push({
-          name: path.basename(job.csv_path),
-          url: `${base}/../${path.basename(job.csv_path)}`,
-        });
-      }
-
       return res.json({
         ok: true,
         status: job.status,

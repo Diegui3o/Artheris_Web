@@ -1,0 +1,4 @@
+2025-09-10T06:34:23.213Z [stderr] Traceback (most recent call last):
+  File "C:\USER\Proyects\Artheris_Stable\src\data\py\analyze_flight.py", line 12, in <module>
+2025-09-10T06:34:23.214Z [stderr]     if getattr(args, "pro", False):
+NameError: name 'args' is not defined

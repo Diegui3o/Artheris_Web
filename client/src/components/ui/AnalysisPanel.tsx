@@ -4,6 +4,27 @@ type AnalysisFile = { name: string; url: string };
 type AnalysisResult = { ok: boolean; status: string; files: AnalysisFile[] };
 type ServerStatus = "pending" | "running" | "completed" | "error" | "cancelled";
 type JobStatus = "idle" | "running" | "done" | "error"; // tu UI
+type ProEvent = { t: number; idx: number; amp_deg: number };
+
+type ProStep = {
+  channel: "roll" | "pitch" | string;
+  rise_time_s?: number | null;
+  ts_2pct_s?: number | null;
+  overshoot_pct?: number | null;
+};
+
+type ProFRF = {
+  ref_to_est?: {
+    freq_hz: number[];
+    mag: number[]; // |H|
+    phase_deg: number[]; // ∠H (grados)
+  };
+};
+
+type ProLatency = {
+  roll_ref_to_est_ms?: number | null;
+  pitch_ref_to_est_ms?: number | null;
+};
 
 const API_BASE =
   import.meta.env.VITE_API_BASE?.toString() || "http://localhost:3002";
@@ -32,7 +53,14 @@ type PlotData = {
     pitch_raw: PlotPSD;
     pitch_est: PlotPSD;
   };
+  pro?: {
+    events?: ProEvent[];
+    step_responses?: ProStep[];
+    frf?: ProFRF;
+    latency?: ProLatency;
+  };
 };
+
 function normalizeStatus(s?: string): JobStatus {
   switch (s as ServerStatus) {
     case "running":
@@ -112,7 +140,7 @@ export default function AnalysisPanel({
       const res = await fetch(`${API_BASE}/analysis/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ flightId: fId, debug: false }),
+        body: JSON.stringify({ flightId: fId, debug: false, pro: true }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
@@ -361,6 +389,41 @@ export default function AnalysisPanel({
           </a>
         )}
       </div>
+      {/* Latencias PRO si están disponibles */}
+      {plotData?.pro?.latency && (
+        <div className="mb-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Stat
+            label="Latencia roll (ref→est)"
+            value={fmt(plotData.pro.latency.roll_ref_to_est_ms, 1)}
+            suffix=" ms"
+          />
+          <Stat
+            label="Latencia pitch (ref→est)"
+            value={fmt(plotData.pro.latency.pitch_ref_to_est_ms, 1)}
+            suffix=" ms"
+          />
+        </div>
+      )}
+
+      {/* Tabla de respuesta a escalón */}
+      {plotData?.pro?.step_responses &&
+        plotData.pro.step_responses.length > 0 && (
+          <PlotCard title="Respuesta a escalón (detectada)">
+            <StepTable steps={plotData.pro.step_responses} />
+          </PlotCard>
+        )}
+
+      {/* Bode (FRF ref→est) */}
+      {plotData?.pro?.frf?.ref_to_est && (
+        <div className="grid md:grid-cols-2 gap-6">
+          <PlotCard title="Bode (|H|) ref→est">
+            <BodeMagCanvas fr={plotData.pro.frf.ref_to_est} />
+          </PlotCard>
+          <PlotCard title="Bode (∠H) ref→est">
+            <BodePhaseCanvas fr={plotData.pro.frf.ref_to_est} />
+          </PlotCard>
+        </div>
+      )}
 
       {/* NUEVO: Gráficas interactivas (puntos + línea) */}
       {plotData ? (
@@ -371,14 +434,21 @@ export default function AnalysisPanel({
               points={plotData.roll.raw}
               line={plotData.roll.est}
               yLabel="Ángulo (deg)"
+              markers={(plotData.pro?.events || [])
+                .filter((ev: ProEvent) => Number.isFinite(ev.t))
+                .map((ev: ProEvent) => ev.t)}
             />
           </PlotCard>
+
           <PlotCard title="Pitch (raw puntos + est línea)">
             <PlotCanvas
               time={plotData.time_s}
               points={plotData.pitch.raw}
               line={plotData.pitch.est}
               yLabel="Ángulo (deg)"
+              markers={(plotData.pro?.events || [])
+                .filter((ev: ProEvent) => Number.isFinite(ev.t))
+                .map((ev: ProEvent) => ev.t)}
             />
           </PlotCard>
         </div>
@@ -461,17 +531,261 @@ function PlotCard({
     </div>
   );
 }
+function StepTable({ steps }: { steps: ProStep[] }) {
+  const rows = steps.map((s, i) => ({
+    id: i,
+    channel: s.channel,
+    rise: s.rise_time_s,
+    settle: s.ts_2pct_s,
+    over: s.overshoot_pct,
+  }));
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="text-gray-300">
+          <tr>
+            <th className="text-left py-2 pr-3">Canal</th>
+            <th className="text-right py-2 pr-3">Rise time (s)</th>
+            <th className="text-right py-2 pr-3">Settling 2% (s)</th>
+            <th className="text-right py-2">Overshoot (%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id} className="border-t border-gray-800">
+              <td className="py-2 pr-3">{r.channel}</td>
+              <td className="py-2 pr-3 text-right">{fmt(r.rise, 3)}</td>
+              <td className="py-2 pr-3 text-right">{fmt(r.settle, 3)}</td>
+              <td className="py-2 text-right">{fmt(r.over, 2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function BodeMagCanvas({ fr }: { fr: { freq_hz: number[]; mag: number[] } }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const { freq, mag } = useMemo(() => ({
+    freq: fr?.freq_hz ?? [],
+    mag: fr?.mag ?? []
+  }), [fr?.freq_hz, fr?.mag]);
+  
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext("2d")!;
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = c.clientWidth || 800,
+      cssH = 300;
+    c.width = Math.floor(cssW * dpr);
+    c.height = Math.floor(cssH * dpr);
+    c.style.height = cssH + "px";
+
+    const pts = freq
+      .map((f, i) => ({ f, m: mag[i] }))
+      .filter(
+        (p) =>
+          Number.isFinite(p.f) && p.f > 0 && Number.isFinite(p.m) && p.m > 0
+      );
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (!pts.length) return;
+
+    const padding = { l: 55, r: 15, t: 12, b: 28 };
+    const x0 = padding.l * dpr,
+      y0 = padding.t * dpr;
+    const x1 = (cssW - padding.r) * dpr,
+      y1 = (cssH - padding.b) * dpr;
+    const w = x1 - x0,
+      h = y1 - y0;
+
+    const fMin = Math.min(...pts.map((p) => p.f));
+    const fMax = Math.max(...pts.map((p) => p.f));
+    const yMin = Math.min(...pts.map((p) => p.m));
+    const yMax = Math.max(...pts.map((p) => p.m));
+
+    const xScale = (f: number) =>
+      x0 +
+      ((Math.log10(f) - Math.log10(fMin)) /
+        Math.max(1e-12, Math.log10(fMax) - Math.log10(fMin))) *
+        w;
+    const yScale = (m: number) =>
+      y1 - ((m - yMin) / Math.max(1e-12, yMax - yMin)) * h;
+
+    ctx.fillStyle = "rgba(17,24,39,0.9)";
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.strokeStyle = "rgba(255,255,255,0.06)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 6; i++) {
+      const xx = x0 + (i / 6) * w;
+      ctx.beginPath();
+      ctx.moveTo(xx, y0);
+      ctx.lineTo(xx, y1);
+      ctx.stroke();
+    }
+    for (let j = 0; j <= 4; j++) {
+      const yy = y0 + (j / 4) * h;
+      ctx.beginPath();
+      ctx.moveTo(x0, yy);
+      ctx.lineTo(x1, yy);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(148,163,184,0.6)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0, y1);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(203,213,225,0.8)";
+    ctx.font = `${12 * dpr}px ui-sans-serif, system-ui`;
+    ctx.fillText("|H|", 8 * dpr, 16 * dpr);
+    ctx.textAlign = "right";
+    ctx.fillText("f (Hz, log)", x1, (cssH - 8) * dpr);
+
+    ctx.strokeStyle = "rgba(139,92,246,0.9)";
+    ctx.lineWidth = Math.max(1.3 * dpr, 1);
+    ctx.beginPath();
+    let started = false;
+    for (const p of pts) {
+      const x = xScale(p.f),
+        y = yScale(p.m);
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }, [freq, mag]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full block rounded-lg border border-gray-800 bg-gray-900"
+      style={{ height: 300 }}
+    />
+  );
+}
+
+function BodePhaseCanvas({
+  fr,
+}: {
+  fr: { freq_hz: number[]; phase_deg: number[] };
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const { freq, ph } = useMemo(() => ({
+    freq: fr?.freq_hz ?? [],
+    ph: fr?.phase_deg ?? []
+  }), [fr?.freq_hz, fr?.phase_deg]);
+  
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext("2d")!;
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = c.clientWidth || 800,
+      cssH = 300;
+    c.width = Math.floor(cssW * dpr);
+    c.height = Math.floor(cssH * dpr);
+    c.style.height = cssH + "px";
+
+    const pts = freq
+      .map((f, i) => ({ f, p: ph[i] }))
+      .filter((p) => Number.isFinite(p.f) && p.f > 0 && Number.isFinite(p.p));
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (!pts.length) return;
+
+    const padding = { l: 55, r: 15, t: 12, b: 28 };
+    const x0 = padding.l * dpr,
+      y0 = padding.t * dpr;
+    const x1 = (cssW - padding.r) * dpr,
+      y1 = (cssH - padding.b) * dpr;
+    const w = x1 - x0,
+      h = y1 - y0;
+
+    const fMin = Math.min(...pts.map((p) => p.f));
+    const fMax = Math.max(...pts.map((p) => p.f));
+    const yMin = Math.min(...pts.map((p) => p.p));
+    const yMax = Math.max(...pts.map((p) => p.p));
+
+    const xScale = (f: number) =>
+      x0 +
+      ((Math.log10(f) - Math.log10(fMin)) /
+        Math.max(1e-12, Math.log10(fMax) - Math.log10(fMin))) *
+        w;
+    const yScale = (p: number) =>
+      y1 - ((p - yMin) / Math.max(1e-12, yMax - yMin)) * h;
+
+    ctx.fillStyle = "rgba(17,24,39,0.9)";
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.strokeStyle = "rgba(255,255,255,0.06)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 6; i++) {
+      const xx = x0 + (i / 6) * w;
+      ctx.beginPath();
+      ctx.moveTo(xx, y0);
+      ctx.lineTo(xx, y1);
+      ctx.stroke();
+    }
+    for (let j = 0; j <= 4; j++) {
+      const yy = y0 + (j / 4) * h;
+      ctx.beginPath();
+      ctx.moveTo(x0, yy);
+      ctx.lineTo(x1, yy);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(148,163,184,0.6)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0, y1);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(203,213,225,0.8)";
+    ctx.font = `${12 * dpr}px ui-sans-serif, system-ui`;
+    ctx.fillText("fase (deg)", 8 * dpr, 16 * dpr);
+    ctx.textAlign = "right";
+    ctx.fillText("f (Hz, log)", x1, (cssH - 8) * dpr);
+
+    ctx.strokeStyle = "rgba(244,114,182,0.9)";
+    ctx.lineWidth = Math.max(1.3 * dpr, 1);
+    ctx.beginPath();
+    let started = false;
+    for (const p of pts) {
+      const x = xScale(p.f),
+        y = yScale(p.p);
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }, [freq, ph]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full block rounded-lg border border-gray-800 bg-gray-900"
+      style={{ height: 300 }}
+    />
+  );
+}
 
 function PlotCanvas({
   time,
   points, // scatter (raw)
   line, // serie (est)
   yLabel = "",
+  markers,
 }: {
   time: number[];
   points: number[];
   line: number[];
   yLabel?: string;
+  markers?: number[];
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hover, setHover] = useState<{
@@ -595,6 +909,22 @@ function PlotCanvas({
     }
     ctx.stroke();
 
+    // marcadores de evento (pasos) — **fuera** de los bucles de grid
+    if (markers && markers.length) {
+      ctx.strokeStyle = "rgba(250,204,21,0.85)"; // amber-ish
+      ctx.lineWidth = 1;
+      for (const tm of markers) {
+        if (!Number.isFinite(tm)) continue;
+        const mx = xScale(tm);
+        if (mx >= x0 && mx <= x1) {
+          ctx.beginPath();
+          ctx.moveTo(mx, y0);
+          ctx.lineTo(mx, y1);
+          ctx.stroke();
+        }
+      }
+    }
+
     // hover guía
     if (hover) {
       const hx = xScale(hover.t),
@@ -634,6 +964,7 @@ function PlotCanvas({
     yMax,
     yLabel,
     hover,
+    markers, // <-- markers agregado a dependencias
     padding.b,
     padding.l,
     padding.r,
@@ -652,9 +983,7 @@ function PlotCanvas({
       x1 = cssW - 15;
     const w = x1 - x0;
 
-    // t desde pixel
     const t = tMin + ((px - x0) / Math.max(1e-6, w)) * (tMax - tMin);
-    // busca el índice más cercano en "time"
     let idx = 0;
     if (time.length > 1) {
       const pos = Math.max(
@@ -664,7 +993,6 @@ function PlotCanvas({
           Math.floor(((t - tMin) / (tMax - tMin)) * (time.length - 1))
         )
       );
-      // refina localmente
       let best = pos,
         bestDt = Math.abs(time[pos] - t);
       for (

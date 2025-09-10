@@ -23,18 +23,18 @@ export default function createAnalysisRouter({
       // Create analysis_jobs table if it doesn't exist
       await pool.query(`
         CREATE TABLE IF NOT EXISTS analysis_jobs (
-          id TEXT PRIMARY KEY,
-          flight_id TEXT NOT NULL,
-          status TEXT NOT NULL,
-          error TEXT,
-          job_dir TEXT,
-          csv_path TEXT,
-          out_dir TEXT,
-          started_at TIMESTAMP WITH TIME ZONE,
-          finished_at TIMESTAMP WITH TIME ZONE,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        )`);
+        id SYMBOL CAPACITY 256,
+        flight_id SYMBOL CAPACITY 256,
+        status SYMBOL CAPACITY 64,
+        error STRING,
+        job_dir STRING,
+        csv_path STRING,
+        out_dir STRING,
+        started_at TIMESTAMP,
+        finished_at TIMESTAMP,
+        updated_at TIMESTAMP,
+        ts TIMESTAMP
+      ) timestamp(ts);`);
 
       // Check if updated_at column exists
       const { rows } = await pool.query(
@@ -364,49 +364,36 @@ export default function createAnalysisRouter({
       const whereClause = `WHERE id = $${paramIndex}`;
       params.push(id);
 
-      const query = `UPDATE analysis_jobs SET ${sets.join(
-        ", "
-      )} ${whereClause} RETURNING id, status, error`;
-      console.log(`${logPrefix} Executing query:`, { query, params });
-
-      const result = await pool.query(query, params);
-
-      if (result.rowCount === 0) {
-        // Try to insert if update didn't affect any rows
+      // 1) UPDATE sin RETURNING
+      await pool.query(
+        `UPDATE analysis_jobs SET ${sets.join(", ")} ${whereClause}`,
+        params
+      );
+      // 2) SELECT estado actual
+      let { rows } = await pool.query(
+        `SELECT id, status, error FROM analysis_jobs WHERE id=$1 LIMIT 1`,
+        [id]
+      );
+      if (!rows.length) {
+        // 3) Intento de INSERT sin ON CONFLICT
         try {
-          console.log(
-            `${logPrefix} No rows updated, attempting to insert new job record`
-          );
           await pool.query(
-            `INSERT INTO analysis_jobs (id, flight_id, status, error, started_at) 
-             VALUES ($1, $2, $3, $4, now())
-             ON CONFLICT (id) 
-             DO UPDATE SET 
-               status = EXCLUDED.status, 
-               error = EXCLUDED.error, 
-               updated_at = now()
-             RETURNING id, status`,
-            [id, id.split("_")[1] || "unknown", status, error?.message || error]
+            `INSERT INTO analysis_jobs (id, flight_id, status, error, started_at, ts)
+             VALUES ($1, $2, $3, $4, now(), now())`,
+            [
+              id,
+              id.split("_")[1] || "unknown",
+              status,
+              error ? String(error).slice(0, 1000) : null,
+            ]
           );
-          console.log(`${logPrefix} Successfully inserted/updated job record`);
-        } catch (insertErr) {
-          console.error(
-            `${logPrefix} Failed to insert/update job record:`,
-            insertErr
-          );
-          throw new Error(
-            `Failed to update or create job record: ${insertErr.message}`
-          );
-        }
-      } else {
-        console.log(
-          `${logPrefix} Successfully updated job status to '${status}' in ${
-            Date.now() - startTime
-          }ms`
-        );
+        } catch {}
+        ({ rows } = await pool.query(
+          `SELECT id, status, error FROM analysis_jobs WHERE id=$1 LIMIT 1`,
+          [id]
+        ));
       }
-
-      return result.rows[0];
+      return rows[0] || null;
     } catch (err) {
       console.error(`${logPrefix} Critical error updating job status:`, {
         error: err.message,
@@ -868,6 +855,18 @@ export default function createAnalysisRouter({
         message: e.message || "Unknown error during job creation",
       });
     }
+  });
+
+  router.get("/plot-data/:jobId", async (req, res) => {
+    const job = await getJob(req.params.jobId);
+    if (!job)
+      return res.status(404).json({ ok: false, error: "job_not_found" });
+
+    const p = path.join(job.out_dir, "plot_data.json");
+    if (!fs.existsSync(p))
+      return res.status(404).json({ ok: false, error: "not_found" });
+
+    res.type("application/json").send(fs.readFileSync(p, "utf8"));
   });
 
   router.get("/debug/tail/:jobId", async (req, res) => {

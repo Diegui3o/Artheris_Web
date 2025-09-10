@@ -479,9 +479,7 @@ def compute(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         "mode": "batch"
     }
 
-# ----------
-# CLI / API
-# ----------
+# ---------- CLI / API ----------
 def do_batch(csv_path: str):
     rows = load_csv(csv_path)
     return compute(rows)
@@ -490,7 +488,6 @@ def do_live(payload: Dict[str, Any]) -> Dict[str, Any]:
     samples = payload.get("samples") or []
     if not samples:
         return {"ok": True, "metrics": {}, "mode": "live", "warning": "no_samples"}
-    # homogeniza campos a “rows”
     rows = []
     for i, s in enumerate(samples):
         rows.append({
@@ -509,20 +506,27 @@ def do_live(payload: Dict[str, Any]) -> Dict[str, Any]:
     out["mode"] = "live"
     return out
 
-def main():
-    parser = argparse.ArgumentParser(description="Flight metrics calculator")
-    sub = parser.add_subparsers(dest="command", required=True)
-    p_batch = sub.add_parser("batch"); p_batch.add_argument("--csv", required=True)
-    sub.add_parser("live")
-    args = parser.parse_args()
-
-    if args.command == "batch":
-        result = do_batch(args.csv)
-    else:
-        payload_raw = sys.stdin.read() or "{}"
-        result = do_live(json.loads(payload_raw))
-
-    print(json.dumps(result))
-
 if __name__ == "__main__":
-    main()
+    import argparse, sys, json
+    parser = argparse.ArgumentParser(description="Flight metrics CLI")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_batch = sub.add_parser("batch", help="Calcular métricas desde CSV")
+    p_batch.add_argument("--csv", required=True, help="Ruta del CSV")
+
+    sub.add_parser("live", help="Leer JSON por stdin (samples)")
+
+    args = parser.parse_args()
+    try:
+        if args.command == "batch":
+            res = do_batch(args.csv)
+        else:  # live
+            payload_raw = sys.stdin.read() or "{}"
+            res = do_live(json.loads(payload_raw))
+        print(json.dumps(res))
+        sys.exit(0)
+    except Exception as e:
+        logger.exception("metrics.py failed")
+        # Imprime JSON de error para que el backend lo capture si quiere
+        print(json.dumps({"ok": False, "error": str(e)}))
+        sys.exit(1)

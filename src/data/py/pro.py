@@ -124,27 +124,37 @@ def run_pro_analysis(df: pd.DataFrame):
     roll_ref = df["ref_roll"].to_numpy() if "ref_roll" in df.columns else np.full_like(t, np.nan, float)
     roll_est = df["angle_roll_est"].to_numpy()
 
-    events = detect_steps(roll_ref, t) if np.isfinite(roll_ref).any() else []
+    has_ref = np.isfinite(roll_ref).any()
+
+    events = detect_steps(roll_ref, t) if has_ref else []
     steps = [dict(channel="roll", **step_metrics(roll_est, t, ev["idx"], ev["amp_deg"])) for ev in events]
 
-    lat_ms = estimate_latency_ms(roll_ref, roll_est, fs) if np.isfinite(roll_ref).any() else None
-    f, mag, ph = frf_ref_to_est(roll_ref, roll_est, fs) if np.isfinite(roll_ref).any() else (np.array([]), np.array([]), np.array([]))
+    lat_ms = estimate_latency_ms(roll_ref, roll_est, fs) if has_ref else None
 
-    # formateo listo para JSON
+    if has_ref:
+        f, mag, ph = frf_ref_to_est(roll_ref, roll_est, fs)
+        mag_db = 20.0 * np.log10(np.maximum(mag, 1e-12))
+        frf_obj = {
+            "freq_hz": f.tolist(),
+            "mag": mag.tolist(),            # lineal
+            "mag_db": mag_db.tolist(),      # dB
+            "phase_deg": ph.tolist(),
+        }
+    else:
+        frf_obj = {"freq_hz": [], "mag": [], "mag_db": [], "phase_deg": []}
+
     pro_payload = {
         "events": events,
         "step_responses": steps,
         "latency": {"roll_ref_to_est_ms": (None if lat_ms is None else float(lat_ms))},
-        "frf": {"ref_to_est": {
-            "freq_hz": f.tolist() if hasattr(f, "tolist") else [],
-            "mag": mag.tolist() if hasattr(mag, "tolist") else [],
-            "phase_deg": ph.tolist() if hasattr(ph, "tolist") else [],
-        }}
+        "frf": {"ref_to_est": frf_obj},
     }
+
     pro_metrics = {
         "tracking": {"roll": {"overshoot_pct": (max([s["overshoot_pct"] for s in steps]) if steps else None)}},
         "latency_ms": {"roll": (None if lat_ms is None else float(lat_ms))}
     }
+
     return pro_payload, pro_metrics
 
 try:

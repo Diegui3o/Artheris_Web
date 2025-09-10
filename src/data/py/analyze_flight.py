@@ -16,10 +16,6 @@ def parse_args():
     p.add_argument("--pro", action="store_true", help="Exportar análisis PRO (pasos/FRF/latencia)")
     return p.parse_args()
 
-# Global variables
-pro_payload = None
-pro_metrics = None
-
 # ---------- helpers de export para las gráficas ----------
 def _estimate_fs(time_series: np.ndarray) -> float:
     if len(time_series) < 2:

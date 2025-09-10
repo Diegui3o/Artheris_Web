@@ -16,8 +16,10 @@ type ProStep = {
 type ProFRF = {
   ref_to_est?: {
     freq_hz: number[];
-    mag: number[]; // |H|
-    phase_deg: number[]; // ∠H (grados)
+    mag?: number[]; // |H| (lineal)
+    mag_db?: number[]; // |H| en dB (fallback)
+    phase_deg?: number[]; // fase en grados
+    phase?: number[]; // fallback por si viene como 'phase'
   };
 };
 
@@ -185,59 +187,54 @@ export default function AnalysisPanel({
 
   async function loadResults(jid: string) {
     try {
+      // Load results metadata
       const res = await fetch(`${API_BASE}/analysis/results/${jid}`);
       if (!res.ok) throw new Error(await res.text());
       const data: AnalysisResult = await res.json();
+
       const absolutize = (u: string) =>
         u?.startsWith("http") ? u : `${API_BASE}${u}`;
+
       const fs = (data.files || []).map((f) => ({
         ...f,
         url: absolutize(f.url),
       }));
       setFiles(fs);
-      const metricsFile = fs.find((f) =>
-        f.name.endsWith("flight_metrics.json")
-      );
+
+      // Load metrics and plot data in parallel
+      const [metricsFile, plotDataFile] = await Promise.all([
+        fs.find((f) => f.name.endsWith("flight_metrics.json")),
+        fs.find((f) => f.name.endsWith("plot_data.json")),
+      ]);
+
+      // Load metrics
       if (metricsFile) {
         try {
-          const r = await fetch(metricsFile.url, {
-            headers: { Accept: "application/json" },
-          });
-          const text = await r.text();
-          try {
-            const json = JSON.parse(text);
-            setMetricsJson(json);
-          } catch {
-            console.warn(
-              "flight_metrics.json no es JSON válido:",
-              text.slice(0, 120)
-            );
+          const metricsRes = await fetch(metricsFile.url);
+          if (metricsRes.ok) {
+            const metrics = await metricsRes.json();
+            setMetricsJson(metrics);
           }
         } catch (e) {
-          console.warn("No pude leer flight_metrics.json:", e);
+          console.error("Error loading metrics:", e);
         }
       }
-      const plotFile = fs.find((f) => f.name.endsWith("plot_data.json"));
-      if (!plotFile) {
-        console.warn("No se encontró plot_data.json");
-      } else {
+
+      // Load plot data
+      if (plotDataFile) {
         try {
-          const r = await fetch(plotFile.url, {
+          const plotRes = await fetch(plotDataFile.url, {
             headers: { Accept: "application/json" },
           });
-          const text = await r.text();
-          try {
-            const plot = JSON.parse(text);
-            setPlotData(plot);
-          } catch {
-            console.warn(
-              "plot_data.json no es JSON válido:",
-              text.slice(0, 120)
-            );
+          if (plotRes.ok) {
+            const plotData = await plotRes.json();
+            setPlotData(plotData);
           }
         } catch (e) {
-          console.warn("No pude leer plot_data.json:", e);
+          console.error("Error loading plot data:", e);
         }
+      } else {
+        console.warn("No se encontró plot_data.json");
       }
     } catch (error) {
       console.error("Error loading analysis results:", error);
@@ -407,23 +404,34 @@ export default function AnalysisPanel({
 
       {/* Tabla de respuesta a escalón */}
       {plotData?.pro?.step_responses &&
-        plotData.pro.step_responses.length > 0 && (
-          <PlotCard title="Respuesta a escalón (detectada)">
-            <StepTable steps={plotData.pro.step_responses} />
-          </PlotCard>
-        )}
+      plotData.pro.step_responses.length > 0 ? (
+        <PlotCard title="Respuesta a escalón (detectada)">
+          <StepTable steps={plotData.pro.step_responses} />
+        </PlotCard>
+      ) : plotData?.pro ? (
+        <div className="text-sm text-gray-400 mb-4">
+          No se detectaron escalones en la referencia.
+        </div>
+      ) : null}
 
       {/* Bode (FRF ref→est) */}
-      {plotData?.pro?.frf?.ref_to_est && (
-        <div className="grid md:grid-cols-2 gap-6">
-          <PlotCard title="Bode (|H|) ref→est">
-            <BodeMagCanvas fr={plotData.pro.frf.ref_to_est} />
-          </PlotCard>
-          <PlotCard title="Bode (∠H) ref→est">
-            <BodePhaseCanvas fr={plotData.pro.frf.ref_to_est} />
-          </PlotCard>
-        </div>
-      )}
+      {plotData?.pro?.frf?.ref_to_est &&
+        ((plotData.pro.frf.ref_to_est.freq_hz?.length ?? 0) > 3 ? (
+          <div className="grid md:grid-cols-2 gap-6">
+            <PlotCard title="Bode (|H|) ref→est">
+              <BodeMagCanvas fr={plotData.pro.frf.ref_to_est} />
+            </PlotCard>
+            <PlotCard title="Bode (∠H) ref→est">
+              <BodePhaseCanvas fr={plotData.pro.frf.ref_to_est} />
+            </PlotCard>
+          </div>
+        ) : (
+          <div className="text-sm text-gray-400 mb-4">
+            Sin datos para FRF. Asegúrate de tener una referencia{" "}
+            <code>ref_roll</code>/<code>ref_pitch</code> no constante en el CSV
+            (o que el script PRO la esté exportando).
+          </div>
+        ))}
 
       {/* NUEVO: Gráficas interactivas (puntos + línea) */}
       {plotData ? (
@@ -565,13 +573,25 @@ function StepTable({ steps }: { steps: ProStep[] }) {
   );
 }
 
-function BodeMagCanvas({ fr }: { fr: { freq_hz: number[]; mag: number[] } }) {
+function BodeMagCanvas({
+  fr,
+}: {
+  fr: { freq_hz: number[]; mag?: number[]; mag_db?: number[] };
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const { freq, mag } = useMemo(() => ({
-    freq: fr?.freq_hz ?? [],
-    mag: fr?.mag ?? []
-  }), [fr?.freq_hz, fr?.mag]);
-  
+
+  const { freq, mag } = useMemo(() => {
+    const f = fr?.freq_hz ?? [];
+    // 1) intenta usar magnitud lineal
+    let m = (fr?.mag ?? []).filter((v) => Number.isFinite(v));
+    // 2) si está vacía o no positiva, intenta reconstruir desde dB
+    if (!m.length || m.every((v) => v <= 0)) {
+      const db = (fr?.mag_db ?? []).filter((v) => Number.isFinite(v));
+      if (db.length) m = db.map((d) => Math.pow(10, d / 20)); // dB -> lineal
+    }
+    return { freq: f, mag: m };
+  }, [fr]);
+
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
@@ -583,14 +603,10 @@ function BodeMagCanvas({ fr }: { fr: { freq_hz: number[]; mag: number[] } }) {
     c.height = Math.floor(cssH * dpr);
     c.style.height = cssH + "px";
 
-    const pts = freq
-      .map((f, i) => ({ f, m: mag[i] }))
-      .filter(
-        (p) =>
-          Number.isFinite(p.f) && p.f > 0 && Number.isFinite(p.m) && p.m > 0
-      );
+    // Fondo siempre
     ctx.clearRect(0, 0, c.width, c.height);
-    if (!pts.length) return;
+    ctx.fillStyle = "rgba(17,24,39,0.9)";
+    ctx.fillRect(0, 0, c.width, c.height);
 
     const padding = { l: 55, r: 15, t: 12, b: 28 };
     const x0 = padding.l * dpr,
@@ -600,21 +616,15 @@ function BodeMagCanvas({ fr }: { fr: { freq_hz: number[]; mag: number[] } }) {
     const w = x1 - x0,
       h = y1 - y0;
 
-    const fMin = Math.min(...pts.map((p) => p.f));
-    const fMax = Math.max(...pts.map((p) => p.f));
-    const yMin = Math.min(...pts.map((p) => p.m));
-    const yMax = Math.max(...pts.map((p) => p.m));
+    // Puntos válidos (log-f > 0 y mag finita/positiva)
+    const pts = (freq ?? [])
+      .map((f, i) => ({ f, m: mag?.[i] }))
+      .filter(
+        (p) =>
+          Number.isFinite(p.f) && p.f > 0 && Number.isFinite(p.m!) && p.m! > 0
+      );
 
-    const xScale = (f: number) =>
-      x0 +
-      ((Math.log10(f) - Math.log10(fMin)) /
-        Math.max(1e-12, Math.log10(fMax) - Math.log10(fMin))) *
-        w;
-    const yScale = (m: number) =>
-      y1 - ((m - yMin) / Math.max(1e-12, yMax - yMin)) * h;
-
-    ctx.fillStyle = "rgba(17,24,39,0.9)";
-    ctx.fillRect(0, 0, c.width, c.height);
+    // Grid + ejes siempre
     ctx.strokeStyle = "rgba(255,255,255,0.06)";
     ctx.lineWidth = 1;
     for (let i = 0; i <= 6; i++) {
@@ -641,21 +651,45 @@ function BodeMagCanvas({ fr }: { fr: { freq_hz: number[]; mag: number[] } }) {
 
     ctx.fillStyle = "rgba(203,213,225,0.8)";
     ctx.font = `${12 * dpr}px ui-sans-serif, system-ui`;
-    ctx.fillText("|H|", 8 * dpr, 16 * dpr);
+    ctx.fillText("|H| (lineal)", 8 * dpr, 16 * dpr);
     ctx.textAlign = "right";
     ctx.fillText("f (Hz, log)", x1, (cssH - 8) * dpr);
 
+    if (!pts.length) {
+      // Mensaje "sin datos"
+      ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(148,163,184,0.8)";
+      ctx.fillText("Sin datos de FRF", (x0 + x1) / 2, (y0 + y1) / 2);
+      return;
+    }
+
+    const fMin = Math.min(...pts.map((p) => p.f));
+    const fMax = Math.max(...pts.map((p) => p.f));
+    const yMin = Math.min(...pts.map((p) => p.m!));
+    const yMax = Math.max(...pts.map((p) => p.m!));
+
+    const xScale = (f: number) =>
+      x0 +
+      ((Math.log10(f) - Math.log10(fMin)) /
+        Math.max(1e-12, Math.log10(fMax) - Math.log10(fMin))) *
+        w;
+    const yScale = (m: number) =>
+      y1 - ((m - yMin) / Math.max(1e-12, yMax - yMin)) * h;
+
+    // Trazo
     ctx.strokeStyle = "rgba(139,92,246,0.9)";
     ctx.lineWidth = Math.max(1.3 * dpr, 1);
     ctx.beginPath();
     let started = false;
     for (const p of pts) {
       const x = xScale(p.f),
-        y = yScale(p.m);
+        y = yScale(p.m!);
       if (!started) {
         ctx.moveTo(x, y);
         started = true;
-      } else ctx.lineTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
     }
     ctx.stroke();
   }, [freq, mag]);
@@ -672,14 +706,16 @@ function BodeMagCanvas({ fr }: { fr: { freq_hz: number[]; mag: number[] } }) {
 function BodePhaseCanvas({
   fr,
 }: {
-  fr: { freq_hz: number[]; phase_deg: number[] };
+  fr: { freq_hz: number[]; phase_deg?: number[] };
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const { freq, ph } = useMemo(() => ({
-    freq: fr?.freq_hz ?? [],
-    ph: fr?.phase_deg ?? []
-  }), [fr?.freq_hz, fr?.phase_deg]);
-  
+  const { freq, ph } = useMemo(() => {
+    return {
+      freq: fr?.freq_hz ?? [],
+      ph: (fr?.phase_deg ?? []).filter((v) => Number.isFinite(v)),
+    };
+  }, [fr]);
+
   useEffect(() => {
     const c = canvasRef.current;
     if (!c) return;
@@ -691,11 +727,9 @@ function BodePhaseCanvas({
     c.height = Math.floor(cssH * dpr);
     c.style.height = cssH + "px";
 
-    const pts = freq
-      .map((f, i) => ({ f, p: ph[i] }))
-      .filter((p) => Number.isFinite(p.f) && p.f > 0 && Number.isFinite(p.p));
     ctx.clearRect(0, 0, c.width, c.height);
-    if (!pts.length) return;
+    ctx.fillStyle = "rgba(17,24,39,0.9)";
+    ctx.fillRect(0, 0, c.width, c.height);
 
     const padding = { l: 55, r: 15, t: 12, b: 28 };
     const x0 = padding.l * dpr,
@@ -705,21 +739,11 @@ function BodePhaseCanvas({
     const w = x1 - x0,
       h = y1 - y0;
 
-    const fMin = Math.min(...pts.map((p) => p.f));
-    const fMax = Math.max(...pts.map((p) => p.f));
-    const yMin = Math.min(...pts.map((p) => p.p));
-    const yMax = Math.max(...pts.map((p) => p.p));
+    const pts = (freq ?? [])
+      .map((f, i) => ({ f, p: ph?.[i] }))
+      .filter((p) => Number.isFinite(p.f) && p.f > 0 && Number.isFinite(p.p!));
 
-    const xScale = (f: number) =>
-      x0 +
-      ((Math.log10(f) - Math.log10(fMin)) /
-        Math.max(1e-12, Math.log10(fMax) - Math.log10(fMin))) *
-        w;
-    const yScale = (p: number) =>
-      y1 - ((p - yMin) / Math.max(1e-12, yMax - yMin)) * h;
-
-    ctx.fillStyle = "rgba(17,24,39,0.9)";
-    ctx.fillRect(0, 0, c.width, c.height);
+    // Grid + ejes
     ctx.strokeStyle = "rgba(255,255,255,0.06)";
     ctx.lineWidth = 1;
     for (let i = 0; i <= 6; i++) {
@@ -750,17 +774,39 @@ function BodePhaseCanvas({
     ctx.textAlign = "right";
     ctx.fillText("f (Hz, log)", x1, (cssH - 8) * dpr);
 
+    if (!pts.length) {
+      ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(148,163,184,0.8)";
+      ctx.fillText("Sin datos de FRF", (x0 + x1) / 2, (y0 + y1) / 2);
+      return;
+    }
+
+    const fMin = Math.min(...pts.map((p) => p.f));
+    const fMax = Math.max(...pts.map((p) => p.f));
+    const yMin = Math.min(...pts.map((p) => p.p!));
+    const yMax = Math.max(...pts.map((p) => p.p!));
+
+    const xScale = (f: number) =>
+      x0 +
+      ((Math.log10(f) - Math.log10(fMin)) /
+        Math.max(1e-12, Math.log10(fMax) - Math.log10(fMin))) *
+        w;
+    const yScale = (p: number) =>
+      y1 - ((p - yMin) / Math.max(1e-12, yMax - yMin)) * h;
+
     ctx.strokeStyle = "rgba(244,114,182,0.9)";
     ctx.lineWidth = Math.max(1.3 * dpr, 1);
     ctx.beginPath();
     let started = false;
     for (const p of pts) {
       const x = xScale(p.f),
-        y = yScale(p.p);
+        y = yScale(p.p!);
       if (!started) {
         ctx.moveTo(x, y);
         started = true;
-      } else ctx.lineTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
     }
     ctx.stroke();
   }, [freq, ph]);

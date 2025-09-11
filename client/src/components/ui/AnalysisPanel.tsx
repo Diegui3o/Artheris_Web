@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-
 type AnalysisFile = { name: string; url: string };
 type AnalysisResult = { ok: boolean; status: string; files: AnalysisFile[] };
 type ServerStatus = "pending" | "running" | "completed" | "error" | "cancelled";
-type JobStatus = "idle" | "running" | "done" | "error"; // tu UI
-type ProEvent = { t: number; idx: number; amp_deg: number };
+type JobStatus = "idle" | "running" | "done" | "error";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+
+type ProEvent = {
+  t: number;
+  idx: number;
+  amp_deg: number;
+  channel?: "roll" | "pitch" | string;
+};
 
 type ProStep = {
   channel: "roll" | "pitch" | string;
@@ -16,10 +21,10 @@ type ProStep = {
 type ProFRF = {
   ref_to_est?: {
     freq_hz: number[];
-    mag?: number[]; // |H| (lineal)
-    mag_db?: number[]; // |H| en dB (fallback)
-    phase_deg?: number[]; // fase en grados
-    phase?: number[]; // fallback por si viene como 'phase'
+    mag?: number[];
+    mag_db?: number[];
+    phase_deg?: number[];
+    phase?: number[];
   };
 };
 
@@ -38,6 +43,7 @@ export interface AnalysisPanelProps {
 }
 
 type PlotPSD = { freq_hz: number[]; power: number[] };
+
 type PlotData = {
   meta: { fs_hz: number; n: number; columns: string[] };
   time_s: number[];
@@ -58,7 +64,8 @@ type PlotData = {
   pro?: {
     events?: ProEvent[];
     step_responses?: ProStep[];
-    frf?: ProFRF;
+    frf?: ProFRF; // roll
+    frf_pitch?: ProFRF; // ✅ pitch
     latency?: ProLatency;
   };
 };
@@ -118,118 +125,40 @@ export default function AnalysisPanel({
     return localStorage.getItem("lastFlightId");
   }, [flightId, fallbackToLast]);
 
-  useEffect(() => {
-    if (!autoRun) return;
-    if (!effectiveFlightId) return;
-    startAnalysis(effectiveFlightId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveFlightId, autoRun]);
-
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) window.clearInterval(pollRef.current);
-    };
-  }, []);
-
-  async function startAnalysis(fId: string) {
+  const loadResults = useCallback(async (jid: string) => {
     try {
-      setError(null);
-      setStatus("running");
-      setFiles([]);
-      setMetricsJson(null);
-      setPlotData(null); // NEW
-
-      const res = await fetch(`${API_BASE}/analysis/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ flightId: fId, debug: false, pro: true }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      const jid = data.jobId as string;
-      setJobId(jid);
-      pollStatus(jid);
-    } catch (e: unknown) {
-      setStatus("error");
-      setError(
-        e instanceof Error ? e.message : "No se pudo iniciar el análisis"
-      );
-    }
-  }
-
-  function pollStatus(jid: string) {
-    if (pollRef.current) window.clearInterval(pollRef.current);
-    const tick = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/analysis/status/${jid}`);
-        if (!res.ok) throw new Error(await res.text());
-        const { job } = await res.json();
-        const st = normalizeStatus(job?.status);
-        if (st === "done") {
-          setStatus("done");
-          if (pollRef.current) window.clearInterval(pollRef.current);
-          await loadResults(jid);
-        } else if (st === "error") {
-          setStatus("error");
-          if (pollRef.current) window.clearInterval(pollRef.current);
-        } else {
-          setStatus("running");
-        }
-      } catch (e: unknown) {
-        setStatus("error");
-        setError(e instanceof Error ? e.message : "Fallo consultando estado");
-        if (pollRef.current) window.clearInterval(pollRef.current);
-      }
-    };
-    tick();
-    pollRef.current = window.setInterval(tick, 1200);
-  }
-
-  async function loadResults(jid: string) {
-    try {
-      // Load results metadata
       const res = await fetch(`${API_BASE}/analysis/results/${jid}`);
       if (!res.ok) throw new Error(await res.text());
       const data: AnalysisResult = await res.json();
 
       const absolutize = (u: string) =>
         u?.startsWith("http") ? u : `${API_BASE}${u}`;
-
       const fs = (data.files || []).map((f) => ({
         ...f,
         url: absolutize(f.url),
       }));
       setFiles(fs);
 
-      // Load metrics and plot data in parallel
       const [metricsFile, plotDataFile] = await Promise.all([
         fs.find((f) => f.name.endsWith("flight_metrics.json")),
         fs.find((f) => f.name.endsWith("plot_data.json")),
       ]);
 
-      // Load metrics
       if (metricsFile) {
         try {
           const metricsRes = await fetch(metricsFile.url);
-          if (metricsRes.ok) {
-            const metrics = await metricsRes.json();
-            setMetricsJson(metrics);
-          }
+          if (metricsRes.ok) setMetricsJson(await metricsRes.json());
         } catch (e) {
           console.error("Error loading metrics:", e);
         }
       }
 
-      // Load plot data
       if (plotDataFile) {
         try {
           const plotRes = await fetch(plotDataFile.url, {
             headers: { Accept: "application/json" },
           });
-          if (plotRes.ok) {
-            const plotData = await plotRes.json();
-            setPlotData(plotData);
-          }
+          if (plotRes.ok) setPlotData(await plotRes.json());
         } catch (e) {
           console.error("Error loading plot data:", e);
         }
@@ -244,8 +173,78 @@ export default function AnalysisPanel({
           : "Failed to load analysis results"
       );
     }
-  }
+  }, []);
 
+  const pollStatus = useCallback(
+    (jid: string) => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+      const tick = async () => {
+        try {
+          const res = await fetch(`${API_BASE}/analysis/status/${jid}`);
+          if (!res.ok) throw new Error(await res.text());
+          const { job } = await res.json();
+          const st = normalizeStatus(job?.status);
+          if (st === "done") {
+            setStatus("done");
+            if (pollRef.current) window.clearInterval(pollRef.current);
+            await loadResults(jid);
+          } else if (st === "error") {
+            setStatus("error");
+            if (pollRef.current) window.clearInterval(pollRef.current);
+          } else {
+            setStatus("running");
+          }
+        } catch (e: unknown) {
+          setStatus("error");
+          setError(e instanceof Error ? e.message : "Fallo consultando estado");
+          if (pollRef.current) window.clearInterval(pollRef.current);
+        }
+      };
+      tick();
+      pollRef.current = window.setInterval(tick, 1200);
+    },
+    [loadResults]
+  );
+
+  const startAnalysis = useCallback(
+    async (fId: string) => {
+      try {
+        setError(null);
+        setStatus("running");
+        setFiles([]);
+        setMetricsJson(null);
+        setPlotData(null);
+
+        const res = await fetch(`${API_BASE}/analysis/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ flightId: fId, debug: false, pro: true }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        const jid = data.jobId as string;
+        setJobId(jid);
+        pollStatus(jid);
+      } catch (e: unknown) {
+        setStatus("error");
+        setError(
+          e instanceof Error ? e.message : "No se pudo iniciar el análisis"
+        );
+      }
+    },
+    [pollStatus]
+  );
+  useEffect(() => {
+    if (!autoRun) return;
+    if (!effectiveFlightId) return;
+    startAnalysis(effectiveFlightId);
+  }, [autoRun, effectiveFlightId, startAnalysis]);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) window.clearInterval(pollRef.current);
+    };
+  }, []);
   const csvLink = useMemo(
     () => files.find((f) => f.name.toLowerCase().endsWith(".csv")),
     [files]
@@ -315,14 +314,12 @@ export default function AnalysisPanel({
           )}
         </div>
       </div>
-
       {/* Estado / errores */}
       {error && (
         <div className="mb-4 rounded-lg border border-red-800/60 bg-red-950/40 p-3 text-sm text-red-300">
           {String(error)}
         </div>
       )}
-
       {/* Resumen rápido de métricas */}
       {metricsJson && (
         <div className="mb-5 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -344,7 +341,6 @@ export default function AnalysisPanel({
           />
         </div>
       )}
-
       {/* Enlaces útiles */}
       <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
         {csvLink && (
@@ -401,7 +397,6 @@ export default function AnalysisPanel({
           />
         </div>
       )}
-
       {/* Tabla de respuesta a escalón */}
       {plotData?.pro?.step_responses &&
       plotData.pro.step_responses.length > 0 ? (
@@ -413,25 +408,30 @@ export default function AnalysisPanel({
           No se detectaron escalones en la referencia.
         </div>
       ) : null}
-
-      {/* Bode (FRF ref→est) */}
+      {/* Bode (FRF ref→est) ROLL */}
       {plotData?.pro?.frf?.ref_to_est &&
         ((plotData.pro.frf.ref_to_est.freq_hz?.length ?? 0) > 3 ? (
           <div className="grid md:grid-cols-2 gap-6">
-            <PlotCard title="Bode (|H|) ref→est">
+            <PlotCard title="Bode Roll (|H|) ref→est">
               <BodeMagCanvas fr={plotData.pro.frf.ref_to_est} />
             </PlotCard>
-            <PlotCard title="Bode (∠H) ref→est">
+            <PlotCard title="Bode Roll (∠H) ref→est">
               <BodePhaseCanvas fr={plotData.pro.frf.ref_to_est} />
             </PlotCard>
           </div>
-        ) : (
-          <div className="text-sm text-gray-400 mb-4">
-            Sin datos para FRF. Asegúrate de tener una referencia{" "}
-            <code>ref_roll</code>/<code>ref_pitch</code> no constante en el CSV
-            (o que el script PRO la esté exportando).
+        ) : null)}
+
+      {plotData?.pro?.frf_pitch?.ref_to_est &&
+        ((plotData.pro.frf_pitch.ref_to_est.freq_hz?.length ?? 0) > 3 ? (
+          <div className="grid md:grid-cols-2 gap-6 mt-6">
+            <PlotCard title="Bode Pitch (|H|) ref→est">
+              <BodeMagCanvas fr={plotData.pro.frf_pitch.ref_to_est} />
+            </PlotCard>
+            <PlotCard title="Bode Pitch (∠H) ref→est">
+              <BodePhaseCanvas fr={plotData.pro.frf_pitch.ref_to_est} />
+            </PlotCard>
           </div>
-        ))}
+        ) : null)}
 
       {/* NUEVO: Gráficas interactivas (puntos + línea) */}
       {plotData ? (
@@ -443,7 +443,10 @@ export default function AnalysisPanel({
               line={plotData.roll.est}
               yLabel="Ángulo (deg)"
               markers={(plotData.pro?.events || [])
-                .filter((ev: ProEvent) => Number.isFinite(ev.t))
+                .filter(
+                  (ev: ProEvent) =>
+                    ev.channel === "roll" && Number.isFinite(ev.t)
+                )
                 .map((ev: ProEvent) => ev.t)}
             />
           </PlotCard>
@@ -455,7 +458,10 @@ export default function AnalysisPanel({
               line={plotData.pitch.est}
               yLabel="Ángulo (deg)"
               markers={(plotData.pro?.events || [])
-                .filter((ev: ProEvent) => Number.isFinite(ev.t))
+                .filter(
+                  (ev: ProEvent) =>
+                    ev.channel === "pitch" && Number.isFinite(ev.t)
+                )
                 .map((ev: ProEvent) => ev.t)}
             />
           </PlotCard>
@@ -471,7 +477,6 @@ export default function AnalysisPanel({
       {status === "running" && (
         <div className="text-sm text-gray-400">Generando resultados…</div>
       )}
-
       {imgFiles.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {imgFiles.map((f) => (
@@ -618,10 +623,13 @@ function BodeMagCanvas({
 
     // Puntos válidos (log-f > 0 y mag finita/positiva)
     const pts = (freq ?? [])
-      .map((f, i) => ({ f, m: mag?.[i] }))
+      .map((f: number, i: number) => ({ f, m: mag?.[i] as number | undefined }))
       .filter(
-        (p) =>
-          Number.isFinite(p.f) && p.f > 0 && Number.isFinite(p.m!) && p.m! > 0
+        (p: { f: number; m?: number }) =>
+          Number.isFinite(p.f) &&
+          p.f > 0 &&
+          Number.isFinite(p.m as number) &&
+          (p.m as number) > 0
       );
 
     // Grid + ejes siempre
@@ -740,8 +748,11 @@ function BodePhaseCanvas({
       h = y1 - y0;
 
     const pts = (freq ?? [])
-      .map((f, i) => ({ f, p: ph?.[i] }))
-      .filter((p) => Number.isFinite(p.f) && p.f > 0 && Number.isFinite(p.p!));
+      .map((f: number, i: number) => ({ f, p: ph?.[i] as number | undefined }))
+      .filter(
+        (p: { f: number; p?: number }) =>
+          Number.isFinite(p.f) && p.f > 0 && Number.isFinite(p.p as number)
+      );
 
     // Grid + ejes
     ctx.strokeStyle = "rgba(255,255,255,0.06)";

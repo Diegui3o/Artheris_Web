@@ -61,16 +61,92 @@ def step_metrics(y, t, idx0, amp, settle_pct=0.02):
     ts = t[i_set]-t[idx0] if i_set else None
     return {"rise_time_s": rise, "ts_2pct_s": ts, "overshoot_pct": float(overshoot)}
 
-def estimate_latency_ms(ref, est, fs):
-    a = np.asarray(ref, float) - np.nanmean(ref)
-    b = np.asarray(est, float) - np.nanmean(est)
+def estimate_latency_ms(ref, est, fs, max_abs_ms=1000.0):
+    a = np.asarray(ref, float)
+    b = np.asarray(est, float)
     n = min(len(a), len(b))
-    if n < 4 or fs <= 0: 
+    if n < 8 or fs <= 0:
         return None
-    a, b = a[:n], b[:n]
-    corr = np.fft.irfft(np.fft.rfft(a)*np.conj(np.fft.rfft(b)))
-    lag = np.argmax(np.roll(corr, n//2)) - n//2
+
+    a = a[:n] - np.nanmean(a[:n])
+    b = b[:n] - np.nanmean(b[:n])
+
+    # Guardas: referencia/estimado sin energía útil → no hay latencia confiable
+    if np.nanstd(a) < 1e-6 or np.nanstd(b) < 1e-6:
+        return None
+
+    # Correlación lineal (sin wrap-around)
+    corr = np.correlate(a, b, mode='full')
+    lags = np.arange(-n + 1, n)
+
+    # Limitar ventana de latencia plausible (p.ej. ±1 s)
+    if max_abs_ms is not None and max_abs_ms > 0:
+        max_lag = int(np.ceil((max_abs_ms / 1000.0) * fs))
+        keep = (lags >= -max_lag) & (lags <= max_lag)
+        if not np.any(keep):
+            return None
+        corr = corr[keep]
+        lags = lags[keep]
+
+    i = int(np.argmax(corr))
+    lag = int(lags[i])
+
+    # Si el máximo cae en el borde de la ventana -> sospechoso/degenerado
+    if i == 0 or i == len(lags) - 1:
+        return None
+
     return 1000.0 * (lag / fs)
+
+def _analyze_channel(df, ref_col, est_col, t, fs, label):
+    # referencia
+    if ref_col in df.columns:
+        ref = df[ref_col].to_numpy()
+        has_ref = np.isfinite(ref).any()
+    else:
+        ref = np.full_like(t, np.nan, float)
+        has_ref = False
+
+    # estimado
+    if est_col in df.columns:
+        est = df[est_col].to_numpy()
+    else:
+        est = None
+
+    events = []
+    steps = []
+    lat_ms = None
+    frf_obj = {"freq_hz": [], "mag": [], "mag_db": [], "phase_deg": []}
+
+    if has_ref and est is not None:
+        # pasos (más sensible por si tus escalones son pequeños)
+        events = detect_steps(ref, t, min_amp_deg=0.5, min_separation_s=0.3)
+        steps = [
+            dict(channel=label, **step_metrics(est, t, ev["idx"], ev["amp_deg"]))
+            for ev in events
+        ]
+        # latencia
+        lat = estimate_latency_ms(ref, est, fs)
+        lat_ms = None if lat is None else float(lat)
+
+        # FRF
+        f, mag, ph = frf_ref_to_est(ref, est, fs)
+        mag_db = 20.0 * np.log10(np.maximum(mag, 1e-12))
+        frf_obj = {
+            "freq_hz": f.tolist(),
+            "mag": mag.tolist(),
+            "mag_db": mag_db.tolist(),
+            "phase_deg": ph.tolist(),
+        }
+
+    # métricas del canal
+    track = {"overshoot_pct": (max([s["overshoot_pct"] for s in steps]) if steps else None)}
+    return {
+        "events": events,
+        "steps": steps,
+        "latency_ms": lat_ms,
+        "frf": frf_obj,
+        "tracking": track,
+    }
 
 def frf_ref_to_est(ref, est, fs, seglen=2048, overlap=0.5):
     ref = np.asarray(ref, float); est = np.asarray(est, float)
@@ -120,39 +196,38 @@ def run_pro_analysis(df: pd.DataFrame):
     t = df["time_seconds"].to_numpy()
     fs = 1.0 / np.median(np.diff(t)) if len(t) > 1 else 0.0
 
-    # roll
-    roll_ref = df["ref_roll"].to_numpy() if "ref_roll" in df.columns else np.full_like(t, np.nan, float)
-    roll_est = df["angle_roll_est"].to_numpy()
+    # analiza roll y pitch (usa columnas estándar: ref_roll/ref_pitch, angle_*_est)
+    roll = _analyze_channel(df, "ref_roll", "angle_roll_est", t, fs, "roll")
+    pitch = _analyze_channel(df, "ref_pitch", "angle_pitch_est", t, fs, "pitch")
 
-    has_ref = np.isfinite(roll_ref).any()
-
-    events = detect_steps(roll_ref, t, min_amp_deg=0.5, min_separation_s=0.3)
-    steps = [dict(channel="roll", **step_metrics(roll_est, t, ev["idx"], ev["amp_deg"])) for ev in events]
-
-    lat_ms = estimate_latency_ms(roll_ref, roll_est, fs) if has_ref else None
-
-    if has_ref:
-        f, mag, ph = frf_ref_to_est(roll_ref, roll_est, fs)
-        mag_db = 20.0 * np.log10(np.maximum(mag, 1e-12))
-        frf_obj = {
-            "freq_hz": f.tolist(),
-            "mag": mag.tolist(),            # lineal
-            "mag_db": mag_db.tolist(),      # dB
-            "phase_deg": ph.tolist(),
-        }
-    else:
-        frf_obj = {"freq_hz": [], "mag": [], "mag_db": [], "phase_deg": []}
-
+    # Payload combinado (mantiene claves previas para roll y añade pitch)
     pro_payload = {
-        "events": events,
-        "step_responses": steps,
-        "latency": {"roll_ref_to_est_ms": (None if lat_ms is None else float(lat_ms))},
-        "frf": {"ref_to_est": frf_obj},
+        # lista única de eventos (etiquetados por canal) para que tu UI no diga "no se detectaron" si hay en alguno
+        "events": [{"channel": "roll", **e} for e in roll["events"]] +
+                  [{"channel": "pitch", **e} for e in pitch["events"]],
+        "step_responses": roll["steps"] + pitch["steps"],
+
+        # latencias con nombres compatibles + pitch
+        "latency": {
+            "roll_ref_to_est_ms": roll["latency_ms"],
+            "pitch_ref_to_est_ms": pitch["latency_ms"],
+        },
+
+        # FRF: conserva la existente para roll y añade una para pitch
+        "frf": {"ref_to_est": roll["frf"]},
+        "frf_pitch": {"ref_to_est": pitch["frf"]},
     }
 
+    # Métricas compactas (lo que lee tu UI para “Latencia roll/pitch”)
     pro_metrics = {
-        "tracking": {"roll": {"overshoot_pct": (max([s["overshoot_pct"] for s in steps]) if steps else None)}},
-        "latency_ms": {"roll": (None if lat_ms is None else float(lat_ms))}
+        "tracking": {
+            "roll": roll["tracking"],
+            "pitch": pitch["tracking"],
+        },
+        "latency_ms": {
+            "roll": roll["latency_ms"],
+            "pitch": pitch["latency_ms"],
+        },
     }
 
     return pro_payload, pro_metrics

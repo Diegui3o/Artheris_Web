@@ -1,4 +1,0 @@
-{
-  "message": "Analysis failed: Python script exited with code 1",
-  "stack": "Error: Python script exited with code 1\n    at handleCompletion (file:///C:/USER/Proyects/Artheris_Stable/src/data/analysis_router.js:571:27)\n    at ChildProcess.<anonymous> (file:///C:/USER/Proyects/Artheris_Stable/src/data/analysis_router.js:645:9)\n    at ChildProcess.emit (node:events:518:28)\n    at maybeClose (node:internal/child_process:1101:16)\n    at ChildProcess._handle.onexit (node:internal/child_process:304:5)"
-}

@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "C:\USER\Proyects\Artheris_Stable\src\data\py\analyze_flight.py", line 8, in <module>
-    from pro import run_pro_analysis
-  File "C:\USER\Proyects\Artheris_Stable\src\data\py\pro.py", line 117, in <module>
-    def run_pro_analysis(df: pd.DataFrame):
-NameError: name 'pd' is not defined

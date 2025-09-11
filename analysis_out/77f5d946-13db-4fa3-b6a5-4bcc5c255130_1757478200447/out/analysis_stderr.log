@@ -1,4 +1,0 @@
-Traceback (most recent call last):
-  File "C:\USER\Proyects\Artheris_Stable\src\data\py\analyze_flight.py", line 28, in <module>
-    def save_plot_payloads(df: pd.DataFrame, outdir: str):
-NameError: name 'pd' is not defined

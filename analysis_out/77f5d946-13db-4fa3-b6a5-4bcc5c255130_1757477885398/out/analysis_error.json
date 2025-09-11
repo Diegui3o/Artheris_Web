@@ -1,5 +1,0 @@
-{
-  "message": "Analysis failed: unexpected token [RETURNING]",
-  "stack": "error: unexpected token [RETURNING]\n    at C:\\USER\\Proyects\\Artheris_Stable\\node_modules\\pg-pool\\index.js:45:11\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async updateJobStatus (file:///C:/USER/Proyects/Artheris_Stable/src/data/analysis_router.js:372:22)\n    at async file:///C:/USER/Proyects/Artheris_Stable/src/data/analysis_router.js:790:11",
-  "code": "00000"
-}

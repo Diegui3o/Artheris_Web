@@ -1,7 +1,0 @@
-Error processing flight data: Missing required column: time_seconds
-Traceback (most recent call last):
-  File "C:\USER\Proyects\Artheris_Stable\src\data\py\analyze_flight.py", line 149, in main
-    df = read_flight_data(args.input_csv)
-  File "C:\USER\Proyects\Artheris_Stable\src\data\py\analyze_flight.py", line 119, in read_flight_data
-    raise ValueError(f"Missing required column: {col}")
-ValueError: Missing required column: time_seconds

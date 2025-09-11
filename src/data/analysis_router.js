@@ -172,18 +172,34 @@ export default function createAnalysisRouter({
       const cutoff = new Date(
         Date.now() - maxAgeMinutes * 60_000
       ).toISOString();
-      await pool.query(
-        `UPDATE analysis_jobs
-          SET status = 'error',
-              error = 'stale (no heartbeat / server restart)',
-              finished_at = now()
-          WHERE status = 'running'
-            AND coalesce(updated_at, started_at, ts) < $1`,
+
+      // 1) Selecciona candidatos (sin RETURNING)
+      const { rows } = await pool.query(
+        `SELECT id FROM analysis_jobs
+           WHERE status = 'running'
+             AND coalesce(updated_at, started_at, ts) < $1`,
         [cutoff]
       );
-      console.log("⚠️ Stale running jobs marked as error");
+      const staleIds = rows.map((r) => r.id).filter(Boolean);
+      if (staleIds.length === 0) return 0;
+
+      // 2) UPDATE sin RETURNING
+      await pool.query(
+        `UPDATE analysis_jobs
+           SET status = 'error',
+               error = 'stale (no heartbeat / server restart)',
+               finished_at = now(),
+               updated_at = now()
+         WHERE status = 'running'
+           AND coalesce(updated_at, started_at, ts) < $1`,
+        [cutoff]
+      );
+
+      console.log(`⚠️ Marked ${staleIds.length} stale running jobs as error`);
+      return staleIds.length;
     } catch (e) {
       console.error("Failed to mark stale running jobs:", e.message || e);
+      return 0;
     }
   }
 
@@ -262,6 +278,10 @@ export default function createAnalysisRouter({
 
     // cache de presencia de updated_at
     hasUpdatedAt = await columnExists("analysis_jobs", "updated_at");
+    console.log(`[analysis] updated_at present: ${hasUpdatedAt}`);
+    const exists = await columnExists("analysis_jobs", "updated_at");
+    // Solo sube a true; no lo bajes a false por fallos temporales
+    if (exists) hasUpdatedAt = true;
     console.log(`[analysis] updated_at present: ${hasUpdatedAt}`);
   }
 
@@ -492,185 +512,121 @@ export default function createAnalysisRouter({
     };
   }
 
+  // Maximum time a job can run before being considered failed (10 minutes)
+  const MAX_JOB_RUNTIME_MS = 10 * 60 * 1000;
+
+  // How often to check for stale jobs (1 minute)
+  const STALE_JOB_CHECK_INTERVAL = 60 * 1000;
+
+  // Set up periodic stale job check
+  setInterval(() => {
+    markStaleRunningJobs(5).catch(console.error);
+  }, STALE_JOB_CHECK_INTERVAL);
+
   function runPython({
     csvPath,
     outDir,
     debug = false,
     pro = true,
-    timeoutMs = 300000,
+    timeoutMs = 300000, // 5 min
     jobId,
   }) {
     return new Promise((resolve, reject) => {
-      const pythonArgs = [
-        path.resolve(process.cwd(), analyzerPy),
-        csvPath,
-        `--output-dir=${outDir}`,
-        ...(debug ? ["--debug"] : ["--plot"]),
-        ...(pro ? ["--pro"] : []),
-      ];
+      // --- args para analyzer
+      const args = [analyzerPy, csvPath, `--output-dir=${outDir}`, "--plot"];
+      if (pro) args.push("--pro");
+      if (debug) args.push("--debug");
+
+      // --- logging helper
+      const logOutput = (source, chunk) => {
+        try {
+          appendJobLog(jobId, String(chunk), source);
+        } catch {}
+      };
+
+      // --- spawn
+      const python = spawn(pythonBin, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+        shell: false,
+        windowsHide: true,
+        cwd: process.cwd(),
+      });
+
+      // guarda el proceso para /cancel
+      if (jobId) activeProcesses.set(jobId, python);
 
       let stdout = "";
       let stderr = "";
-      let output = "";
 
-      function logOutput(source, data) {
-        const str = data.toString();
-        output += `[${source}] ${str}`;
-        process.stdout.write(`[Python ${source}] ${str}`);
-        if (jobId) appendJobLog(jobId, str, source);
-      }
-
-      console.log(`[Python] Running: ${pythonBin} ${pythonArgs.join(" ")}`);
-      const python = spawn(pythonBin, pythonArgs, {
-        cwd: path.dirname(analyzerPy),
-        env: {
-          ...process.env,
-          PYTHONUNBUFFERED: "1",
-          PYTHONPATH:
-            path.resolve(process.cwd(), path.dirname(analyzerPy)) +
-            (process.env.PYTHONPATH
-              ? path.delimiter + process.env.PYTHONPATH
-              : ""),
-        },
-        detached: process.platform !== "win32", // para matar grupo en Unix
-      });
-      // track
-      if (jobId) activeProcesses.set(jobId, python);
-      const timeout = setTimeout(() => {
-        python.kill("SIGTERM");
-        reject(new Error(`Python script timed out after ${timeoutMs}ms`));
+      // --- timeout
+      const timer = setTimeout(() => {
+        try {
+          // matar cross-platform
+          if (process.platform === "win32") {
+            const { exec } = require("node:child_process");
+            exec(`taskkill /F /T /PID ${python.pid}`, () => {});
+          } else {
+            try {
+              python.kill("SIGTERM");
+            } catch {}
+            setTimeout(() => {
+              try {
+                python.kill("SIGKILL");
+              } catch {}
+            }, 2000);
+          }
+        } catch {}
+        const err = new Error(`Job timed out after ${timeoutMs}ms`);
+        err.code = "ETIMEDOUT";
+        reject(err);
       }, timeoutMs);
 
-      python.stdout.on("data", (data) => {
-        const str = data.toString();
-        stdout += str;
-        logOutput("stdout", str);
+      // --- streams
+      python.stdout.on("data", (d) => {
+        const s = d.toString();
+        stdout += s;
+        logOutput("stdout", s);
       });
 
-      python.stderr.on("data", (data) => {
-        const str = data.toString();
-        stderr += str;
-        logOutput("stderr", str);
+      python.stderr.on("data", (d) => {
+        const s = d.toString();
+        stderr += s;
+        logOutput("stderr", s);
       });
 
-      python.on("close", (code, signal) => {
-        clearTimeout(timeout);
+      // --- errores de spawn
+      python.on("error", (err) => {
+        clearTimeout(timer);
         if (jobId) activeProcesses.delete(jobId);
-        // Save full output to file for debugging
-        const outputPath = path.join(outDir, "python_output.log");
-        fs.writeFileSync(outputPath, output, "utf8");
+        reject(new Error(`Failed to start Python process: ${err.message}`));
+      });
 
-        // Close log streams if they exist
-        try {
-          const streams = jobLogStreams.get(jobId);
-          if (streams) {
-            streams.combined.end();
-            streams.stdout.end();
-            streams.stderr.end();
-            jobLogStreams.delete(jobId);
-          }
-        } catch (e) {
-          console.error("Error closing log streams:", e);
+      // --- cierre normal/anómalo
+      python.on("close", (code, signal) => {
+        clearTimeout(timer);
+        if (jobId) activeProcesses.delete(jobId);
+
+        const outputPath = path.join(outDir, "flight_metrics.json");
+        const result = { code, signal, stdout, stderr, outputPath };
+
+        if (code !== 0) {
+          const msg = `Python exited with code ${code}${
+            signal ? ` (signal ${signal})` : ""
+          }`;
+          const err = new Error(msg);
+          err.code = code;
+          err.signal = signal;
+          err.stdout = stdout;
+          err.stderr = stderr;
+          err.outputPath = outputPath;
+          return reject(err);
         }
 
-        const handleCompletion = async () => {
-          if (code !== 0 || signal) {
-            const errorMessage = `Python script ${
-              signal
-                ? `was terminated by signal ${signal}`
-                : `exited with code ${code}`
-            }`;
-            const error = new Error(errorMessage);
-
-            // Enhanced error details
-            error.details = {
-              command: `${pythonBin} ${pythonArgs.join(" ")}`,
-              cwd: process.cwd(),
-              code,
-              signal,
-              stdout: stdout || "No standard output",
-              stderr: stderr || "No error output",
-              outputPath,
-            };
-
-            // Try to read error file if it exists
-            try {
-              const errorFile = path.join(outDir, "analysis_error.json");
-              if (fs.existsSync(errorFile)) {
-                error.details.errorFile = JSON.parse(
-                  fs.readFileSync(errorFile, "utf8")
-                );
-              }
-
-              // Ensure error file has the error details if it didn't exist
-              if (!error.details.errorFile) {
-                fs.writeFileSync(
-                  errorFile,
-                  JSON.stringify(
-                    {
-                      timestamp: new Date().toISOString(),
-                      message: errorMessage,
-                      ...error.details,
-                    },
-                    null,
-                    2
-                  )
-                );
-              }
-            } catch (e) {
-              console.error("Failed to handle error file:", e);
-            }
-
-            // Update job status to error
-            if (jobId) {
-              try {
-                await updateJobStatus(jobId, "error", errorMessage);
-              } catch (updateErr) {
-                console.error(
-                  "Failed to update job status to error:",
-                  updateErr
-                );
-              }
-            }
-
-            reject(error);
-          } else {
-            // Update job status to completed on success
-            if (jobId) {
-              try {
-                await updateJobStatus(jobId, "completed");
-                resolve({ stdout, stderr, output, outputPath });
-              } catch (updateErr) {
-                console.error(
-                  "Failed to update job status to completed:",
-                  updateErr
-                );
-                resolve({ stdout, stderr, output, outputPath }); // Still resolve if status update fails
-              }
-            } else {
-              resolve({ stdout, stderr, output, outputPath });
-            }
-          }
-        };
-
-        // Handle completion in an async IIFE since we can't make the event handler async directly
-        handleCompletion().catch((err) => {
-          console.error("Error in completion handler:", err);
-          reject(err);
-        });
-      });
-
-      python.on("error", (err) => {
-        clearTimeout(timeout);
-        console.error("Failed to start Python process:", err);
-        reject(new Error(`Failed to start Python process: ${err.message}`));
+        return resolve(result);
       });
     });
   }
 
-  // ====== Router Endpoints ======
-
-  // ====== RUTAS ======
   router.post("/cancel/:jobId", async (req, res) => {
     const { jobId } = req.params;
     const job = await getJob(jobId);
@@ -741,26 +697,41 @@ export default function createAnalysisRouter({
       // --- si ya hay job activo reciente, devolverlo sin relanzar
       const existing = await findActiveJob(flightId);
       if (existing) {
-        console.log(`${logPrefix} Found existing job`, {
-          jobId: existing.id,
-          status: existing.status,
-        });
-
-        return res.json({
-          ok: true,
-          jobId: existing.id,
-          flightId: existing.flight_id,
-          status: existing.status,
-          assetsBase: `/analysis/assets/${existing.id}`,
-          statusUrl: `/analysis/status/${existing.id}`,
-          resultsUrl: `/analysis/results/${existing.id}`,
-          message:
-            existing.status === "running"
-              ? "Analysis in progress"
-              : existing.status === "completed"
-              ? "Analysis already completed"
-              : "Analysis status: " + existing.status,
-        });
+        // ¿hay proceso vivo en memoria?
+        const proc = activeProcesses.get(existing.id);
+        if (!proc) {
+          // No hay proceso: es un zombie en DB. Lo marcamos error y seguimos a crear job nuevo.
+          console.warn(
+            `${logPrefix} Existing job is running but no process is attached. Marking as error.`,
+            { jobId: existing.id }
+          );
+          await updateJobStatus(
+            existing.id,
+            "error",
+            "recovered: missing process after restart"
+          );
+        } else {
+          // Sí hay proceso, devolvemos el existente
+          console.log(`${logPrefix} Found existing job`, {
+            jobId: existing.id,
+            status: existing.status,
+          });
+          return res.json({
+            ok: true,
+            jobId: existing.id,
+            flightId: existing.flight_id,
+            status: existing.status,
+            assetsBase: `/analysis/assets/${existing.id}`,
+            statusUrl: `/analysis/status/${existing.id}`,
+            resultsUrl: `/analysis/results/${existing.id}`,
+            message:
+              existing.status === "running"
+                ? "Analysis in progress"
+                : existing.status === "completed"
+                ? "Analysis already completed"
+                : "Analysis status: " + existing.status,
+          });
+        }
       }
 
       // --- preparar carpetas
@@ -783,15 +754,20 @@ export default function createAnalysisRouter({
       const visible = await waitUntilJobVisible(job.id);
       if (visible) job = visible;
 
-      // --- registrar out_dir para logging live
       jobOutDirs.set(job.id, jobOutDir);
 
-      // --- lanzar análisis en background (no bloquear respuesta)
       (async () => {
         let jobSucceeded = false;
+        let hb = null;
+
         try {
           console.log(`[${job.id}] Starting analysis…`);
           await updateJobStatus(job.id, "running");
+
+          // Heartbeat cada 20 s mientras corre el job
+          hb = setInterval(() => {
+            updateJobStatus(job.id, "running").catch(() => {});
+          }, 20_000);
 
           console.log(`[${job.id}] Exporting CSV…`);
           const exportedCsvPath = await exportFlightToCSV(flightId, jobDir);
@@ -802,6 +778,7 @@ export default function createAnalysisRouter({
             const csvInOut = path.join(jobOutDir, path.basename(csvPath));
             fs.copyFileSync(csvPath, csvInOut);
           } catch {}
+
           console.log(`[${job.id}] Running Python…`);
           await runPython({
             csvPath,
@@ -824,7 +801,6 @@ export default function createAnalysisRouter({
             stderr: err?.stderr,
           };
           console.error(`[${job.id}] ❌ Analysis failed`, errorDetails);
-
           try {
             fs.writeFileSync(
               path.join(jobOutDir, "analysis_error.json"),
@@ -835,6 +811,7 @@ export default function createAnalysisRouter({
           }
         } finally {
           try {
+            if (hb) clearInterval(hb);
             await updateJobStatus(job.id, jobSucceeded ? "completed" : "error");
           } catch (updateErr) {
             console.error(

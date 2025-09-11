@@ -1,3 +1,0 @@
-2025-09-10T04:43:29.924Z [stderr] C:\USER\Proyects\Artheris_Stable\src\data\py\analyze_flight.py:112: FutureWarning: The argument 'infer_datetime_format' is deprecated and will be removed in a future version. A strict version of it is now the default, see https://pandas.pydata.org/pdeps/0004-consistent-to-datetime-parsing.html. You can safely remove this argument.
-  df = pd.read_csv(csv_path, parse_dates=['timestamp'], infer_datetime_format=True)
-2025-09-10T04:43:30.080Z [stdout] Analysis complete. Results saved to C:\USER\Proyects\Artheris_Stable\analysis_out\77f5d946-13db-4fa3-b6a5-4bcc5c255130_1757479409428\out

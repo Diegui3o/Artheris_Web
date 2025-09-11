@@ -1,0 +1,11 @@
+{
+  "watch": ["src"],
+  "ext": "js,mjs,cjs,json",
+  "ignore": [
+    "analysis_out/**",
+    "**/*.csv",
+    "**/*.png",
+    "**/*.json",
+    "src/data/py/__pycache__/**"
+  ]
+}

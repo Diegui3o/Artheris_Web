@@ -126,7 +126,7 @@ def run_pro_analysis(df: pd.DataFrame):
 
     has_ref = np.isfinite(roll_ref).any()
 
-    events = detect_steps(roll_ref, t) if has_ref else []
+    events = detect_steps(roll_ref, t, min_amp_deg=0.5, min_separation_s=0.3)
     steps = [dict(channel="roll", **step_metrics(roll_est, t, ev["idx"], ev["amp_deg"])) for ev in events]
 
     lat_ms = estimate_latency_ms(roll_ref, roll_est, fs) if has_ref else None

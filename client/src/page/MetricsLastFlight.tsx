@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import KalmanComparePanel from "../components/KalmanComparePanel";
 import AnalysisPanel from "../components/ui/AnalysisPanel";
+import { useEffect, useRef, useState } from "react";
 
 /* ===== Tipos de backend/QuestDB ===== */
 interface FlightRecord {
@@ -170,13 +170,29 @@ export default function MetricsLastFlight() {
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar estado y vuelos recientes
+  const REFRESH_MS = 20000;
+
+  const currentFlightIdRef = useRef<string | null>(null);
   useEffect(() => {
-    const loadFlightStatus = async () => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlightAbort: AbortController | null = null;
+
+    const tick = async () => {
+      if (!alive) return;
+
+      // Cancela pedidos anteriores si siguen en vuelo
+      inFlightAbort?.abort();
+      inFlightAbort = new AbortController();
+
       try {
         const [statusRes, flightsRes] = await Promise.all([
-          fetch("http://localhost:3002/recording/recording-status"),
-          fetch("http://localhost:3002/recording/recent-flights"),
+          fetch("http://localhost:3002/recording/recording-status", {
+            signal: inFlightAbort.signal,
+          }),
+          fetch("http://localhost:3002/recording/recent-flights", {
+            signal: inFlightAbort.signal,
+          }),
         ]);
 
         if (statusRes.ok) {
@@ -184,17 +200,19 @@ export default function MetricsLastFlight() {
           setRecordingStatus({
             isRecording: Boolean(status.isRecording ?? status.active),
             flightId: status.flightId,
-            lastFlightId: status.lastFlightId, // puede venir undefined (no pasa nada)
+            lastFlightId: status.lastFlightId,
           });
 
           const fid =
             status.flightId ||
             status.lastFlightId ||
             localStorage.getItem("lastFlightId");
-          if (fid) {
+
+          // solo setea si no hay uno ya (usa el ref espejo)
+          if (fid && !currentFlightIdRef.current) {
             setCurrentFlightId(fid);
             setError(null);
-          } else {
+          } else if (!fid && !currentFlightIdRef.current) {
             setError("No hay flightId reciente. Graba un vuelo primero.");
           }
         }
@@ -220,46 +238,75 @@ export default function MetricsLastFlight() {
           });
 
           setRecentFlights(flightsWithDuration);
-          if (!selectedFlight && flightsWithDuration.length > 0) {
-            setSelectedFlight(flightsWithDuration[0]);
-          }
+          // solo autoselecciona si aún no hay uno elegido
+          setSelectedFlight((prev) => prev ?? flightsWithDuration[0] ?? null);
         }
-      } catch (e) {
+      } catch (e: unknown) {
+        // ignora abortos
+        if (e instanceof DOMException && e.name === "AbortError") return;
         console.error("Error loading flight data:", e);
-        const fid = localStorage.getItem("lastFlightId");
-        if (fid) {
-          setCurrentFlightId(fid);
-        } else {
-          setError("Error al cargar los vuelos. Intenta recargar la página.");
+
+        if (!currentFlightIdRef.current) {
+          const fid = localStorage.getItem("lastFlightId");
+          if (fid) setCurrentFlightId(fid);
+          else
+            setError("Error al cargar los vuelos. Intenta recargar la página.");
+        }
+      } finally {
+        if (alive && !document.hidden) {
+          timer = setTimeout(tick, REFRESH_MS);
         }
       }
     };
 
-    loadFlightStatus();
-    const interval = setInterval(loadFlightStatus, 5000);
-    return () => clearInterval(interval);
-  }, [selectedFlight]);
+    // Pausa/reanuda según visibilidad
+    const onVis = () => {
+      if (!alive) return;
+      if (document.hidden) {
+        if (timer) clearTimeout(timer);
+        timer = null;
+      } else {
+        if (!timer) tick();
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
 
-  // Cálculo del tiempo de vuelo cuando cambia el vuelo seleccionado (usa tu endpoint real)
+    // Arranque
+    tick();
+
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVis);
+      if (timer) clearTimeout(timer);
+      inFlightAbort?.abort();
+    };
+    // 👇 sin dependencias; mantenemos un único poller
+  }, []);
+
   useEffect(() => {
     if (!selectedFlight?.flight_id) return;
+    const ac = new AbortController();
 
     (async () => {
       try {
-        const response = await fetch(
-          `http://localhost:3002/flight-metrics/${selectedFlight.flight_id}`
+        const r = await fetch(
+          `http://localhost:3002/flight-metrics/${selectedFlight.flight_id}`,
+          { signal: ac.signal }
         );
-        if (!response.ok) throw new Error("Failed to fetch flight metrics");
-        const data = await response.json();
-        const flightTime = data.flight_time_seconds || 0;
-
+        if (!r.ok) throw new Error("Failed to fetch flight metrics");
+        const data = await r.json();
         setSelectedFlight((prev) =>
-          prev ? { ...prev, flight_time_seconds: flightTime } : prev
+          prev
+            ? { ...prev, flight_time_seconds: data.flight_time_seconds || 0 }
+            : prev
         );
-      } catch (e) {
+      } catch (e: unknown) {
+        if (e instanceof DOMException && e.name === "AbortError") return;
         console.error("Error calculating flight time:", e);
       }
     })();
+
+    return () => ac.abort();
   }, [selectedFlight?.flight_id]);
 
   // Ejecutar análisis batch (usa tu endpoint real /metrics/batch)

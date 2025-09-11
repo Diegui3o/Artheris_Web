@@ -1,11 +1,10 @@
-# src/data/py/plots.py
-import os, math
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 def _ensure_1d(a):
-    return np.asarray(a).reshape(-1)
+    import numpy as _np
+    return _np.asarray(a).reshape(-1)
 
 def _savefig(path, fig):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -54,80 +53,134 @@ def plot_psd_raw_vs_kalman(raw, kal, fs, title, outpath):
     ax.set_title(title); ax.legend()
     _savefig(outpath, fig)
 
-def plot_nis(t, innov, S, m, title, outpath):
+def plot_tracking_axis(t, xhat, u_input=None, ref_value=0.0,
+                       axis_name="roll", outdir=".", fname_prefix="roll"):
+
+    t = _ensure_1d(t); xhat = _ensure_1d(xhat)
+    ref = np.full_like(xhat, float(ref_value))
+
+    # === figura 1: tracking + input en eje secundario
+    fig, ax1 = plt.subplots()
+    ax1.plot(t, xhat, label=f"x̂ {axis_name}")
+    ax1.plot(t, ref, label="ref", linestyle="--")
+    ax1.set_xlabel("Time [s]"); ax1.set_ylabel(f"{axis_name} [deg]")
+    title = f"{axis_name.capitalize()} – Tracking (x̂ vs ref)"
+    if u_input is not None:
+        u = _ensure_1d(u_input).astype(float)
+        # Normaliza input para que quepa en la gráfica (p.ej. 1000-2000 → -1..1)
+        u_norm = (u - np.nanmedian(u)) / (np.nanpercentile(np.abs(u - np.nanmedian(u)), 95) + 1e-9)
+        ax2 = ax1.twinx()
+        ax2.plot(t, u_norm, alpha=0.5, label="input (norm)", linestyle=":")
+        ax2.set_ylabel("input (norm)")
+        lines, labels = [], []
+        for ax in (ax1, ax2):
+            h, l = ax.get_legend_handles_labels(); lines += h; labels += l
+        ax1.legend(lines, labels, loc="best")
+        title += " + input"
+    else:
+        ax1.legend(loc="best")
+
+    ax1.set_title(title)
+    _savefig(os.path.join(outdir, f"{fname_prefix}_tracking.png"), fig)
+
+    # === figura 2: error + histograma
+    e = ref - xhat
+    fig, (ax, axh) = plt.subplots(2, 1, height_ratios=[3,1], figsize=(8,6))
+    ax.plot(t, e, label="error = ref - x̂")
+    ax.axhline(0, color="k", linewidth=0.5)
+    ax.set_xlabel("Time [s]"); ax.set_ylabel("error [deg]")
+    ax.set_title(f"{axis_name.capitalize()} – Error temporal")
+    ax.legend()
+    # hist rápido (PDF + CDF)
+    x = e[np.isfinite(e)]
+    if len(x):
+        axh.hist(x, bins=40, density=True, alpha=0.6, label="PDF")
+        xs = np.sort(x); cdf = np.arange(1, len(xs)+1)/len(xs)
+        axh.plot(xs, cdf, label="CDF")
+        axh.legend()
+        axh.set_xlabel("error [deg]")
+    _savefig(os.path.join(outdir, f"{fname_prefix}_error.png"), fig)
+
+def plot_tau_and_motors(t, tau_x, tau_y, m1, m2, m3, m4, outdir=".", prefix="effort"):
     t = _ensure_1d(t)
-    v = _ensure_1d(innov)
-    S = _ensure_1d(S)
-    if not len(t) or not len(v) or not len(S): return
-    nis = (v*v)/np.maximum(S, 1e-12)
-    fig, ax = plt.subplots()
-    ax.plot(t, nis, label="NIS")
-    # banda χ² (gdl=m, 95%)
-    try:
-        from scipy.stats import chi2
-        lo, hi = chi2.ppf(0.025, m), chi2.ppf(0.975, m)
-    except Exception:
-        # Wilson–Hilferty approx
-        z = 1.96; k = m
-        def q(sign): return k*(1 - 2/(9*k) + sign*z*np.sqrt(2/(9*k)))**3
-        lo, hi = q(-1), q(1)
-    ax.axhline(lo, linestyle="--", label="χ² lower")
-    ax.axhline(hi, linestyle="--", label="χ² upper")
-    ax.set_xlabel("Time [s]"); ax.set_title(title); ax.legend()
-    _savefig(outpath, fig)
+    fig, axes = plt.subplots(3, 1, figsize=(9,9), sharex=True)
 
-def _acf(x, nlags=60):
-    x = _ensure_1d(x) - np.mean(x)
-    if len(x) == 0: return np.arange(nlags+1), np.zeros(nlags+1)
-    c = np.correlate(x, x, mode="full")
-    mid = c.size//2
-    c = c[mid:mid+nlags+1]
-    c = c / (c[0] if c[0] else 1)
-    lags = np.arange(nlags+1)
-    return lags, c
+    # τx, τy
+    axes[0].plot(t, _ensure_1d(tau_x), label="τx")
+    axes[0].plot(t, _ensure_1d(tau_y), label="τy")
+    axes[0].set_ylabel("τ [u]"); axes[0].legend(); axes[0].set_title("Esfuerzo de control")
 
-def plot_acf(resid, nlags, title, outpath):
-    lags, r = _acf(resid, nlags)
-    fig, ax = plt.subplots()
-    ax.stem(lags, r, use_line_collection=True)
-    ax.set_xlabel("Lag"); ax.set_ylabel("ACF"); ax.set_title(title)
-    _savefig(outpath, fig)
+    # Motores
+    axes[1].plot(t, _ensure_1d(m1), label="M1")
+    axes[1].plot(t, _ensure_1d(m2), label="M2")
+    axes[1].plot(t, _ensure_1d(m3), label="M3")
+    axes[1].plot(t, _ensure_1d(m4), label="M4")
+    axes[1].set_ylabel("PWM/u"); axes[1].legend(); axes[1].set_title("Motores")
 
-def plot_latency_hist_cdf(lat_ms, title, outpath):
-    x = _ensure_1d(lat_ms)
-    if not len(x): return
-    x = x[np.isfinite(x)]
-    if not len(x): return
-    fig, ax = plt.subplots()
-    ax.hist(x, bins=30, density=True, alpha=0.6, label="hist")
-    xs = np.sort(x); cdf = np.arange(1, len(xs)+1)/len(xs)
-    ax.plot(xs, cdf, label="CDF")
-    ax.set_xlabel("Latency [ms]"); ax.set_title(title); ax.legend()
-    _savefig(outpath, fig)
+    # Deltas y thrust proxy
+    M1, M2, M3, M4 = map(_ensure_1d, (m1, m2, m3, m4))
+    thrust = M1+M2+M3+M4
+    d_roll  = (M2+M4) - (M1+M3)   # ajusta según tu mixer real
+    d_pitch = (M1+M2) - (M3+M4)   # ajusta según tu mixer real
 
-def plot_packet_mask(t, received_mask, title, outpath):
-    t = _ensure_1d(t); m = _ensure_1d(received_mask)
-    fig, ax = plt.subplots()
-    ax.step(t, m, where="post", label="received (1)/lost (0)")
-    ax.set_xlabel("Time [s]"); ax.set_title(title); ax.legend()
-    _savefig(outpath, fig)
+    axes[2].plot(t, thrust, label="Σ motores (thrust proxy)")
+    axes[2].plot(t, d_roll, label="roll-diff")
+    axes[2].plot(t, d_pitch, label="pitch-diff")
+    axes[2].set_xlabel("Time [s]"); axes[2].set_ylabel("u")
+    axes[2].legend(); axes[2].set_title("Proxies derivados")
 
-def plot_compare_bars(categories, A, B, labels=("A","B"), title="", outpath=""):
-    cats = list(categories)
-    A = _ensure_1d(A); B = _ensure_1d(B)
-    x = np.arange(len(cats)); w = 0.35
-    fig, ax = plt.subplots()
-    ax.bar(x-w/2, A, w, label=labels[0])
-    ax.bar(x+w/2, B, w, label=labels[1])
-    ax.set_xticks(x); ax.set_xticklabels(cats, rotation=20, ha="right")
-    ax.set_title(title); ax.legend()
-    _savefig(outpath, fig)
+    _savefig(os.path.join(outdir, f"{prefix}_tau_motors.png"), fig)
 
-def plot_heatmap(M, xlabels, ylabels, title, outpath):
-    M = np.asarray(M)
+    # Scatter: relación esfuerzo |τ| vs diffs motores (magnitud)
+    import numpy as np
+    tx = np.abs(_ensure_1d(tau_x)); ty = np.abs(_ensure_1d(tau_y))
+    fig2, (axr, axp) = plt.subplots(1, 2, figsize=(10,4))
+    axr.scatter(np.abs(d_roll), tx, s=10, alpha=0.6)
+    axr.set_xlabel("|roll-diff|"); axr.set_ylabel("|τx|"); axr.set_title("Esfuerzo vs motor roll-diff")
+    axp.scatter(np.abs(d_pitch), ty, s=10, alpha=0.6)
+    axp.set_xlabel("|pitch-diff|"); axp.set_ylabel("|τy|"); axp.set_title("Esfuerzo vs motor pitch-diff")
+    _savefig(os.path.join(outdir, f"{prefix}_scatter_tau_vs_motorDiff.png"), fig2)
+
+def _rolling_corr(a, b, fs, win_s=0.5):
+    import numpy as np
+    a = _ensure_1d(a).astype(float)
+    b = _ensure_1d(b).astype(float)
+    n = min(len(a), len(b))
+    if fs <= 0 or n < 8: return np.array([]), np.array([])
+    a = a[:n]; b = b[:n]
+    w = max(4, int(win_s * fs))
+    out = np.full(n, np.nan)
+    for i in range(w, n):
+        aa = a[i-w:i]; bb = b[i-w:i]
+        sa, sb = np.std(aa), np.std(bb)
+        if sa > 0 and sb > 0:
+            out[i] = np.corrcoef(aa, bb)[0,1]
+    t = np.arange(n)/fs
+    return t, out
+
+def plot_rolling_correlations(t, fs, xhat, ref_value, tau_x, tau_y, u_input=None,
+                              axis_name="roll", outdir=".", prefix="corr", win_s=0.6):
+    """
+    - Corr(|error|, |τ|)
+    - Corr(|error|, |input|)  [si hay input]
+    """
+    import numpy as np
+    t = _ensure_1d(t); xhat = _ensure_1d(xhat)
+    ref = np.full_like(xhat, float(ref_value))
+    err_mag = np.abs(ref - xhat)
+    tau_mag = np.sqrt(np.maximum(0.0, _ensure_1d(tau_x)**2 + _ensure_1d(tau_y)**2))
+
+    tc1, c1 = _rolling_corr(err_mag, tau_mag, fs, win_s=win_s)
+
     fig, ax = plt.subplots()
-    im = ax.imshow(M, aspect="auto", origin="lower")
-    ax.set_xticks(np.arange(len(xlabels))); ax.set_xticklabels(xlabels, rotation=45, ha="right")
-    ax.set_yticks(np.arange(len(ylabels))); ax.set_yticklabels(ylabels)
-    ax.set_title(title); fig.colorbar(im, ax=ax)
-    _savefig(outpath, fig)
+    if tc1.size:
+      ax.plot(tc1, c1, label="corr(|error|, |τ|)")
+    if u_input is not None:
+      u = np.abs(_ensure_1d(u_input).astype(float) - np.nanmedian(u_input))
+      tc2, c2 = _rolling_corr(err_mag, u, fs, win_s=win_s)
+      if tc2.size: ax.plot(tc2, c2, label="corr(|error|, |input|)")
+    ax.axhline(0, color="k", linewidth=0.5)
+    ax.set_xlabel("Time [s]"); ax.set_ylabel("ρ (windowed)")
+    ax.set_title(f"{axis_name.capitalize()} – Correlaciones móviles (win={win_s:.2f}s)")
+    ax.legend()
+    _savefig(os.path.join(outdir, f"{prefix}_{axis_name}_rolling_corr.png"), fig)

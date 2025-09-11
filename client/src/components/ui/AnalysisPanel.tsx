@@ -3,6 +3,11 @@ type AnalysisResult = { ok: boolean; status: string; files: AnalysisFile[] };
 type ServerStatus = "pending" | "running" | "completed" | "error" | "cancelled";
 type JobStatus = "idle" | "running" | "done" | "error";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import {
+  TrackingAxisCanvas,
+  TauMotorsCanvas,
+  CorrelationsCanvas,
+} from "../../page/FlightPlots";
 
 type ProEvent = {
   t: number;
@@ -49,11 +54,28 @@ type PlotData = {
   time_s: number[];
   roll: { raw: number[]; est: number[]; ref?: number[] | null };
   pitch: { raw: number[]; est: number[]; ref?: number[] | null };
-  errors: { phi?: number[] | null; theta?: number[] | null };
+  errors: {
+    phi?: number[] | null;
+    theta?: number[] | null;
+    roll?: number[] | null;
+    pitch?: number[] | null;
+  };
   control: {
     tau_x?: number[] | null;
     tau_y?: number[] | null;
     tau_z?: number[] | null;
+    tau_mag?: number[] | null;
+    motors?: {
+      avg?: number[];
+      diff_13?: number[];
+      diff_24?: number[];
+    };
+  };
+  quick_corr?: {
+    abs_err_roll_vs_tau?: number[];
+    abs_err_pitch_vs_tau?: number[];
+    tau_vs_motor_diff_13?: number[];
+    tau_vs_motor_diff_24?: number[];
   };
   psd: {
     roll_raw: PlotPSD;
@@ -436,11 +458,14 @@ export default function AnalysisPanel({
       {/* NUEVO: Gráficas interactivas (puntos + línea) */}
       {plotData ? (
         <div className="mb-6 space-y-6">
-          <PlotCard title="Roll (raw puntos + est línea)">
-            <PlotCanvas
+          <PlotCard title="Roll — seguimiento (est vs ref)">
+            <TrackingAxisCanvas
               time={plotData.time_s}
-              points={plotData.roll.raw}
-              line={plotData.roll.est}
+              est={plotData.roll.est}
+              raw={plotData.roll.raw} // opcional
+              refSeries={
+                plotData.roll.ref ?? Array(plotData.time_s.length).fill(0)
+              }
               yLabel="Ángulo (deg)"
               markers={(plotData.pro?.events || [])
                 .filter(
@@ -448,14 +473,30 @@ export default function AnalysisPanel({
                     ev.channel === "roll" && Number.isFinite(ev.t)
                 )
                 .map((ev: ProEvent) => ev.t)}
+              titleRight="est (verde) · ref (ámbar)"
             />
           </PlotCard>
-
-          <PlotCard title="Pitch (raw puntos + est línea)">
-            <PlotCanvas
+          <PlotCard title="Esfuerzo y motores">
+            <TauMotorsCanvas
               time={plotData.time_s}
-              points={plotData.pitch.raw}
-              line={plotData.pitch.est}
+              tauX={plotData.control.tau_x ?? undefined}
+              tauY={plotData.control.tau_y ?? undefined}
+              tauMag={plotData.control.tau_mag ?? undefined}
+              motorAvg={plotData.control.motors?.avg}
+              motorDiff13={plotData.control.motors?.diff_13}
+              motorDiff24={plotData.control.motors?.diff_24}
+              yLabelLeft="τ (arb)"
+              yLabelRight="motores (arb)"
+            />
+          </PlotCard>
+          <PlotCard title="Pitch — seguimiento (est vs ref)">
+            <TrackingAxisCanvas
+              time={plotData.time_s}
+              est={plotData.pitch.est}
+              raw={plotData.pitch.raw} // opcional
+              refSeries={
+                plotData.pitch.ref ?? Array(plotData.time_s.length).fill(0)
+              }
               yLabel="Ángulo (deg)"
               markers={(plotData.pro?.events || [])
                 .filter(
@@ -463,8 +504,34 @@ export default function AnalysisPanel({
                     ev.channel === "pitch" && Number.isFinite(ev.t)
                 )
                 .map((ev: ProEvent) => ev.t)}
+              titleRight="est (verde) · ref (ámbar)"
             />
           </PlotCard>
+          {(plotData as any).quick_corr && (
+            <PlotCard title="Correlaciones móviles rápidas">
+              <CorrelationsCanvas
+                time={plotData.time_s}
+                corrSeries={[
+                  {
+                    name: "|e_roll| ↔ |τ|",
+                    data: plotData.quick_corr?.abs_err_roll_vs_tau ?? [],
+                  },
+                  {
+                    name: "|e_pitch| ↔ |τ|",
+                    data: plotData.quick_corr?.abs_err_pitch_vs_tau ?? [],
+                  },
+                  {
+                    name: "τ ↔ (m1 - m3)",
+                    data: plotData.quick_corr?.tau_vs_motor_diff_13 ?? [],
+                  },
+                  {
+                    name: "τ ↔ (m2 - m4)",
+                    data: plotData.quick_corr?.tau_vs_motor_diff_24 ?? [],
+                  },
+                ]}
+              />
+            </PlotCard>
+          )}
         </div>
       ) : status === "done" ? (
         <div className="text-sm text-gray-400 mb-6">
@@ -831,19 +898,21 @@ function BodePhaseCanvas({
   );
 }
 
+interface PlotData {
+  time: number[];
+  points: number[];
+  line: number[];
+  yLabel?: string;
+  markers?: number[];
+}
+
 function PlotCanvas({
   time,
   points, // scatter (raw)
   line, // serie (est)
   yLabel = "",
   markers,
-}: {
-  time: number[];
-  points: number[];
-  line: number[];
-  yLabel?: string;
-  markers?: number[];
-}) {
+}: PlotData) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hover, setHover] = useState<{
     x: number;

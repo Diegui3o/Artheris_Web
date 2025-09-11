@@ -5,6 +5,11 @@ from typing import Optional
 from pathlib import Path
 import metrics as M
 from pro import run_pro_analysis
+from plots import (
+    plot_tracking_axis,
+    plot_tau_and_motors,
+    plot_rolling_correlations,
+)
 
 # Parse command line arguments
 def parse_args():
@@ -91,33 +96,41 @@ def save_plot_payloads(df: pd.DataFrame, outdir: str, pro_payload=None):
     tau_x      = col("tau_x")
     tau_y      = col("tau_y")
     tau_z      = col("tau_z")
+    motor_1    = col("motor_1")
+    motor_2    = col("motor_2")
+    motor_3    = col("motor_3")
+    motor_4    = col("motor_4")
 
     # ---------- Diezmado CONSISTENTE ----------
-    # Calcula un único step con base en t_full y úsalo para TODAS las series del mismo largo.
     max_points = 50_000
     n = len(t_full)
     step = 1 if n <= max_points else max(1, int(math.ceil(n / max_points)))
-    def d(arr):
-        if arr is None: 
+
+    def deci(arr):
+        if arr is None:
             return None
         a = np.asarray(arr)
         return a[::step] if a.size > 0 else a
 
     t = t_full[::step]
 
-    roll_raw_d  = d(roll_raw)
-    roll_est_d  = d(roll_est)
-    pitch_raw_d = d(pitch_raw)
-    pitch_est_d = d(pitch_est)
-    ref_roll_d  = d(ref_roll)
-    ref_pitch_d = d(ref_pitch)
-    err_phi_d   = d(err_phi)
-    err_theta_d = d(err_theta)
-    tau_x_d     = d(tau_x)
-    tau_y_d     = d(tau_y)
-    tau_z_d     = d(tau_z)
+    roll_raw_d   = deci(roll_raw)
+    roll_est_d   = deci(roll_est)
+    pitch_raw_d  = deci(pitch_raw)
+    pitch_est_d  = deci(pitch_est)
+    ref_roll_d   = deci(ref_roll)
+    ref_pitch_d  = deci(ref_pitch)
+    err_phi_d    = deci(err_phi)
+    err_theta_d  = deci(err_theta)
+    tau_x_d      = deci(tau_x)
+    tau_y_d      = deci(tau_y)
+    tau_z_d      = deci(tau_z)
+    motor_1_d    = deci(motor_1)
+    motor_2_d    = deci(motor_2)
+    motor_3_d    = deci(motor_3)
+    motor_4_d    = deci(motor_4)
 
-    # ---------- PSDs (pueden usar arrays completos para mejor resolución) ----------
+    # ---------- PSDs ----------
     psd = {
         "roll_raw":  _psd_export(roll_raw,  fs),
         "roll_est":  _psd_export(roll_est,  fs),
@@ -125,7 +138,7 @@ def save_plot_payloads(df: pd.DataFrame, outdir: str, pro_payload=None):
         "pitch_est": _psd_export(pitch_est, fs),
     }
 
-    # ---------- Meta enriquecida ----------
+    # ---------- Meta ----------
     meta = {
         "fs_hz": float(fs),
         "n": int(len(t_full)),
@@ -143,6 +156,10 @@ def save_plot_payloads(df: pd.DataFrame, outdir: str, pro_payload=None):
             "tau_x": "arb",  # ajusta a N·m si corresponde
             "tau_y": "arb",
             "tau_z": "arb",
+            "motor_1": "pwm",  # o %
+            "motor_2": "pwm",
+            "motor_3": "pwm",
+            "motor_4": "pwm",
         },
         "labels": {
             "roll_raw": "Roll (medido)",
@@ -156,11 +173,71 @@ def save_plot_payloads(df: pd.DataFrame, outdir: str, pro_payload=None):
             "tau_x": "Torque X",
             "tau_y": "Torque Y",
             "tau_z": "Torque Z",
+            "motor_1": "Motor 1",
+            "motor_2": "Motor 2",
+            "motor_3": "Motor 3",
+            "motor_4": "Motor 4",
         },
-        # útil para la UI: step de diezmado utilizado
         "decimation_step": int(step),
     }
 
+    # ====== Correlaciones y magnitudes útiles ======
+    def _nan_safe(a): 
+        return np.asarray(a, dtype=float) if a is not None else None
+
+    # Esfuerzo τ (magnitud 2D)
+    tau_mag = None
+    if tau_x is not None or tau_y is not None:
+        tx = _nan_safe(tau_x); ty = _nan_safe(tau_y)
+        if tx is None: tx = np.zeros_like(ty)
+        if ty is None: ty = np.zeros_like(tx)
+        tau_mag = np.sqrt(np.square(tx) + np.square(ty))
+    tau_mag_d  = deci(tau_mag) if tau_mag is not None else None
+
+    # Promedio y diferencias de motores
+    motor_avg  = None
+    if motor_1 is not None:
+        motors = [_nan_safe(m) for m in [motor_1, motor_2, motor_3, motor_4] if m is not None]
+        if motors:
+            motor_avg = np.nanmean(np.vstack(motors), axis=0)
+    motor_avg_d = deci(motor_avg) if motor_avg is not None else None
+
+    motor_diff_13 = _nan_safe(motor_1) - _nan_safe(motor_3) if (motor_1 is not None and motor_3 is not None) else None
+    motor_diff_24 = _nan_safe(motor_2) - _nan_safe(motor_4) if (motor_2 is not None and motor_4 is not None) else None
+    motor_diff_13_d = deci(motor_diff_13) if motor_diff_13 is not None else None
+    motor_diff_24_d = deci(motor_diff_24) if motor_diff_24 is not None else None
+
+    # Correlaciones móviles rápidas
+    def rolling_corr(a, b, k):
+        a = _nan_safe(a); b = _nan_safe(b)
+        if a is None or b is None or len(a) < k or len(b) < k:
+            return None
+        out = np.full(len(a), np.nan)
+        for i in range(k-1, len(a)):
+            aa = a[i-k+1:i+1]; bb = b[i-k+1:i+1]
+            if np.isnan(aa).all() or np.isnan(bb).all():
+                continue
+            ma, mb = np.nanmean(aa), np.nanmean(bb)
+            sa, sb = np.nanstd(aa), np.nanstd(bb)
+            if sa == 0 or sb == 0:
+                continue
+            out[i] = np.nanmean((aa-ma)*(bb-mb)) / (sa*sb)
+        return out
+
+    win_s = 0.6
+    k = max(3, int(round(win_s * float(fs))))
+
+    corr_roll_err_tau  = rolling_corr(np.abs(err_phi),  tau_mag, k) if (tau_mag is not None and err_phi is not None) else None
+    corr_pitch_err_tau = rolling_corr(np.abs(err_theta), tau_mag, k) if (tau_mag is not None and err_theta is not None) else None
+    corr_tau_m13       = rolling_corr(tau_mag, motor_diff_13, k) if (tau_mag is not None and motor_diff_13 is not None) else None
+    corr_tau_m24       = rolling_corr(tau_mag, motor_diff_24, k) if (tau_mag is not None and motor_diff_24 is not None) else None
+
+    corr_roll_err_tau_d  = deci(corr_roll_err_tau)  if corr_roll_err_tau  is not None else None
+    corr_pitch_err_tau_d = deci(corr_pitch_err_tau) if corr_pitch_err_tau is not None else None
+    corr_tau_m13_d       = deci(corr_tau_m13)       if corr_tau_m13       is not None else None
+    corr_tau_m24_d       = deci(corr_tau_m24)       if corr_tau_m24       is not None else None
+
+    # ---------- Payload ----------
     payload = {
         "meta": meta,
         "time_s": t.tolist(),
@@ -182,6 +259,22 @@ def save_plot_payloads(df: pd.DataFrame, outdir: str, pro_payload=None):
             "tau_x": (tau_x_d.tolist() if tau_x_d is not None else None),
             "tau_y": (tau_y_d.tolist() if tau_y_d is not None else None),
             "tau_z": (tau_z_d.tolist() if tau_z_d is not None else None),
+            "motors": {
+                "m1": (motor_1_d.tolist() if motor_1_d is not None else None),
+                "m2": (motor_2_d.tolist() if motor_2_d is not None else None),
+                "m3": (motor_3_d.tolist() if motor_3_d is not None else None),
+                "m4": (motor_4_d.tolist() if motor_4_d is not None else None),
+                "avg": (motor_avg_d.tolist() if motor_avg_d is not None else None),
+                "diff_13": (motor_diff_13_d.tolist() if motor_diff_13_d is not None else None),
+                "diff_24": (motor_diff_24_d.tolist() if motor_diff_24_d is not None else None),
+            },
+            "tau_mag": (tau_mag_d.tolist() if tau_mag_d is not None else None),
+        },
+        "quick_corr": {
+            "abs_err_roll_vs_tau":   (corr_roll_err_tau_d.tolist()  if corr_roll_err_tau_d  is not None else None),
+            "abs_err_pitch_vs_tau":  (corr_pitch_err_tau_d.tolist() if corr_pitch_err_tau_d is not None else None),
+            "tau_vs_motor_diff_13":  (corr_tau_m13_d.tolist()       if corr_tau_m13_d       is not None else None),
+            "tau_vs_motor_diff_24":  (corr_tau_m24_d.tolist()       if corr_tau_m24_d       is not None else None),
         },
         "psd": psd,
     }
@@ -209,12 +302,10 @@ def save_plot_payloads(df: pd.DataFrame, outdir: str, pro_payload=None):
                     row.append(y_ref[i])
                 f.write(",".join(str(x) if x is not None else "" for x in row) + "\n")
 
-    # Genera roll/pitch si existen
     if roll_raw_d is not None or roll_est_d is not None:
         write_points_csv("roll", roll_raw_d, roll_est_d, ref_roll_d)
     if pitch_raw_d is not None or pitch_est_d is not None:
         write_points_csv("pitch", pitch_raw_d, pitch_est_d, ref_pitch_d)
-
 
 def read_flight_data(csv_path: str) -> pd.DataFrame:
     df = pd.read_csv(csv_path, parse_dates=["timestamp"])

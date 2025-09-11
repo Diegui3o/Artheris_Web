@@ -4,7 +4,6 @@ import pandas as pd
 from typing import Optional
 from pathlib import Path
 import metrics as M
-import importlib
 from pro import run_pro_analysis
 
 # Parse command line arguments
@@ -18,14 +17,25 @@ def parse_args():
 
 # ---------- helpers de export para las gráficas ----------
 def _estimate_fs(time_series: np.ndarray) -> float:
-    if len(time_series) < 2:
+    if len(time_series) < 3:
         return 100.0
     diffs = np.diff(time_series)
-    diffs = diffs[diffs > 0]
+    diffs = diffs[(diffs > 0) & np.isfinite(diffs)]
     if len(diffs) == 0:
         return 100.0
-    median_dt = np.median(diffs)
-    return float(1.0 / median_dt)
+    # trim outliers (5–95 pct)
+    lo, hi = np.percentile(diffs, [5, 95])
+    diffs = diffs[(diffs >= lo) & (diffs <= hi)]
+    if len(diffs) == 0:
+        return 100.0
+    return float(1.0 / np.median(diffs))
+
+def _decimate_same_step(*arrays, max_points=50_000):
+    if not arrays:
+        return []
+    n = len(arrays[0])
+    step = 1 if n <= max_points else max(1, int(math.ceil(n / max_points)))
+    return [np.asarray(a)[::step] for a in arrays]
 
 def _decimate(arr, max_points=50_000):
     arr = np.asarray(arr)
@@ -36,89 +46,194 @@ def _decimate(arr, max_points=50_000):
 
 def _psd_export(y, fs):
     y = np.asarray(y, dtype=float)
-    if y.size < 4 or fs <= 0:
+    if y.size < 8 or fs <= 0:
         return {"freq_hz": [], "power": []}
     y = y - np.nanmean(y)
-    yf = np.fft.rfft(y)
-    freqs = np.fft.rfftfreq(len(y), d=1.0/fs)
-    power = (np.abs(yf)**2) / len(y)
-    return {"freq_hz": _decimate(freqs).tolist(), "power": _decimate(power).tolist()}
+    w = np.hanning(y.size)
+    yw = y * w
+    U = (w**2).sum()  # corrección de potencia de la ventana
+    yf = np.fft.rfft(yw, n=yw.size)
+    freqs = np.fft.rfftfreq(yw.size, d=1.0/fs)
+    psd = (np.abs(yf) ** 2) / (U * fs)  # densidad unilateral aprox
+    return {"freq_hz": _decimate(freqs).tolist(), "power": _decimate(psd).tolist()}
 
+# ---------- helpers de export para las gráficas ----------
 def save_plot_payloads(df: pd.DataFrame, outdir: str, pro_payload=None):
+    """
+    Exporta plot_data.json con diezmado consistente (mismo step para todas las series),
+    agrega meta.units/meta.labels y escribe CSVs de puntos (roll/pitch).
+    """
     os.makedirs(outdir, exist_ok=True)
-    t = df["time_seconds"].to_numpy()
-    fs = _estimate_fs(t)
 
-    def col(name, default=0.0):
-        return df[name].to_numpy() if name in df.columns else np.full_like(t, default, dtype=float)
+    # Base temporal y fs
+    t_full = df["time_seconds"].to_numpy()
+    fs = _estimate_fs(t_full)
 
+    # Helper para obtener columnas con default y tipo float
+    def col(name, default=None):
+        if name in df.columns:
+            return df[name].to_numpy(dtype=float)
+        if default is None:
+            return None
+        return np.full_like(t_full, default, dtype=float)
+
+    # Series estándar
     roll_raw   = col("angle_roll")
     roll_est   = col("angle_roll_est")
     pitch_raw  = col("angle_pitch")
     pitch_est  = col("angle_pitch_est")
-    ref_roll   = df["ref_roll"].to_numpy()  if "ref_roll"  in df.columns else None
-    ref_pitch  = df["ref_pitch"].to_numpy() if "ref_pitch" in df.columns else None
-    err_phi    = df["error_phi"].to_numpy()   if "error_phi"   in df.columns else None
-    err_theta  = df["error_theta"].to_numpy() if "error_theta" in df.columns else None
-    tau_x      = df["tau_x"].to_numpy() if "tau_x" in df.columns else None
-    tau_y      = df["tau_y"].to_numpy() if "tau_y" in df.columns else None
-    tau_z      = df["tau_z"].to_numpy() if "tau_z" in df.columns else None
+
+    # Opcionales
+    ref_roll   = col("ref_roll")
+    ref_pitch  = col("ref_pitch")
+    err_phi    = col("error_phi")
+    err_theta  = col("error_theta")
+    tau_x      = col("tau_x")
+    tau_y      = col("tau_y")
+    tau_z      = col("tau_z")
+
+    # ---------- Diezmado CONSISTENTE ----------
+    # Calcula un único step con base en t_full y úsalo para TODAS las series del mismo largo.
+    max_points = 50_000
+    n = len(t_full)
+    step = 1 if n <= max_points else max(1, int(math.ceil(n / max_points)))
+    def d(arr):
+        if arr is None: 
+            return None
+        a = np.asarray(arr)
+        return a[::step] if a.size > 0 else a
+
+    t = t_full[::step]
+
+    roll_raw_d  = d(roll_raw)
+    roll_est_d  = d(roll_est)
+    pitch_raw_d = d(pitch_raw)
+    pitch_est_d = d(pitch_est)
+    ref_roll_d  = d(ref_roll)
+    ref_pitch_d = d(ref_pitch)
+    err_phi_d   = d(err_phi)
+    err_theta_d = d(err_theta)
+    tau_x_d     = d(tau_x)
+    tau_y_d     = d(tau_y)
+    tau_z_d     = d(tau_z)
+
+    # ---------- PSDs (pueden usar arrays completos para mejor resolución) ----------
+    psd = {
+        "roll_raw":  _psd_export(roll_raw,  fs),
+        "roll_est":  _psd_export(roll_est,  fs),
+        "pitch_raw": _psd_export(pitch_raw, fs),
+        "pitch_est": _psd_export(pitch_est, fs),
+    }
+
+    # ---------- Meta enriquecida ----------
+    meta = {
+        "fs_hz": float(fs),
+        "n": int(len(t_full)),
+        "columns": list(df.columns),
+        "units": {
+            "time_s": "s",
+            "angle_roll": "deg",
+            "angle_roll_est": "deg",
+            "angle_pitch": "deg",
+            "angle_pitch_est": "deg",
+            "ref_roll": "deg",
+            "ref_pitch": "deg",
+            "error_phi": "deg",
+            "error_theta": "deg",
+            "tau_x": "arb",  # ajusta a N·m si corresponde
+            "tau_y": "arb",
+            "tau_z": "arb",
+        },
+        "labels": {
+            "roll_raw": "Roll (medido)",
+            "roll_est": "Roll (estimado)",
+            "roll_ref": "Roll (referencia)",
+            "pitch_raw": "Pitch (medido)",
+            "pitch_est": "Pitch (estimado)",
+            "pitch_ref": "Pitch (referencia)",
+            "phi_error": "Error Roll (φ)",
+            "theta_error": "Error Pitch (θ)",
+            "tau_x": "Torque X",
+            "tau_y": "Torque Y",
+            "tau_z": "Torque Z",
+        },
+        # útil para la UI: step de diezmado utilizado
+        "decimation_step": int(step),
+    }
 
     payload = {
-        "meta": {"fs_hz": float(fs), "n": int(len(t)), "columns": list(df.columns)},
-        "time_s": _decimate(t).tolist(),
-        "roll":  {"raw": _decimate(roll_raw).tolist(),  "est": _decimate(roll_est).tolist(),
-                  "ref": (_decimate(ref_roll).tolist()  if ref_roll  is not None else None)},
-        "pitch": {"raw": _decimate(pitch_raw).tolist(), "est": _decimate(pitch_est).tolist(),
-                  "ref": (_decimate(ref_pitch).tolist() if ref_pitch is not None else None)},
-        "errors":  {"phi": (_decimate(err_phi).tolist() if err_phi   is not None else None),
-                    "theta": (_decimate(err_theta).tolist() if err_theta is not None else None)},
-        "control": {"tau_x": (_decimate(tau_x).tolist() if tau_x is not None else None),
-                    "tau_y": (_decimate(tau_y).tolist() if tau_y is not None else None),
-                    "tau_z": (_decimate(tau_z).tolist() if tau_z is not None else None)},
-        "psd": {
-            "roll_raw":  _psd_export(roll_raw,  fs),
-            "roll_est":  _psd_export(roll_est,  fs),
-            "pitch_raw": _psd_export(pitch_raw, fs),
-            "pitch_est": _psd_export(pitch_est, fs),
+        "meta": meta,
+        "time_s": t.tolist(),
+        "roll": {
+            "raw":  (roll_raw_d.tolist()  if roll_raw_d  is not None else None),
+            "est":  (roll_est_d.tolist()  if roll_est_d  is not None else None),
+            "ref":  (ref_roll_d.tolist()  if ref_roll_d  is not None else None),
         },
+        "pitch": {
+            "raw":  (pitch_raw_d.tolist() if pitch_raw_d is not None else None),
+            "est":  (pitch_est_d.tolist() if pitch_est_d is not None else None),
+            "ref":  (ref_pitch_d.tolist() if ref_pitch_d is not None else None),
+        },
+        "errors": {
+            "phi":   (err_phi_d.tolist()   if err_phi_d   is not None else None),
+            "theta": (err_theta_d.tolist() if err_theta_d is not None else None),
+        },
+        "control": {
+            "tau_x": (tau_x_d.tolist() if tau_x_d is not None else None),
+            "tau_y": (tau_y_d.tolist() if tau_y_d is not None else None),
+            "tau_z": (tau_z_d.tolist() if tau_z_d is not None else None),
+        },
+        "psd": psd,
     }
     if pro_payload is not None:
         payload["pro"] = pro_payload
-    plot_path = Path(outdir, "plot_data.json")
-    plot_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
-    # Write points CSV files
+    # Escribe JSON
+    Path(outdir, "plot_data.json").write_text(
+        json.dumps(payload, ensure_ascii=False),
+        encoding="utf-8"
+    )
+
+    # ---------- CSVs de puntos (diezmados) ----------
     def write_points_csv(name, y_raw, y_est, y_ref=None):
         p = Path(outdir, f"{name}_points.csv")
-        t = df["time_seconds"].to_numpy()
         cols = ["t_s", "raw", "est"] + (["ref"] if y_ref is not None else [])
+        n = len(t)
         with p.open("w", encoding="utf-8") as f:
             f.write(",".join(cols) + "\n")
-            for i in range(len(y_raw)):
-                row = [t[i], y_raw[i], y_est[i]]
-                if y_ref is not None: 
-                    row.append(y_ref[i] if i < len(y_ref) else "")
+            for i in range(n):
+                row = [t[i],
+                       (y_raw[i] if y_raw is not None and i < len(y_raw) else ""),
+                       (y_est[i] if y_est is not None and i < len(y_est) else "")]
+                if y_ref is not None and i < len(y_ref):
+                    row.append(y_ref[i])
                 f.write(",".join(str(x) if x is not None else "" for x in row) + "\n")
 
-    # Generate CSV files for roll and pitch
-    if len(roll_raw) > 0 and len(roll_est) > 0:
-        write_points_csv("roll", roll_raw, roll_est, ref_roll if ref_roll is not None else None)
-    if len(pitch_raw) > 0 and len(pitch_est) > 0:
-        write_points_csv("pitch", pitch_raw, pitch_est, ref_pitch if ref_pitch is not None else None)
+    # Genera roll/pitch si existen
+    if roll_raw_d is not None or roll_est_d is not None:
+        write_points_csv("roll", roll_raw_d, roll_est_d, ref_roll_d)
+    if pitch_raw_d is not None or pitch_est_d is not None:
+        write_points_csv("pitch", pitch_raw_d, pitch_est_d, ref_pitch_d)
 
-# ---------- lectura del CSV y normalización mínima ----------
+
 def read_flight_data(csv_path: str) -> pd.DataFrame:
-    # OJO: infer_datetime_format está deprecado; no hace falta.
     df = pd.read_csv(csv_path, parse_dates=["timestamp"])
-    # time_seconds desde el primer timestamp
-    if "timestamp" in df.columns and pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
-        df["time_seconds"] = (df["timestamp"] - df["timestamp"].iloc[0]).dt.total_seconds()
-    elif "time_seconds" not in df.columns:
-        # fallback simple si no hay timestamp
-        df["time_seconds"] = np.arange(len(df), dtype=float) * 0.01  # 100 Hz supuesta
+    # time_seconds
+    if "time_seconds" not in df.columns:
+        # alias de tiempo si viniera con otro nombre
+        time_aliases = ["time_s", "t", "Time", "time"]
+        aliased = next((c for c in time_aliases if c in df.columns), None)
+        if aliased is not None:
+            df["time_seconds"] = pd.to_numeric(df[aliased], errors="coerce")
+        elif "timestamp" in df.columns and pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+            df["time_seconds"] = (df["timestamp"] - df["timestamp"].iloc[0]).dt.total_seconds()
+        else:
+            # fallback a 100 Hz
+            df["time_seconds"] = np.arange(len(df), dtype=float) * 0.01
 
-    # Normaliza nombres básicos si vienen con alias
+    # ordena por tiempo y quita duplicados si hubiera
+    df = df.sort_values("time_seconds", kind="mergesort").drop_duplicates(subset=["time_seconds"])
+
     aliases = {
         "roll": "angle_roll",
         "pitch": "angle_pitch",
@@ -134,12 +249,9 @@ def read_flight_data(csv_path: str) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Faltan columnas requeridas: {', '.join(missing)}")
 
-    # Si no hay errores explícitos, calcúlalos
-    if "error_phi" not in df.columns:
-        df["error_phi"] = df["angle_roll"] - df["angle_roll_est"]
-    if "error_theta" not in df.columns:
-        df["error_theta"] = df["angle_pitch"] - df["angle_pitch_est"]
-
+    # errores si no vienen
+    df["error_phi"] = df.get("error_phi", df["angle_roll"] - df["angle_roll_est"])
+    df["error_theta"] = df.get("error_theta", df["angle_pitch"] - df["angle_pitch_est"])
     return df
 
 def main():

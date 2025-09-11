@@ -1,6 +1,4 @@
 export function handleSocketConnection(socket, state) {
-  console.log("Customer connected");
-
   socket.emit("status", {
     isRecording: state.isRecording,
     isSimulating: state.isSimulating,

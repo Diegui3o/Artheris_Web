@@ -292,7 +292,6 @@ export default function createAnalysisRouter({
       await ensureAnalysisTables();
       await migrateAnalysisJobsIfNeeded();
       isDbReady = true;
-      console.log("✅ analysis_* tables ready");
     } catch (e) {
       console.error("❌ db_init_failed:", e.message || e);
     }

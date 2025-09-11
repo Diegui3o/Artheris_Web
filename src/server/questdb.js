@@ -418,7 +418,6 @@ export async function printLastSensorData(n = 10, returnRows = false) {
 }
 
 export async function ensureTableExists() {
-  console.log("🔍 Checking if tables exist...");
   try {
     // flights
     const flightsExists = await pool.query(
@@ -448,7 +447,6 @@ export async function ensureTableExists() {
       await executeQueryWithRetry(createFlightsTable);
       console.log("✅ flights table created");
     } else {
-      console.log("✅ flights table exists");
     }
 
     // sensor_data
@@ -528,7 +526,6 @@ export async function ensureTableExists() {
       await executeQueryWithRetry(createSensorDataTable);
       console.log("✅ sensor_data table created");
     } else {
-      console.log("✅ sensor_data table exists");
     }
 
     // control_state (lo usas en insertControlState)
@@ -547,7 +544,6 @@ export async function ensureTableExists() {
       await executeQueryWithRetry(createControlTable);
       console.log("✅ control_state table created");
     } else {
-      console.log("✅ control_state table exists");
     }
 
     return true;

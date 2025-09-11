@@ -294,9 +294,19 @@ def compute(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         raw   = np.asarray([v if v is not None else np.nan for v in raw  ], dtype=float)
         tau   = np.asarray([v if v is not None else np.nan for v in tau  ], dtype=float)
 
-        # NIS y blancura
+        # Sintetiza si faltan columnas NIS
+        innov, Svar, nis_is_synth = _synth_innov_and_S(innov, Svar, raw, xhat, fs)
+
+        # Evita "whiteness OK" con varianza ≈ 0 (sin contenido)
+        if np.nanstd(innov) < 1e-9:
+            wht = {"available": False}
+        else:
+            wht = whiteness(innov)
+
         nis = nis_series(innov, Svar)
-        wht = whiteness(innov)
+        if nis.get("available") and nis_is_synth:
+            nis["synthetic"] = True
+            
         # Normaliza 'pass' si no vino:
         if wht.get("available"):
             if "pass" not in wht:
@@ -369,6 +379,35 @@ def do_live(payload: Dict[str, Any]) -> Dict[str, Any]:
     out = compute(rows)
     out["mode"] = "live"
     return out
+
+def _synth_innov_and_S(innov, Svar, raw, xhat, fs):
+    # Si ya hay datos válidos, respeta lo existente
+    if np.any(np.isfinite(innov)) and np.any(np.isfinite(Svar)) and np.nanmax(Svar) > 0:
+        return innov, Svar, False
+
+    # Innov = medida - estimado si falta innov
+    if not np.any(np.isfinite(innov)):
+        if np.any(np.isfinite(raw)) and np.any(np.isfinite(xhat)):
+            m = np.isfinite(raw) & np.isfinite(xhat)
+            tmp = np.full_like(raw, np.nan, dtype=float)
+            tmp[m] = raw[m] - xhat[m]
+            innov = tmp
+        else:
+            innov = np.full_like(raw if len(raw) else np.array([]), np.nan, dtype=float)
+
+    # S_var = varianza local de innov en ventana ~0.5 s
+    if fs and fs > 0:
+        win = max(5, int(round(0.5 * fs)))
+    else:
+        win = 20
+    x = innov.copy()
+    S = np.full_like(x, np.nan)
+    for i in range(len(x)):
+        a = max(0, i - win // 2); b = min(len(x), i + win // 2 + 1)
+        seg = x[a:b]; seg = seg[np.isfinite(seg)]
+        if len(seg) >= max(5, win // 3):
+            S[i] = np.var(seg) + 1e-9  # evita cero
+    return innov, S, True
 
 def main():
     p = argparse.ArgumentParser(description="Kalman comparison & data analysis")

@@ -196,41 +196,79 @@ def run_pro_analysis(df: pd.DataFrame):
     t = df["time_seconds"].to_numpy()
     fs = 1.0 / np.median(np.diff(t)) if len(t) > 1 else 0.0
 
-    # analiza roll y pitch (usa columnas estándar: ref_roll/ref_pitch, angle_*_est)
+    # analiza roll y pitch
     roll = _analyze_channel(df, "ref_roll", "angle_roll_est", t, fs, "roll")
     pitch = _analyze_channel(df, "ref_pitch", "angle_pitch_est", t, fs, "pitch")
 
-    # Payload combinado (mantiene claves previas para roll y añade pitch)
+    # Helpers para resúmenes
+    def _overshoot_max(steps):
+        if not steps:
+            return None
+        vals = [s.get("overshoot_pct") for s in steps if s.get("overshoot_pct") is not None and np.isfinite(s.get("overshoot_pct"))]
+        return float(max(vals)) if vals else None
+
+    def _frf_span(frf_obj):
+        f = np.asarray(frf_obj.get("freq_hz", []), float)
+        if f.size == 0:
+            return None
+        return {"f_min_hz": float(np.nanmin(f)), "f_max_hz": float(np.nanmax(f)), "n": int(f.size)}
+
+    # Construcción payload PRO
     pro_payload = {
-        # lista única de eventos (etiquetados por canal) para que tu UI no diga "no se detectaron" si hay en alguno
         "events": [{"channel": "roll", **e} for e in roll["events"]] +
                   [{"channel": "pitch", **e} for e in pitch["events"]],
         "step_responses": roll["steps"] + pitch["steps"],
 
-        # latencias con nombres compatibles + pitch
         "latency": {
             "roll_ref_to_est_ms": roll["latency_ms"],
             "pitch_ref_to_est_ms": pitch["latency_ms"],
         },
 
-        # FRF: conserva la existente para roll y añade una para pitch
         "frf": {"ref_to_est": roll["frf"]},
         "frf_pitch": {"ref_to_est": pitch["frf"]},
+
+        # ---------- NUEVO: resúmenes para la UI ----------
+        "pro_summaries": {
+            "roll": {
+                "num_steps": int(len(roll["events"])) if roll["events"] is not None else 0,
+                "overshoot_max_pct": _overshoot_max(roll["steps"]),
+                "latency_ms": roll["latency_ms"],
+                "frf_span": _frf_span(roll["frf"]),
+            },
+            "pitch": {
+                "num_steps": int(len(pitch["events"])) if pitch["events"] is not None else 0,
+                "overshoot_max_pct": _overshoot_max(pitch["steps"]),
+                "latency_ms": pitch["latency_ms"],
+                "frf_span": _frf_span(pitch["frf"]),
+            },
+            # Útil para tarjetas de resumen global
+            "global": {
+                "total_steps": int(len(roll["events"]) + len(pitch["events"])),
+                "fs_hz": float(fs),
+                "duration_s": float(t[-1] - t[0]) if len(t) > 1 else 0.0,
+            }
+        }
     }
 
-    # Métricas compactas (lo que lee tu UI para “Latencia roll/pitch”)
+    # Métricas compactas para flight_metrics.json (sin romper tu UI)
     pro_metrics = {
         "tracking": {
-            "roll": roll["tracking"],
-            "pitch": pitch["tracking"],
+            "roll": {"overshoot_pct": _overshoot_max(roll["steps"])},
+            "pitch": {"overshoot_pct": _overshoot_max(pitch["steps"])},
         },
         "latency_ms": {
             "roll": roll["latency_ms"],
             "pitch": pitch["latency_ms"],
         },
+        # opcional: eco de summaries clave por si quieres usarlos del lado de métricas
+        "summary": {
+            "fs_hz": float(fs),
+            "total_steps": int(len(roll["events"]) + len(pitch["events"]))
+        }
     }
 
     return pro_payload, pro_metrics
+
 
 try:
     from scipy.stats import chi2

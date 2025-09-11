@@ -8,9 +8,9 @@ import numpy as np
 # =========================
 # Config ajustable (umbral)
 # =========================
-ENTRY_DEG = 24.0          # ángulo mínimo para contar evento de asentamiento
-SETTLE_BAND_DEG = 5.0     # banda de asentamiento alrededor de 0°
-HOLD_S = 0.30             # tiempo que debe mantenerse dentro de la banda
+ENTRY_DEG = 9        
+SETTLE_BAND_DEG = 2.5
+HOLD_S = 0.10             # tiempo que debe mantenerse dentro de la banda
 NOISE_CUTOFF_HZ = 8.0     # frecuencia para "ruido" (HF) en análisis FFT
 
 # Logging

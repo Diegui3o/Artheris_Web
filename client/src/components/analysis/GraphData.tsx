@@ -1,3 +1,12 @@
+// Helper function to download canvas as PNG
+function downloadCanvasPNG(canvas: HTMLCanvasElement | null, filename: string) {
+  if (!canvas) return;
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
 // Helper function to format numbers
 function fmt(n: number | string | null | undefined, d = 2): string {
   if (n === null || n === undefined || Number.isNaN(Number(n))) return "—";
@@ -9,7 +18,6 @@ type AnalysisResult = { ok: boolean; status: string; files: AnalysisFile[] };
 type ServerStatus = "pending" | "running" | "completed" | "error" | "cancelled";
 type JobStatus = "idle" | "running" | "done" | "error";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-
 // Custom JSON parse function that handles NaN values
 const parseJsonWithNaN = (jsonString: string) => {
   const sanitized = sanitizeJsonNumbers(jsonString);
@@ -23,17 +31,14 @@ const parseJsonWithNaN = (jsonString: string) => {
   });
 };
 
-import {
-  TrackingAxisCanvas,
-  TauMotorsCanvas,
-  CorrelationsCanvas,
-} from "./PlotFlight";
+import { TrackingAxisCanvas } from "./PlotFlight";
 import {
   PlotCard,
   StepTable,
   BodeMagCanvas,
   BodePhaseCanvas,
 } from "./PlotPanel";
+import { TauMotorsCanvas } from "./TauMotorsCanvas";
 
 type ProEvent = {
   t: number;
@@ -141,7 +146,13 @@ export interface AnalysisPanelProps {
 type PlotPSD = { freq_hz: number[]; power: number[] };
 
 type PlotData = {
-  meta: { fs_hz: number; n: number; columns: string[] };
+  meta: {
+    fs_hz: number;
+    n: number;
+    columns: string[];
+    labels?: Record<string, string>;
+    units?: Record<string, string>;
+  };
   time_s: number[];
   roll: { raw: number[]; est: number[]; ref?: number[] | null };
   pitch: { raw: number[]; est: number[]; ref?: number[] | null };
@@ -199,6 +210,245 @@ function normalizeStatus(s?: string): JobStatus {
       return "idle";
   }
 }
+/* ========== 4) Estimación de movimiento 2D (desde ángulos) ========== */
+
+export function Motion2DCanvas({
+  time,
+  rollDeg,
+  pitchDeg,
+  g = 9.81,
+  leak = 0.02,
+  smoothWin = 0,
+  scaleLabel = "m",
+  title = "Recorrido estimado (top-down)",
+}: {
+  time: number[];
+  rollDeg: number[] | null | undefined;
+  pitchDeg: number[] | null | undefined;
+  g?: number;
+  leak?: number;
+  smoothWin?: number;
+  scaleLabel?: string;
+  title?: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Suavizado opcional simple (media móvil)
+  const smooth = useCallback(
+    (arr: number[] | null | undefined) => {
+      if (!arr || !arr.length || smoothWin <= 1) return arr || [];
+      const k = Math.max(1, Math.floor(smoothWin));
+      const out = new Array(arr.length).fill(0);
+      let acc = 0;
+      for (let i = 0; i < arr.length; i++) {
+        acc += arr[i];
+        if (i >= k) acc -= arr[i - k];
+        out[i] = acc / Math.min(i + 1, k);
+      }
+      return out;
+    },
+    [smoothWin]
+  );
+
+  // Cálculo de trayectoria (no uniforme en tiempo)
+  const { path, bbox } = useMemo(() => {
+    const phi =
+      (smooth((rollDeg ?? []).filter(Number.isFinite)) as number[]).length ===
+      (rollDeg?.length || 0)
+        ? smooth(rollDeg || [])
+        : (rollDeg || []).map((v) => (Number.isFinite(v) ? v : 0));
+    const theta =
+      (smooth((pitchDeg ?? []).filter(Number.isFinite)) as number[]).length ===
+      (pitchDeg?.length || 0)
+        ? smooth(pitchDeg || [])
+        : (pitchDeg || []).map((v) => (Number.isFinite(v) ? v : 0));
+
+    const n = Math.min(time.length, phi.length, theta.length);
+    const path: { x: number; y: number; t: number }[] = [];
+    if (n < 3) return { path, bbox: { xmin: 0, xmax: 1, ymin: 0, ymax: 1 } };
+
+    // estados
+    let vx = 0,
+      vy = 0;
+    let x = 0,
+      y = 0;
+
+    const deg2rad = (d: number) => (d * Math.PI) / 180;
+    const kLeak = (dt: number) => Math.max(0, 1 - leak * Math.max(0, dt)); // factor [0..1]
+
+    for (let i = 1; i < n; i++) {
+      const dt = Math.max(0, time[i] - time[i - 1]);
+      if (!Number.isFinite(dt) || dt <= 0) {
+        path.push({ x, y, t: time[i] });
+        continue;
+      }
+
+      const ax = g * Math.tan(deg2rad(theta[i] || 0));
+      const ay = -g * Math.tan(deg2rad(phi[i] || 0));
+
+      // integración con fuga (leaky) para v y s
+      vx = vx * kLeak(dt) + ax * dt;
+      vy = vy * kLeak(dt) + ay * dt;
+
+      x = x * kLeak(dt) + vx * dt;
+      y = y * kLeak(dt) + vy * dt;
+
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        path.push({ x, y, t: time[i] });
+      } else {
+        path.push({ x: 0, y: 0, t: time[i] });
+      }
+    }
+
+    // bounding box
+    const xs = path.map((p) => p.x),
+      ys = path.map((p) => p.y);
+    const xmin = Math.min(...xs, -1),
+      xmax = Math.max(...xs, 1);
+    const ymin = Math.min(...ys, -1),
+      ymax = Math.max(...ys, 1);
+    return { path, bbox: { xmin, xmax, ymin, ymax } };
+  }, [smooth, rollDeg, pitchDeg, time, leak, g]);
+
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext("2d")!;
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = c.clientWidth || 600,
+      cssH = 360;
+    c.width = Math.floor(cssW * dpr);
+    c.height = Math.floor(cssH * dpr);
+    c.style.height = cssH + "px";
+
+    // fondo
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.fillStyle = "rgba(17,24,39,0.9)";
+    ctx.fillRect(0, 0, c.width, c.height);
+
+    const padding = { l: 55, r: 20, t: 24, b: 38 };
+    const x0 = padding.l * dpr,
+      y0 = padding.t * dpr;
+    const x1 = (cssW - padding.r) * dpr,
+      y1 = (cssH - padding.b) * dpr;
+    const w = x1 - x0,
+      h = y1 - y0;
+
+    // grid + ejes
+    ctx.strokeStyle = "rgba(255,255,255,0.06)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 6; i++) {
+      const xx = x0 + (i / 6) * w;
+      ctx.beginPath();
+      ctx.moveTo(xx, y0);
+      ctx.lineTo(xx, y1);
+      ctx.stroke();
+    }
+    for (let j = 0; j <= 4; j++) {
+      const yy = y0 + (j / 4) * h;
+      ctx.beginPath();
+      ctx.moveTo(x0, yy);
+      ctx.lineTo(x1, yy);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = "rgba(148,163,184,0.6)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0, y1);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+
+    // etiquetas
+    ctx.fillStyle = "rgba(203,213,225,0.9)";
+    ctx.font = `${12 * dpr}px ui-sans-serif, system-ui`;
+    ctx.textAlign = "left";
+    ctx.fillText(title, 8 * dpr, 18 * dpr);
+    ctx.textAlign = "right";
+    ctx.fillText(scaleLabel, x1, (cssH - 10) * dpr);
+
+    // nada para dibujar
+    if (!path.length) {
+      ctx.textAlign = "center";
+      ctx.fillStyle = "rgba(148,163,184,0.8)";
+      ctx.fillText("Sin datos", (x0 + x1) / 2, (y0 + y1) / 2);
+      return;
+    }
+
+    // escalado con aspecto 1:1 (mismo factor en X e Y)
+    const { xmin, xmax, ymin, ymax } = bbox;
+    const cx = (xmin + xmax) / 2;
+    const cy = (ymin + ymax) / 2;
+    // padding 10%
+    const sx = (xmax - xmin) * 1.1 || 1;
+    const sy = (ymax - ymin) * 1.1 || 1;
+    // usa mismo factor para mantener aspecto
+    const scale = Math.min(w / sx, h / sy);
+    const xToPx = (x: number) => x0 + (x - (cx - sx / 2)) * scale;
+    const yToPx = (y: number) => y1 - (y - (cy - sy / 2)) * scale;
+
+    // trayectoria
+    ctx.strokeStyle = "rgba(16,185,129,0.95)";
+    ctx.lineWidth = Math.max(1.6 * dpr, 1.2);
+    ctx.beginPath();
+    let started = false;
+    for (const p of path) {
+      const X = xToPx(p.x),
+        Y = yToPx(p.y);
+      if (!Number.isFinite(X) || !Number.isFinite(Y)) continue;
+      if (!started) {
+        ctx.moveTo(X, Y);
+        started = true;
+      } else {
+        ctx.lineTo(X, Y);
+      }
+    }
+    ctx.stroke();
+
+    // punto inicio y fin
+    const p0 = path[0],
+      pN = path[path.length - 1];
+    // inicio (círculo)
+    ctx.fillStyle = "rgba(59,130,246,0.9)";
+    ctx.beginPath();
+    ctx.arc(xToPx(p0.x), yToPx(p0.y), 4 * dpr, 0, Math.PI * 2);
+    ctx.fill();
+    // fin (cuadrado)
+    ctx.fillStyle = "rgba(250,204,21,0.95)";
+    ctx.fillRect(
+      xToPx(pN.x) - 3 * dpr,
+      yToPx(pN.y) - 3 * dpr,
+      6 * dpr,
+      6 * dpr
+    );
+  }, [path, bbox, title, scaleLabel, leak, g, smoothWin]);
+
+  // Export helper
+  const onDownload = () => downloadCanvasPNG(canvasRef.current, "motion2d.png");
+
+  return (
+    <div className="w-full">
+      <canvas
+        ref={canvasRef}
+        className="w-full block rounded-lg border border-gray-800 bg-gray-900"
+        style={{ height: 360 }}
+      />
+      <div className="mt-2">
+        <button
+          onClick={onDownload}
+          className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1 hover:bg-gray-700 text-xs"
+        >
+          Descargar PNG
+        </button>
+      </div>
+      <div className="mt-1 text-[11px] text-gray-400">
+        Modelo simplificado: a_x≈g·tan(θ), a_y≈−g·tan(φ), integración con fuga
+        (leak={leak} s⁻¹).
+      </div>
+    </div>
+  );
+}
 
 export default function AnalysisPanel({
   flightId,
@@ -208,7 +458,20 @@ export default function AnalysisPanel({
 }: AnalysisPanelProps) {
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<JobStatus>("idle");
+  const [plotData, setPlotData] = useState<PlotData | null>(null);
   const [files, setFiles] = useState<AnalysisFile[]>([]);
+
+  // Helper functions for labels and units
+  useMemo(() => {
+    const labels = plotData?.meta?.labels || {};
+    const units = plotData?.meta?.units || {};
+
+    return {
+      lbl: (k: string, fallback: string) => labels[k] ?? fallback,
+      unit: (k: string, fallback = "") =>
+        units[k] ? ` (${units[k]})` : fallback,
+    };
+  }, [plotData]);
   interface MetricsData {
     metrics?: {
       combined?: {
@@ -221,7 +484,6 @@ export default function AnalysisPanel({
     inputs?: { fs_hz_est?: number; duration_s?: number };
   }
   const [metricsJson, setMetricsJson] = useState<MetricsData | null>(null);
-  const [plotData, setPlotData] = useState<PlotData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
 
@@ -410,7 +672,6 @@ export default function AnalysisPanel({
   );
 
   const plotJsonLink = useMemo(
-    // NEW
     () => files.find((f) => f.name.endsWith("plot_data.json")),
     [files]
   );
@@ -434,7 +695,7 @@ export default function AnalysisPanel({
     <section className="rounded-2xl border border-gray-800 bg-gray-900/40 p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">📈 Análisis del vuelo</h2>
+          <h2 className="text-lg font-semibold">📈 Graficas de vuelo</h2>
           <p className="text-sm text-gray-400">
             {effectiveFlightId ? (
               <>
@@ -459,7 +720,7 @@ export default function AnalysisPanel({
                 : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
-            {status === "running" ? "Procesando…" : "Generar análisis"}
+            {status === "running" ? "Procesando…" : "Generar graficas"}
           </button>
           {allowRetry && status === "error" && (
             <button
@@ -522,7 +783,7 @@ export default function AnalysisPanel({
             Ver JSON de métricas
           </a>
         )}
-        {plotJsonLink && ( // NEW
+        {plotJsonLink && (
           <a
             href={plotJsonLink.url}
             target="_blank"
@@ -559,21 +820,6 @@ export default function AnalysisPanel({
           </a>
         )}
       </div>
-      {/* Latencias PRO si están disponibles */}
-      {plotData?.pro?.latency && (
-        <div className="mb-5 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat
-            label="Latencia roll (ref→est)"
-            value={fmt(plotData.pro.latency.roll_ref_to_est_ms, 1)}
-            suffix=" ms"
-          />
-          <Stat
-            label="Latencia pitch (ref→est)"
-            value={fmt(plotData.pro.latency.pitch_ref_to_est_ms, 1)}
-            suffix=" ms"
-          />
-        </div>
-      )}
       {/* Tabla de respuesta a escalón */}
       {plotData?.pro?.step_responses &&
       plotData.pro.step_responses.length > 0 ? (
@@ -610,6 +856,8 @@ export default function AnalysisPanel({
           </div>
         ) : null)}
 
+      {/* PSD visualization will be added in a future update */}
+
       {/* NUEVO: Gráficas interactivas (puntos + línea) */}
       {plotData ? (
         <div className="mb-6 space-y-6">
@@ -632,19 +880,6 @@ export default function AnalysisPanel({
               titleRight="est (verde) · ref (ámbar)"
             />
           </PlotCard>
-          <PlotCard title="Esfuerzo y motores">
-            <TauMotorsCanvas
-              time={plotData.time_s}
-              tauX={plotData.control.tau_x ?? undefined}
-              tauY={plotData.control.tau_y ?? undefined}
-              tauMag={plotData.control.tau_mag ?? undefined}
-              motorAvg={plotData.control.motors?.avg}
-              motorDiff13={plotData.control.motors?.diff_13}
-              motorDiff24={plotData.control.motors?.diff_24}
-              yLabelLeft="τ (arb)"
-              yLabelRight="motores (arb)"
-            />
-          </PlotCard>
           <PlotCard title="Pitch — seguimiento (est vs ref)">
             <TrackingAxisCanvas
               time={plotData.time_s}
@@ -663,28 +898,30 @@ export default function AnalysisPanel({
               titleRight="est (verde) · ref (ámbar)"
             />
           </PlotCard>
-          {plotData.quick_corr && (
-            <PlotCard title="Correlaciones móviles rápidas">
-              <CorrelationsCanvas
+          <PlotCard title="Esfuerzo y motores">
+            <TauMotorsCanvas
+              time={plotData.time_s}
+              tauX={plotData.control.tau_x ?? undefined}
+              tauY={plotData.control.tau_y ?? undefined}
+              tauMag={plotData.control.tau_mag ?? undefined}
+              motorAvg={plotData.control.motors?.avg}
+              motorDiff13={plotData.control.motors?.diff_13}
+              motorDiff24={plotData.control.motors?.diff_24}
+              yLabelLeft="τ (arb)"
+              yLabelRight="motores (arb)"
+            />
+          </PlotCard>
+          {plotData && (
+            <PlotCard title="Estimación de movimiento (derivado de ángulos)">
+              <Motion2DCanvas
                 time={plotData.time_s}
-                corrSeries={[
-                  {
-                    name: "|e_roll| ↔ |τ|",
-                    data: plotData.quick_corr?.abs_err_roll_vs_tau ?? [],
-                  },
-                  {
-                    name: "|e_pitch| ↔ |τ|",
-                    data: plotData.quick_corr?.abs_err_pitch_vs_tau ?? [],
-                  },
-                  {
-                    name: "τ ↔ (m1 - m3)",
-                    data: plotData.quick_corr?.tau_vs_motor_diff_13 ?? [],
-                  },
-                  {
-                    name: "τ ↔ (m2 - m4)",
-                    data: plotData.quick_corr?.tau_vs_motor_diff_24 ?? [],
-                  },
-                ]}
+                rollDeg={plotData.roll.est} // φ estimado (deg)
+                pitchDeg={plotData.pitch.est} // θ estimado (deg)
+                g={9.81}
+                leak={0.02} // puedes subir a 0.05 si ves deriva
+                smoothWin={7} // opcional: suaviza ángulos
+                scaleLabel="m"
+                title="Recorrido estimado (vista superior)"
               />
             </PlotCard>
           )}

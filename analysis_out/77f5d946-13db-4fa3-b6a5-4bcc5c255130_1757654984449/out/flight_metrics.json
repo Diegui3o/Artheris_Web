@@ -1,0 +1,177 @@
+{
+  "ok": true,
+  "inputs": {
+    "num_samples": 374,
+    "columns_present": [
+      "acc_x",
+      "acc_y",
+      "acc_z",
+      "altura",
+      "angle_pitch",
+      "angle_pitch_est",
+      "angle_roll",
+      "angle_roll_est",
+      "angle_yaw",
+      "device_id",
+      "error_phi",
+      "error_theta",
+      "flight_id",
+      "flight_mode",
+      "gyro_rate_pitch",
+      "gyro_rate_roll",
+      "gyro_rate_yaw",
+      "input_throttle",
+      "input_yaw",
+      "latency_ms",
+      "motor_1",
+      "motor_2",
+      "motor_3",
+      "motor_4",
+      "packet_received",
+      "pitch",
+      "ref_pitch",
+      "ref_roll",
+      "roll",
+      "tau_x",
+      "tau_y",
+      "tau_z",
+      "time_seconds",
+      "timestamp",
+      "yaw"
+    ],
+    "fs_hz_est": 47.61871459225031,
+    "duration_s": 8.319999933242798
+  },
+  "metrics": {
+    "rmse_roll": 0.0,
+    "rmse_pitch": 0.0,
+    "overshoot_roll_pct": 0.0,
+    "overshoot_pitch_pct": 0.0,
+    "settling_time_roll_s": 0.0,
+    "settling_time_pitch_s": 0.0,
+    "roll": {
+      "name": "roll",
+      "duration_s": 8.319999933242798,
+      "fs_hz": 47.61871459225031,
+      "signal": {
+        "raw": {
+          "std": 0.11526048255321389,
+          "rms": 0.11592340270246404,
+          "peak_deg": 0.47
+        },
+        "kalman": {
+          "std": 0.015557913474519371,
+          "rms": 0.015557913474519371,
+          "peak_deg": 0.05732620320855616
+        },
+        "dominant_freq_hz": 4.583619586419816
+      },
+      "kalman_effectiveness": {
+        "variance_ratio": 54.88556803950756,
+        "hf_noise_reduction_db": 26.583046363161206,
+        "snr_improvement_db": 11.259798147585748,
+        "delay_s": 0.04200029373168945
+      },
+      "response": {
+        "settling_from_9d_to_pm2d_s": null,
+        "oscillations": {
+          "half_cycles": 0,
+          "cycles": 0,
+          "dominant_freq_hz": 4.583619586419816
+        }
+      },
+      "error": {
+        "rmse_deg": 0.0,
+        "mae_deg": 0.0,
+        "ise_deg2_s": 0.0,
+        "iae_deg_s": 0.0,
+        "itae_deg_s2": 0.0,
+        "itse_deg2_s2": 0.0,
+        "max_abs_error_deg": 0.0
+      },
+      "control": {
+        "tau_rms": 0.0,
+        "tau_energy": 0.0,
+        "tau_avg_abs": 0.0,
+        "jerk_rms": 0.0
+      },
+      "stabilization_score": 100.0
+    },
+    "pitch": {
+      "name": "pitch",
+      "duration_s": 8.319999933242798,
+      "fs_hz": 47.61871459225031,
+      "signal": {
+        "raw": {
+          "std": 0.07981641712145356,
+          "rms": 0.17558077806430988,
+          "peak_deg": 0.47
+        },
+        "kalman": {
+          "std": 0.013773868948577114,
+          "rms": 0.013773868948577114,
+          "peak_deg": 0.03572192513368985
+        },
+        "dominant_freq_hz": 0.6366138314471967
+      },
+      "kalman_effectiveness": {
+        "variance_ratio": 33.5793715991137,
+        "hf_noise_reduction_db": 26.153184359426852,
+        "snr_improvement_db": 15.84901727867744,
+        "delay_s": 0.04200029373168945
+      },
+      "response": {
+        "settling_from_9d_to_pm2d_s": null,
+        "oscillations": {
+          "half_cycles": 0,
+          "cycles": 0,
+          "dominant_freq_hz": 0.6366138314471967
+        }
+      },
+      "error": {
+        "rmse_deg": 0.0,
+        "mae_deg": 0.0,
+        "ise_deg2_s": 0.0,
+        "iae_deg_s": 0.0,
+        "itae_deg_s2": 0.0,
+        "itse_deg2_s2": 0.0,
+        "max_abs_error_deg": 0.0
+      },
+      "control": {
+        "tau_rms": 0.0,
+        "tau_energy": 0.0,
+        "tau_avg_abs": 0.0,
+        "jerk_rms": 0.0
+      },
+      "stabilization_score": 100.0
+    },
+    "combined": {
+      "stabilization_score": 100.0,
+      "kalman_effectiveness_avg": {
+        "variance_ratio": 44.23246981931063,
+        "hf_noise_reduction_db": 26.36811536129403,
+        "snr_improvement_db": 13.554407713131594,
+        "delay_s": 0.04200029373168945
+      }
+    },
+    "pro": {
+      "tracking": {
+        "roll": {
+          "overshoot_pct": null
+        },
+        "pitch": {
+          "overshoot_pct": null
+        }
+      },
+      "latency_ms": {
+        "roll": null,
+        "pitch": null
+      },
+      "summary": {
+        "fs_hz": 47.61904761904758,
+        "total_steps": 0
+      }
+    }
+  },
+  "mode": "batch"
+}

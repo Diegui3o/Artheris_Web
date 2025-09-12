@@ -1,11 +1,15 @@
 import path from "path";
 import { fileURLToPath } from "url";
+import os from "os";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// === QuestDB HTTP endpoint ===
-// (No tocamos tu pool pg; aquí usamos /exec por HTTP, así no modificas tu questdb.js)
+export const TMP_DIR = path.join(os.tmpdir(), "artheris-flight-tmp");
+import fs from "fs";
+try {
+  fs.mkdirSync(TMP_DIR, { recursive: true });
+} catch {}
 export const QUESTDB_HTTP_URL =
   process.env.QUESTDB_HTTP_URL || "http://localhost:9000";
 
@@ -55,7 +59,6 @@ export const COLS = {
   flight_id_fk: "flight_id",
 };
 
-export const TMP_DIR = path.join(__dirname, "tmp");
 export const CSV_DELIM = ",";
 
 // Python

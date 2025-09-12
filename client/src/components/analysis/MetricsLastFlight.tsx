@@ -1,5 +1,5 @@
-import KalmanComparePanel from "../components/KalmanComparePanel";
-import AnalysisPanel from "../components/ui/AnalysisPanel";
+import KalmanComparePanel from "./KalmanComparePanel";
+import AnalysisPanel from "./GraphData";
 import { useEffect, useRef, useState } from "react";
 
 /* ===== Tipos de backend/QuestDB ===== */

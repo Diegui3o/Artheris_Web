@@ -1,5 +1,6 @@
 // src/components/FlightPlots.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { downloadCanvasPNG } from "../../utils/canvasUtils";
 
 /* ========== 1) Seguimiento por eje: est vs ref (+ raw opcional) ========== */
 export function TrackingAxisCanvas({
@@ -21,10 +22,16 @@ export function TrackingAxisCanvas({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hover, setHover] = useState<{ t: number; v: number } | null>(null);
+  
+  const downloadPng = () => {
+    downloadCanvasPNG(canvasRef.current, 'tracking_axis.png');
+  };
+
 
   const { tMin, tMax, yMin, yMax } = useMemo(() => {
-    const tMin = Math.min(...time);
-    const tMax = Math.max(...time);
+    const tMin = Math.min(...time),
+      tMax = Math.max(...time);
+
     const allY: number[] = [
       ...(raw ?? []).filter(Number.isFinite),
       ...(est ?? []).filter(Number.isFinite),
@@ -218,11 +225,10 @@ export function TrackingAxisCanvas({
     yMin,
     yMax,
     hover,
+    titleRight,
   ]);
 
-  // hover en base a est
   function onMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (!est?.length) return;
     const c = canvasRef.current;
     if (!c) return;
     const rect = c.getBoundingClientRect();
@@ -251,7 +257,9 @@ export function TrackingAxisCanvas({
       }
       idx = best;
     }
-    setHover({ t: time[idx], v: est[idx] });
+    if (est && est[idx] !== undefined) {
+      setHover({ t: time[idx], v: est[idx] });
+    }
   }
   return (
     <div className="w-full">
@@ -262,6 +270,14 @@ export function TrackingAxisCanvas({
         className="w-full block rounded-lg border border-gray-800 bg-gray-900"
         style={{ height: 320 }}
       />
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          onClick={downloadPng}
+          className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1 hover:bg-gray-700 text-xs"
+        >
+          Descargar PNG
+        </button>
+      </div>
       <div className="mt-2 flex items-center gap-3 text-xs text-gray-400">
         {raw?.length ? (
           <span className="inline-flex items-center gap-1">
@@ -444,6 +460,7 @@ export function TauMotorsCanvas({
 }
 
 /* ========== 3) Correlaciones rápidas (rolling) ========== */
+
 export function CorrelationsCanvas({
   time,
   corrSeries, // [{name, data}]
@@ -570,22 +587,18 @@ export function CorrelationsCanvas({
   }, [time, series, tMin, tMax, yMin, yMax, yLabel]);
 
   return (
-    <div>
-      <canvas
-        ref={canvasRef}
-        className="w-full block rounded-lg border border-gray-800 bg-gray-900"
-        style={{ height: 300 }}
-      />
-      <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-400">
-        {series.map((s) => (
-          <span key={s.name} className="inline-flex items-center gap-1">
-            <span
-              className="inline-block w-3 h-0.5"
-              style={{ background: s.color }}
-            />{" "}
-            {s.name}
-          </span>
-        ))}
+    <div className="w-full">
+      <canvas ref={canvasRef} /* ... */ />
+      {/* export helper */}
+      <div className="mt-2">
+        <button
+          onClick={() =>
+            downloadCanvasPNG(canvasRef.current, "roll_tracking.png")
+          }
+          className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1 hover:bg-gray-700 text-xs"
+        >
+          Descargar PNG
+        </button>
       </div>
     </div>
   );

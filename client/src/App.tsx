@@ -20,7 +20,7 @@ import Calibration from "./page/Calibration";
 import MotorSimulation from "./page/MotorSimulation";
 import Simulator from "./page/Simulator";
 import CameraPage from "./page/CameraPage";
-import MetricsLastFlight from "./page/MetricsLastFlight";
+import MetricsLastFlight from "./components/analysis/MetricsLastFlight";
 
 const App: React.FC = () => {
   const DeviceProfileWrapper = () => {

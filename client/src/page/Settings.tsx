@@ -173,8 +173,16 @@ export default function Settings() {
       };
 
       // Format the controller parameters based on the controller type
+      requestBody = {
+        ...requestBody,
+        controller: {
+          type: controllerConfig.type,
+          params: controllerConfig.params
+        }
+      };
+      
+      // For backward compatibility, also include Kc and Ki directly for LQR
       if (controllerConfig.type === "lqr") {
-        // For LQR, we need to send Kc and Ki directly in the root
         requestBody = {
           ...requestBody,
           ...controllerConfig.params, // This will spread Kc and Ki

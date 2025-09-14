@@ -1,20 +1,29 @@
 import pg from "pg";
 import { v4 as uuidv4 } from "uuid";
 
-const pool = new pg.Pool({
-  host: "localhost",
-  port: 8812,
-  user: "admin",
-  password: "quest",
-  database: "qdb",
-});
+function createPool() {
+  return new pg.Pool({
+    host: "localhost",
+    port: 8812,
+    user: "admin",
+    password: "quest",
+    database: "qdb",
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 0,
+    maxUses: 10000,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+    max: 10,
+  });
+}
 
-// Verify connection to Questdb at the start
+let pool = createPool();
+
 pool
   .query("SELECT 1")
-  .then(() => console.log("✅ Connection to Questdb Established"))
+  .then(() => console.log("✅ Connection to QuestDB Established"))
   .catch((err) => {
-    console.error("❌ Could not be connected to Questdb");
+    console.error("❌ Could not connect to QuestDB:", err.message);
   });
 
 function safe(value) {
@@ -46,7 +55,65 @@ function safeJSON(obj) {
     return "NULL";
   }
 }
+// Errores que justifican recrear el pool y reintentar
+const RETRYABLE_NET = new Set([
+  "ECONNRESET",
+  "EPIPE",
+  "ETIMEDOUT",
+  "EHOSTUNREACH",
+  "ENETDOWN",
+  "ENETRESET",
+  "ECONNABORTED",
+]);
+const RETRYABLE_PG = new Set(["57P01", "57P02", "08006", "08000"]);
 
+export async function query(sql, params) {
+  return runQuery(sql, params);
+}
+
+export async function runQuery(sql, params) {
+  try {
+    return await pool.query(sql, params);
+  } catch (err) {
+    const code = err?.code;
+    const msg = String(err?.message || "");
+    const isTerminated = msg.includes("Connection terminated unexpectedly");
+    const netErr = RETRYABLE_NET.has(code);
+    const pgErr = RETRYABLE_PG.has(code);
+
+    if (isTerminated || netErr || pgErr) {
+      console.warn("[db] connection died, recreating pool and retrying once…", {
+        code,
+        msg,
+      });
+      try {
+        await pool.end().catch(() => {});
+      } catch {}
+      pool = createPool();
+      return await pool.query(sql, params);
+    }
+    throw err;
+  }
+}
+
+setInterval(() => {
+  runQuery("SELECT 1").catch((e) =>
+    console.warn("[db] keepalive failed:", e.message)
+  );
+}, 60_000);
+
+// Cierre limpio
+async function shutdown() {
+  try {
+    await pool.end();
+  } finally {
+    process.exit(0);
+  }
+}
+process.once("SIGINT", shutdown);
+process.once("SIGTERM", shutdown);
+
+// Pool is already exported above
 export async function saveControllerConfig({
   flightId,
   controllerType, // 'PID' | 'LQR' | 'CUSTOM'
@@ -70,8 +137,9 @@ export async function saveControllerConfig({
     `📝 controller_config saved for flight ${flightId} (${controllerType})`
   );
 }
+
 export async function createFlightWithController({
-  controllerType, // 'PID' | 'LQR' | 'CUSTOM'
+  controllerType,
   pid = null,
   lqr = null,
   custom = null,
@@ -81,25 +149,64 @@ export async function createFlightWithController({
 }) {
   await ensureTableExists();
 
+  // 🔧 Normaliza tipo a minúsculas
+  const type = String(controllerType || "").toLowerCase(); // "pid" | "lqr" | "custom"
+
   const flightId = uuidv4();
   const startTime = new Date().toISOString();
 
-  // Si es LQR preparamos los campos existentes; si no, quedan NULL
+  // Initialize Kc and Ki with null values
   let kc = {
-    "Kc_at[0][0]": null,
-    "Kc_at[1][1]": null,
-    "Kc_at[2][2]": null,
-    "Kc_at[0][3]": null,
-    "Kc_at[1][4]": null,
-    "Kc_at[2][5]": null,
+    "Kc_at[0][0]": 0,
+    "Kc_at[1][1]": 0,
+    "Kc_at[2][2]": 0,
+    "Kc_at[0][3]": 0,
+    "Kc_at[1][4]": 0,
+    "Kc_at[2][5]": 0,
   };
-  let ki = { "Ki_at[0][0]": null, "Ki_at[1][1]": null, "Ki_at[2][2]": null };
+  let ki = {
+    "Ki_at[0][0]": 0,
+    "Ki_at[1][1]": 0,
+    "Ki_at[2][2]": 0,
+  };
 
-  if (controllerType === "LQR" && lqr?.Kc && lqr?.Ki) {
+  if (type === "lqr" && lqr && lqr.Kc && lqr.Ki) {
+    // For LQR, use the provided Kc and Ki matrices
     kc = lqr.Kc;
     ki = lqr.Ki;
+  } else if (type === "pid" && pid) {
+    // For PID, map the PID parameters to Kc and Ki
+    const { roll, pitch, yaw } = pid;
+
+    // Helper to get rate kp/ki from PID axis
+    const getRateParams = (axis) => {
+      if (!axis) return { kp: 0, ki: 0 };
+      if (axis.kind === "cascade" && axis.rate) {
+        return { kp: axis.rate.kp || 0, ki: axis.rate.ki || 0 };
+      }
+      if (axis.kind === "rate" || axis.kind === "simple") {
+        return { kp: axis.kp || 0, ki: axis.ki || 0 };
+      }
+      return { kp: 0, ki: 0 };
+    };
+
+    // Map roll PID to Kc/Ki
+    const rollRate = getRateParams(roll);
+    kc["Kc_at[0][0]"] = rollRate.kp;
+    ki["Ki_at[0][0]"] = rollRate.ki;
+
+    // Map pitch PID to Kc/Ki
+    const pitchRate = getRateParams(pitch);
+    kc["Kc_at[1][1]"] = pitchRate.kp;
+    ki["Ki_at[1][1]"] = pitchRate.ki;
+
+    // Map yaw PID to Kc (yaw typically doesn't have integral term)
+    const yawRate = getRateParams(yaw);
+    kc["Kc_at[2][2]"] = yawRate.kp;
+    ki["Ki_at[2][2]"] = 0; // No integral term for yaw
   }
 
+  const six = (x) => (typeof x === "number" ? Number(x.toFixed(6)) : x);
   const kc_array = [
     kc["Kc_at[0][0]"],
     kc["Kc_at[1][1]"],
@@ -109,14 +216,10 @@ export async function createFlightWithController({
     kc["Kc_at[2][5]"],
   ];
   const ki_array = [ki["Ki_at[0][0]"], ki["Ki_at[1][1]"], ki["Ki_at[2][2]"]];
-
-  // Mejor precisión para ganancias LQR
-  const six = (x) => (typeof x === "number" ? Number(x.toFixed(6)) : x);
   const [kc_0_0, kc_1_1, kc_2_2, kc_0_3, kc_1_4, kc_2_5] = kc_array.map(six);
   const [ki_0_0, ki_1_1, ki_2_2] = ki_array.map(six);
 
-  // Intentamos insertar con controller_type; si falla, hacemos fallback
-  const insertWithType = `
+  const insert = `
     INSERT INTO flights (
       flight_id, start_time, mass, arm_length,
       kc_0_0, kc_1_1, kc_2_2, kc_0_3, kc_1_4, kc_2_5,
@@ -129,60 +232,27 @@ export async function createFlightWithController({
       ${safe(kc_0_0)}, ${safe(kc_1_1)}, ${safe(kc_2_2)},
       ${safe(kc_0_3)}, ${safe(kc_1_4)}, ${safe(kc_2_5)},
       ${safe(ki_0_0)}, ${safe(ki_1_1)}, ${safe(ki_2_2)},
-      ${safeString(controllerType)}
+      ${safeString(type)}
     )
   `;
-  const insertFallback = `
-    INSERT INTO flights (
-      flight_id, start_time, mass, arm_length,
-      kc_0_0, kc_1_1, kc_2_2, kc_0_3, kc_1_4, kc_2_5,
-      ki_0_0, ki_1_1, ki_2_2
-    ) VALUES (
-      ${safeString(flightId)}, '${startTime}', ${safe(mass)}, ${safe(
-    armLength
-  )},
-      ${safe(kc_0_0)}, ${safe(kc_1_1)}, ${safe(kc_2_2)},
-      ${safe(kc_0_3)}, ${safe(kc_1_4)}, ${safe(kc_2_5)},
-      ${safe(ki_0_0)}, ${safe(ki_1_1)}, ${safe(ki_2_2)}
-    )
-  `;
+  await executeQueryWithRetry(insert);
 
-  try {
-    await executeQueryWithRetry(insertWithType);
-  } catch (err) {
-    console.warn("⚠️ flights.controller_type no disponible, usando fallback.");
-    await executeQueryWithRetry(insertFallback);
-  }
-
-  // Guardamos la configuración elegida (PID/LQR/Custom) como snapshot JSON
   const configObj =
-    controllerType === "PID"
+    type === "pid"
       ? pid
-      : controllerType === "LQR"
+      : type === "lqr"
       ? lqr
-      : controllerType === "CUSTOM"
+      : type === "custom"
       ? custom
       : null;
 
   await saveControllerConfig({
     flightId,
-    controllerType,
+    controllerType: type,
     config: configObj,
     meta,
     ts: startTime,
   });
-
-  console.log("\n" + "=".repeat(80));
-  console.log(`✅ FLIGHT CREATED SUCCESSFULLY`);
-  console.log("=".repeat(80));
-  console.log(`🚀 FLIGHT ID: ${flightId}`);
-  console.log("=".repeat(80));
-  console.log("🔍 To query:");
-  console.log(`SELECT * FROM flights WHERE flight_id = ${safe(flightId)};`);
-  console.log(
-    `SELECT * FROM controller_config WHERE flight_id = ${safe(flightId)};`
-  );
-  console.log("=".repeat(80) + "\n");
 
   return flightId;
 }
@@ -269,21 +339,17 @@ export async function getFlightData(flightId) {
   }
 }
 
-async function executeQueryWithRetry(query, retries = 5, delay = 1000) {
+export async function executeQueryWithRetry(query, retries = 5, delay = 1000) {
   for (let i = 0; i < retries; i++) {
     try {
-      await pool.query(query);
+      await runQuery(query);
       return;
     } catch (error) {
-      if (error.code === "00000" && error.message.includes("table busy")) {
-        console.warn(`⚠️ Table busy, retrying in ${delay}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      } else {
-        throw error;
-      }
+      if (i === retries - 1) throw error;
+      console.warn(`Query failed (${i + 1}/${retries}):`, error.message);
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
-  throw new Error("❌ Max retries reached, could not execute query");
 }
 
 export async function finalizeStaleFlights(idleMs = 5000) {
@@ -449,7 +515,7 @@ export async function insertSensorData(sensor, flightId) {
         roll, pitch, yaw,
         innov_roll, S_roll, innov_pitch, S_pitch, P_roll, P_pitch
       ) VALUES (
-    ${tsExpr}, ${safeString(flightId)},
+    ${tsExpr}, '${flightId}',
         ${safeWithPrecision(KalmanAngleRoll)}, ${safeWithPrecision(
     KalmanAnglePitch
   )}, ${safeWithPrecision(AngleYaw)},
@@ -742,4 +808,5 @@ export async function checkQuestDBConnection() {
   }
 }
 
+// Export the pool and other utilities
 export { formatWithPrecision, pool };

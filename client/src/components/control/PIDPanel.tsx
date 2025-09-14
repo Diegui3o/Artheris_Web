@@ -284,7 +284,7 @@ function AxisCard({
   );
 }
 
-/* ---- Panel principal (sin presets) ---- */
+/* ---- Panel principal (sin altitude) ---- */
 export default function PIDPanel({
   value,
   onChange,
@@ -292,28 +292,8 @@ export default function PIDPanel({
   value: PIDGains;
   onChange: (next: PIDGains) => void;
 }) {
-  const toggleAlt = (enabled: boolean) => {
-    onChange({
-      ...value,
-      altitude: enabled
-        ? value.altitude ?? {
-            enabled: true,
-            pos: { kp: 1.0, ki: 0.01 },
-            vel: { kp: 0.2, ki: 0.1, kd: 0.01, i_limit: 0.4, d_cut_hz: 30 },
-          }
-        : {
-            ...(value.altitude ?? {
-              pos: { kp: 0, ki: 0 },
-              vel: { kp: 0, ki: 0, kd: 0 },
-            }),
-            enabled: false,
-          },
-    });
-  };
-
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 space-y-4">
-      {/* Ejes */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <AxisCard title="Roll" axis="roll" value={value} onChange={onChange} />
         <AxisCard
@@ -329,145 +309,6 @@ export default function PIDPanel({
           onChange={onChange}
           allowRateOnly
         />
-      </div>
-
-      {/* Altitud opcional */}
-      <div className="rounded-lg border border-gray-800 bg-gray-900 p-3">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <h4 className="font-medium text-gray-100">Altitud (Pos → Vel)</h4>
-          <label className="inline-flex items-center gap-2 text-sm text-gray-200">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-blue-500"
-              checked={!!value.altitude?.enabled}
-              onChange={(e) => toggleAlt(e.target.checked)}
-            />
-            Activar
-          </label>
-        </div>
-
-        {value.altitude?.enabled && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-md border border-gray-800 bg-gray-900 p-3">
-              <h5 className="mb-3 font-medium">Posición Z (lazo externo)</h5>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Field label="Kp">
-                  <Num
-                    value={value.altitude.pos.kp}
-                    onChange={(x) =>
-                      onChange({
-                        ...value,
-                        altitude: {
-                          ...value.altitude!,
-                          pos: { ...value.altitude!.pos, kp: x },
-                        },
-                      })
-                    }
-                    step={0.01}
-                  />
-                </Field>
-                <Field label="Ki">
-                  <Num
-                    value={value.altitude.pos.ki}
-                    onChange={(x) =>
-                      onChange({
-                        ...value,
-                        altitude: {
-                          ...value.altitude!,
-                          pos: { ...value.altitude!.pos, ki: x },
-                        },
-                      })
-                    }
-                    step={0.001}
-                  />
-                </Field>
-              </div>
-            </div>
-
-            <div className="rounded-md border border-gray-800 bg-gray-900 p-3">
-              <h5 className="mb-3 font-medium">Velocidad Z (lazo interno)</h5>
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="Kp">
-                  <Num
-                    value={value.altitude.vel.kp}
-                    onChange={(x) =>
-                      onChange({
-                        ...value,
-                        altitude: {
-                          ...value.altitude!,
-                          vel: { ...value.altitude!.vel, kp: x },
-                        },
-                      })
-                    }
-                    step={0.01}
-                  />
-                </Field>
-                <Field label="Ki">
-                  <Num
-                    value={value.altitude.vel.ki}
-                    onChange={(x) =>
-                      onChange({
-                        ...value,
-                        altitude: {
-                          ...value.altitude!,
-                          vel: { ...value.altitude!.vel, ki: x },
-                        },
-                      })
-                    }
-                    step={0.001}
-                  />
-                </Field>
-                <Field label="Kd">
-                  <Num
-                    value={value.altitude.vel.kd}
-                    onChange={(x) =>
-                      onChange({
-                        ...value,
-                        altitude: {
-                          ...value.altitude!,
-                          vel: { ...value.altitude!.vel, kd: x },
-                        },
-                      })
-                    }
-                    step={0.001}
-                  />
-                </Field>
-              </div>
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <Field label="i_limit">
-                  <Num
-                    value={value.altitude.vel.i_limit ?? 0.4}
-                    onChange={(x) =>
-                      onChange({
-                        ...value,
-                        altitude: {
-                          ...value.altitude!,
-                          vel: { ...value.altitude!.vel, i_limit: x },
-                        },
-                      })
-                    }
-                    step={0.01}
-                  />
-                </Field>
-                <Field label="d_cut_hz">
-                  <Num
-                    value={value.altitude.vel.d_cut_hz ?? 30}
-                    onChange={(x) =>
-                      onChange({
-                        ...value,
-                        altitude: {
-                          ...value.altitude!,
-                          vel: { ...value.altitude!.vel, d_cut_hz: x },
-                        },
-                      })
-                    }
-                    step={1}
-                  />
-                </Field>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

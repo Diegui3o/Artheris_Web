@@ -2,7 +2,7 @@ import express from "express";
 import {
   finalizeStaleFlights,
   listRecentFlights,
-  insertNewFlight,
+  createFlightWithController,
   insertSensorData,
   printLastSensorData,
   updateFlightEndTime,
@@ -40,35 +40,74 @@ export default function createRecordingRouter({
         recordingTimeout = null;
       }
 
-      const { Kc, Ki, mass, armLength, durationMs } = req.body || {};
-      const isIndefinite = durationMs === undefined || durationMs === null;
+      const { mass, armLength, durationMs, controller, Kc, Ki, PID, custom } =
+        req.body || {};
+      console.log("[rec] raw payload (keys):", {
+        hasController: !!controller,
+        controllerType: controller?.type,
+        hasKc: !!Kc,
+        hasKi: !!Ki,
+        hasPID: !!PID,
+        hasCustom: !!custom,
+      });
 
+      const isIndefinite = durationMs == null;
       if (!isIndefinite) {
-        if (typeof durationMs === "number" && durationMs > 0) {
-          recordingDuration = durationMs;
-        } else {
+        if (!(typeof durationMs === "number" && durationMs > 0)) {
           return res.status(400).json({ error: "Invalid duration parameter" });
         }
+        recordingDuration = durationMs;
       }
 
-      if (!Kc || typeof Kc !== "object" || Object.keys(Kc).length < 6) {
-        return res
-          .status(400)
-          .json({ error: "Incomplete or invalid Kc parameters" });
+      // 🔄 Normalize controller type and parameters
+      let normType, normParams;
+      
+      // First check for the new controller object format
+      if (controller && controller.type) {
+        normType = String(controller.type).toLowerCase();
+        normParams = controller.params;
+      } 
+      // Fallback to old format for backward compatibility
+      else if (Kc && Ki) {
+        normType = "lqr";
+        normParams = { Kc, Ki };
+      } else if (PID) {
+        normType = "pid";
+        normParams = PID;
+      } else if (custom) {
+        normType = "custom";
+        normParams = custom;
+      } else {
+        return res.status(400).json({ 
+          error: "Missing controller parameters",
+          details: "Expected format: { controller: { type: 'pid'|'lqr'|'custom', params: {...} }"
+        });
       }
-      if (!Ki || typeof Ki !== "object" || Object.keys(Ki).length < 3) {
-        return res
-          .status(400)
-          .json({ error: "Incomplete or invalid Ki parameters" });
+      
+      console.log("[rec] controller type:", normType, "params:", normParams);
+
+      // Validaciones mínimas por tipo
+      if (normType === "lqr" && (!normParams?.Kc || !normParams?.Ki)) {
+        return res.status(400).json({ error: "LQR requires Kc and Ki" });
       }
-      if (typeof mass !== "number" || isNaN(mass)) {
+      if (typeof mass !== "number" || Number.isNaN(mass)) {
         return res.status(400).json({ error: "Mass parameter invalid" });
       }
-      if (typeof armLength !== "number" || isNaN(armLength)) {
+      if (typeof armLength !== "number" || Number.isNaN(armLength)) {
         return res.status(400).json({ error: "Parameter armLength invalid" });
       }
 
-      const flightId = await insertNewFlight(Kc, Ki, mass, armLength);
+      const flightId = await createFlightWithController({
+        controllerType: normType,
+        pid: normType === "pid" ? normParams : null,
+        lqr: normType === "lqr" ? normParams : null,
+        custom: normType === "custom" ? normParams : null,
+        mass,
+        armLength,
+        meta: { source: "ui" },
+      });
+
+      console.log("[rec] created flight", flightId, "type:", normType);
 
       currentFlightId = flightId;
       state.isRecording = true;
@@ -76,16 +115,10 @@ export default function createRecordingRouter({
       recordingStartTime = Date.now();
 
       if (!isIndefinite) {
-        if (recordingTimeout) {
-          clearTimeout(recordingTimeout);
-          recordingTimeout = null;
-        }
         recordingTimeout = setTimeout(async () => {
           try {
             await updateFlightEndTime(currentFlightId);
-          } catch (e) {
-            console.error(e);
-          }
+          } catch {}
           currentFlightId = null;
           state.isRecording = false;
           state.flightId = null;
@@ -94,21 +127,23 @@ export default function createRecordingRouter({
         }, recordingDuration);
       }
 
-      res.json({
+      return res.json({
         message: isIndefinite
           ? "Indefinite recording started"
           : "Recording initiated",
         active: true,
         flightId,
-        durationMs: isIndefinite ? null : recordingDuration, // <- NUMÉRICO o null
+        durationMs: isIndefinite ? null : recordingDuration,
         isIndefinite,
       });
     } catch (err) {
       console.error("Error in /start-recording:", err);
-      res.status(500).json({
-        error: "Internal error in /start-recording",
-        details: err.message,
-      });
+      return res
+        .status(500)
+        .json({
+          error: "Internal error in /start-recording",
+          details: err.message,
+        });
     }
   });
 

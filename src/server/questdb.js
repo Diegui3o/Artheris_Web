@@ -775,20 +775,21 @@ export async function ensureTableExists() {
 }
 
 export async function listRecentFlights(limit = 10) {
-  try {
-    await ensureTableExists();
-    const q = `
-      SELECT flight_id, start_time, end_time, mass
-      FROM flights
-      ORDER BY start_time DESC
-      LIMIT ${Number(limit) || 10}
-    `;
-    const r = await pool.query(q);
-    return r.rows || [];
-  } catch (e) {
-    console.error("❌ listRecentFlights error:", e.message);
-    return [];
-  }
+  await ensureTableExists();
+  const q = `
+    SELECT f.flight_id, f.start_time, f.end_time, f.mass,
+           COALESCE(s.samples, 0) AS samples
+    FROM flights f
+    LEFT JOIN (
+      SELECT flight_id, count(*) AS samples
+      FROM sensor_data
+      GROUP BY flight_id
+    ) s ON s.flight_id = f.flight_id
+    ORDER BY f.start_time DESC
+    LIMIT ${Number(limit) || 10}
+  `;
+  const r = await pool.query(q);
+  return r.rows || [];
 }
 
 // Check QuestDB connection and ensure tables exist

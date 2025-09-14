@@ -57,17 +57,13 @@ export default function Settings() {
         try {
           return JSON.parse(cached) as ControllerConfig;
         } catch {
-          // If JSON parsing fails, we'll use the default LQR config
-          // This is fine as it's just a fallback for corrupted localStorage
           return { type: "lqr", params: defaultLQR };
         }
       }
-      // por defecto LQR
       return { type: "lqr", params: defaultLQR };
     }
   );
 
-  // Sync selector -> default params (cuando cambias de tipo)
   useEffect(() => {
     let next: ControllerConfig = controllerConfig;
     if (controllerType !== controllerConfig.type) {
@@ -86,7 +82,7 @@ export default function Settings() {
     localStorage.setItem("controllerConfig", JSON.stringify(controllerConfig));
   }, [controllerConfig]);
 
-  // Recording UI (idéntico a tu código con normalizaciones)
+  // Recording state
   const [recording, setRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(30);
   const [indefiniteRecording, setIndefiniteRecording] = useState(false);
@@ -94,6 +90,19 @@ export default function Settings() {
     active: false,
   });
   const [lastFlightId, setLastFlightId] = useState<string | null>(null);
+
+  // Update recording status timer
+  useEffect(() => {
+    if (!recordingStatus.active || recordingStatus.remainingMs == null) return;
+    const t = setInterval(() => {
+      setRecordingStatus((prev) => {
+        if (!prev.active || prev.remainingMs == null) return prev;
+        const next = Math.max(0, prev.remainingMs - 1000);
+        return { ...prev, remainingMs: next };
+      });
+    }, 1000);
+    return () => clearInterval(t);
+  }, [recordingStatus.active, recordingStatus.remainingMs]);
 
   const statusLabel = useMemo(
     () => (recordingStatus.active ? "Activo" : "Inactivo"),
@@ -146,7 +155,7 @@ export default function Settings() {
       }
     };
     checkStatus();
-    const id = setInterval(checkStatus, 1000000);
+    const id = setInterval(checkStatus, 1000);
     return () => {
       isMounted = false;
       clearInterval(id);
@@ -158,7 +167,7 @@ export default function Settings() {
       const durationMs = indefiniteRecording
         ? undefined
         : recordingDuration * 1000;
-      
+
       let requestBody: {
         mass: number;
         armLength: number;
@@ -169,7 +178,7 @@ export default function Settings() {
       } = {
         mass,
         armLength,
-        ...(durationMs !== undefined && { durationMs })
+        ...(durationMs !== undefined && { durationMs }),
       };
 
       // Format the controller parameters based on the controller type
@@ -177,10 +186,10 @@ export default function Settings() {
         ...requestBody,
         controller: {
           type: controllerConfig.type,
-          params: controllerConfig.params
-        }
+          params: controllerConfig.params,
+        },
       };
-      
+
       // For backward compatibility, also include Kc and Ki directly for LQR
       if (controllerConfig.type === "lqr") {
         requestBody = {
@@ -190,51 +199,51 @@ export default function Settings() {
       } else if (controllerConfig.type === "pid") {
         // Map PID parameters to Kc and Ki structures
         const { roll, pitch, yaw } = controllerConfig.params;
-        
+
         // Helper function to get Kp value based on axis type
         const getKp = (axis: PIDAxis): KP => {
-          if (axis.kind === 'cascade') {
+          if (axis.kind === "cascade") {
             const cascadeAxis = axis as PIDAxisCascade;
             return {
               angle: cascadeAxis.angle?.kp || 0,
-              rate: cascadeAxis.rate?.kp || 0
+              rate: cascadeAxis.rate?.kp || 0,
             };
-          } else if (axis.kind === 'simple' || axis.kind === 'rate') {
+          } else if (axis.kind === "simple" || axis.kind === "rate") {
             const simpleAxis = axis as PIDAxisSimple | PIDAxisRate;
             return {
               angle: 0,
-              rate: simpleAxis.kp || 0
+              rate: simpleAxis.kp || 0,
             };
           }
           return { angle: 0, rate: 0 };
         };
-        
+
         // Helper function to get Ki value based on axis type
         const getKi = (axis: PIDAxis): KI => {
-          if (axis.kind === 'cascade') {
+          if (axis.kind === "cascade") {
             const cascadeAxis = axis as PIDAxisCascade;
             return {
               angle: cascadeAxis.angle?.ki || 0,
-              rate: cascadeAxis.rate?.ki || 0
+              rate: cascadeAxis.rate?.ki || 0,
             };
-          } else if (axis.kind === 'simple' || axis.kind === 'rate') {
+          } else if (axis.kind === "simple" || axis.kind === "rate") {
             const simpleAxis = axis as PIDAxisSimple | PIDAxisRate;
             return {
               angle: 0,
-              rate: simpleAxis.ki || 0
+              rate: simpleAxis.ki || 0,
             };
           }
           return { angle: 0, rate: 0 };
         };
-        
+
         // Get Kp and Ki for each axis
         const rollKp = getKp(roll as PIDAxis);
         const pitchKp = getKp(pitch as PIDAxis);
         const yawKp = getKp(yaw as PIDAxis);
-        
+
         const rollKi = getKi(roll as PIDAxis);
         const pitchKi = getKi(pitch as PIDAxis);
-        
+
         // Build Kc and Ki objects
         const Kc = {
           roll_angle_kp: rollKp.angle,
@@ -244,14 +253,14 @@ export default function Settings() {
           yaw_angle_kp: yawKp.angle,
           yaw_rate_kp: yawKp.rate,
         };
-        
+
         const Ki = {
           roll_angle_ki: rollKi.angle,
           roll_rate_ki: rollKi.rate,
           pitch_angle_ki: pitchKi.angle,
           pitch_rate_ki: pitchKi.rate,
         };
-        
+
         requestBody = {
           ...requestBody,
           Kc,
@@ -263,7 +272,9 @@ export default function Settings() {
           ...requestBody,
           ...controllerConfig.params,
         };
-        console.warn('Custom controller support may need additional configuration');
+        console.warn(
+          "Custom controller support may need additional configuration"
+        );
       }
 
       const response = await fetch(`${API_BASE}/recording/start-recording`, {

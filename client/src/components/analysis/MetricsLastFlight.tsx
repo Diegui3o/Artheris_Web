@@ -169,7 +169,6 @@ export default function MetricsLastFlight() {
   const cols = batch?.inputs?.columns_present ?? [];
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const REFRESH_MS = 20000;
 
   const currentFlightIdRef = useRef<string | null>(null);
@@ -211,6 +210,7 @@ export default function MetricsLastFlight() {
           // solo setea si no hay uno ya (usa el ref espejo)
           if (fid && !currentFlightIdRef.current) {
             setCurrentFlightId(fid);
+            currentFlightIdRef.current = fid;
             setError(null);
           } else if (!fid && !currentFlightIdRef.current) {
             setError("No hay flightId reciente. Graba un vuelo primero.");
@@ -313,6 +313,7 @@ export default function MetricsLastFlight() {
   const runBatch = async () => {
     setLoadingBatch(true);
     setError(null);
+
     try {
       const latestCompleted = recentFlights.find(
         (f) => f.status === "completed"
@@ -324,13 +325,35 @@ export default function MetricsLastFlight() {
         localStorage.getItem("lastFlightId");
 
       if (!fid) throw new Error("No hay un vuelo completado para analizar.");
+      // Asegura que el ref quede actualizado si decidimos este fid
+      currentFlightIdRef.current = fid;
 
       const r = await fetch("http://localhost:3002/metrics/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ flightId: fid }),
       });
-      if (!r.ok) throw new Error(await r.text());
+      // Caso esperado: el backend devuelve 404 si no hay muestras
+      if (r.status === 404) {
+        let payload: { message?: string } | null = null;
+        try {
+          payload = (await r.json()) as { message?: string };
+        } catch (error) {
+          console.error("Error parsing error response:", error);
+        }
+        setBatch(null);
+        setError(
+          payload?.message ??
+            "Este vuelo no tiene muestras en sensor_data. Graba un vuelo y verifica que llegue telemetría."
+        );
+        return;
+      }
+
+      if (!r.ok) {
+        const txt = await r.text();
+        throw new Error(txt || `HTTP ${r.status}`);
+      }
+
       const batchData: BatchResponse = await r.json();
       setBatch(batchData);
     } catch (e: unknown) {
@@ -551,7 +574,7 @@ export default function MetricsLastFlight() {
 
                 {/* Respuesta / asentamiento / oscilaciones */}
                 <Metric
-                  label="Asentamiento (24° → ±5°)"
+                  label="Asentamiento (9° → ±2.5°)"
                   value={
                     pick(
                       batch.metrics,
@@ -571,7 +594,7 @@ export default function MetricsLastFlight() {
                       batch.metrics,
                       "roll.response.settling_from_24d_to_pm5d_s"
                     ) == null
-                      ? "sin excursión ≥ 24° en este vuelo"
+                      ? "sin excursión ≥ 9° en este vuelo"
                       : undefined
                   }
                 />

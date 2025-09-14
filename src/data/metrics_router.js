@@ -195,11 +195,20 @@ export default function createDataMetricsRouter({ state } = {}) {
       });
     } catch (e) {
       console.error("[Batch Metrics] error:", e);
-      return res.status(500).json({
-        ok: false,
-        error: "internal_server_error",
-        message: e.message,
-      });
+      if (/No data found for flight/i.test(e.message || "")) {
+        return res.status(404).json({
+          ok: false,
+          error: "no_data_for_flight",
+          message: "Este vuelo no tiene muestras en sensor_data.",
+        });
+      }
+      return res
+        .status(500)
+        .json({
+          ok: false,
+          error: "internal_server_error",
+          message: e.message,
+        });
     }
   });
   router.delete("/metrics/purge", (req, res) => {

@@ -5,8 +5,47 @@ export function handleSocketConnection(socket, state) {
     flightId: state.flightId,
   });
 
-  // Issue the last telemetry when connecting
   socket.emit("sensorUpdate", state.latestTelemetry);
+
+  // Ingesta centralizada: guarda en memoria, emite a clientes y persiste si hay grabación
+  state.ingestTelemetry = async (data) => {
+    try {
+      state.latestTelemetry = data;
+      socket.server.emit("sensorUpdate", data);
+
+      if (state.isRecording && state.flightId) {
+        const { insertSensorData } = await import("../server/questdb.js");
+        await insertSensorData(data, state.flightId);
+        // console.log(`💾 Saved telemetry to flight ${state.flightId}`);
+      }
+
+      // buffer en memoria (opcional)
+      state.telemetries = state.telemetries || [];
+      state.telemetries.push(data);
+      if (state.telemetries.length > 100) state.telemetries.shift();
+    } catch (err) {
+      console.error("❌ ingestTelemetry failed:", err);
+    }
+  };
+
+  // Escucha TODOS los formatos que podrían llegarte y redirígelos a ingestTelemetry
+  socket.on("Telemetry", (data) => state.ingestTelemetry(data));
+  socket.on("telemetria", (data) => state.ingestTelemetry(data));
+  socket.on("message", (raw) => {
+    try {
+      const d = typeof raw === "string" ? JSON.parse(raw) : raw;
+      if (d?.type === "telemetria" && d.payload)
+        return state.ingestTelemetry(d.payload);
+      if (d?.type === "Telemetry" && d.payload)
+        return state.ingestTelemetry(d.payload);
+      // Si ya viene el objeto directo:
+      if (d?.KalmanAngleRoll !== undefined || d?.AngleRoll !== undefined) {
+        return state.ingestTelemetry(d);
+      }
+    } catch (e) {
+      console.error("❌ Error parsing socket 'message':", e);
+    }
+  });
 
   // Allow the backend to emit telemetry to all customers easily
   state.emitTelemetry = (telemetry) => {

@@ -18,16 +18,12 @@ pool
   });
 
 function safe(value) {
-  if (value === undefined || value === null || isNaN(value)) {
-    return "NULL";
-  }
-  if (typeof value === "string") {
-    return `'${value.replace(/'/g, "''")}'`;
-  }
-  if (typeof value === "number") {
-    return Number(value.toFixed(3));
-  }
-  return value;
+  if (value === undefined || value === null) return "NULL";
+  if (typeof value === "string") return `'${value.replace(/'/g, "''")}'`;
+  if (typeof value === "number")
+    return Number.isFinite(value) ? Number(value.toFixed(3)) : "NULL";
+  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
+  return "NULL";
 }
 
 function formatWithPrecision(value, decimals = 3) {
@@ -38,6 +34,239 @@ function formatWithPrecision(value, decimals = 3) {
     return Number(value.toFixed(decimals));
   }
   return value;
+}
+
+function safeString(s) {
+  return `'${String(s).replace(/'/g, "''")}'`;
+}
+function safeJSON(obj) {
+  try {
+    return safeString(JSON.stringify(obj));
+  } catch {
+    return "NULL";
+  }
+}
+
+export async function saveControllerConfig({
+  flightId,
+  controllerType, // 'PID' | 'LQR' | 'CUSTOM'
+  config, // objeto JS (PID/LQR/Custom)
+  meta = {}, // {presetName, version, source:'ui'|'fw'...}
+  ts = new Date().toISOString(),
+}) {
+  await ensureTableExists();
+  const q = `
+    INSERT INTO controller_config (timestamp, flight_id, controller_type, config, meta)
+    VALUES (
+      '${new Date(ts).toISOString()}',
+      ${safeString(flightId)},
+      ${safeString(controllerType)},
+      ${safeJSON(config)},
+      ${safeJSON(meta)}
+    )
+  `;
+  await executeQueryWithRetry(q);
+  console.log(
+    `📝 controller_config saved for flight ${flightId} (${controllerType})`
+  );
+}
+export async function createFlightWithController({
+  controllerType, // 'PID' | 'LQR' | 'CUSTOM'
+  pid = null,
+  lqr = null,
+  custom = null,
+  mass = null,
+  armLength = null,
+  meta = {},
+}) {
+  await ensureTableExists();
+
+  const flightId = uuidv4();
+  const startTime = new Date().toISOString();
+
+  // Si es LQR preparamos los campos existentes; si no, quedan NULL
+  let kc = {
+    "Kc_at[0][0]": null,
+    "Kc_at[1][1]": null,
+    "Kc_at[2][2]": null,
+    "Kc_at[0][3]": null,
+    "Kc_at[1][4]": null,
+    "Kc_at[2][5]": null,
+  };
+  let ki = { "Ki_at[0][0]": null, "Ki_at[1][1]": null, "Ki_at[2][2]": null };
+
+  if (controllerType === "LQR" && lqr?.Kc && lqr?.Ki) {
+    kc = lqr.Kc;
+    ki = lqr.Ki;
+  }
+
+  const kc_array = [
+    kc["Kc_at[0][0]"],
+    kc["Kc_at[1][1]"],
+    kc["Kc_at[2][2]"],
+    kc["Kc_at[0][3]"],
+    kc["Kc_at[1][4]"],
+    kc["Kc_at[2][5]"],
+  ];
+  const ki_array = [ki["Ki_at[0][0]"], ki["Ki_at[1][1]"], ki["Ki_at[2][2]"]];
+
+  // Mejor precisión para ganancias LQR
+  const six = (x) => (typeof x === "number" ? Number(x.toFixed(6)) : x);
+  const [kc_0_0, kc_1_1, kc_2_2, kc_0_3, kc_1_4, kc_2_5] = kc_array.map(six);
+  const [ki_0_0, ki_1_1, ki_2_2] = ki_array.map(six);
+
+  // Intentamos insertar con controller_type; si falla, hacemos fallback
+  const insertWithType = `
+    INSERT INTO flights (
+      flight_id, start_time, mass, arm_length,
+      kc_0_0, kc_1_1, kc_2_2, kc_0_3, kc_1_4, kc_2_5,
+      ki_0_0, ki_1_1, ki_2_2,
+      controller_type
+    ) VALUES (
+      ${safeString(flightId)}, '${startTime}', ${safe(mass)}, ${safe(
+    armLength
+  )},
+      ${safe(kc_0_0)}, ${safe(kc_1_1)}, ${safe(kc_2_2)},
+      ${safe(kc_0_3)}, ${safe(kc_1_4)}, ${safe(kc_2_5)},
+      ${safe(ki_0_0)}, ${safe(ki_1_1)}, ${safe(ki_2_2)},
+      ${safeString(controllerType)}
+    )
+  `;
+  const insertFallback = `
+    INSERT INTO flights (
+      flight_id, start_time, mass, arm_length,
+      kc_0_0, kc_1_1, kc_2_2, kc_0_3, kc_1_4, kc_2_5,
+      ki_0_0, ki_1_1, ki_2_2
+    ) VALUES (
+      ${safeString(flightId)}, '${startTime}', ${safe(mass)}, ${safe(
+    armLength
+  )},
+      ${safe(kc_0_0)}, ${safe(kc_1_1)}, ${safe(kc_2_2)},
+      ${safe(kc_0_3)}, ${safe(kc_1_4)}, ${safe(kc_2_5)},
+      ${safe(ki_0_0)}, ${safe(ki_1_1)}, ${safe(ki_2_2)}
+    )
+  `;
+
+  try {
+    await executeQueryWithRetry(insertWithType);
+  } catch (err) {
+    console.warn("⚠️ flights.controller_type no disponible, usando fallback.");
+    await executeQueryWithRetry(insertFallback);
+  }
+
+  // Guardamos la configuración elegida (PID/LQR/Custom) como snapshot JSON
+  const configObj =
+    controllerType === "PID"
+      ? pid
+      : controllerType === "LQR"
+      ? lqr
+      : controllerType === "CUSTOM"
+      ? custom
+      : null;
+
+  await saveControllerConfig({
+    flightId,
+    controllerType,
+    config: configObj,
+    meta,
+    ts: startTime,
+  });
+
+  console.log("\n" + "=".repeat(80));
+  console.log(`✅ FLIGHT CREATED SUCCESSFULLY`);
+  console.log("=".repeat(80));
+  console.log(`🚀 FLIGHT ID: ${flightId}`);
+  console.log("=".repeat(80));
+  console.log("🔍 To query:");
+  console.log(`SELECT * FROM flights WHERE flight_id = ${safe(flightId)};`);
+  console.log(
+    `SELECT * FROM controller_config WHERE flight_id = ${safe(flightId)};`
+  );
+  console.log("=".repeat(80) + "\n");
+
+  return flightId;
+}
+
+export async function insertNewFlight(Kc, Ki, mass = null, armLength = null) {
+  return await createFlightWithController({
+    controllerType: "LQR",
+    lqr: {
+      Kc: {
+        "Kc_at[0][0]": Kc[0],
+        "Kc_at[1][1]": Kc[1],
+        "Kc_at[2][2]": Kc[2],
+        "Kc_at[0][3]": Kc[3],
+        "Kc_at[1][4]": Kc[4],
+        "Kc_at[2][5]": Kc[5],
+      },
+      Ki: {
+        "Ki_at[0][0]": Ki[0],
+        "Ki_at[1][1]": Ki[1],
+        "Ki_at[2][2]": Ki[2],
+      },
+    },
+    mass,
+    armLength,
+    meta: { source: "ui", note: "legacy insertNewFlight" },
+  });
+}
+
+export async function getFlightData(flightId) {
+  try {
+    await ensureTableExists();
+
+    const flightQ = `
+      SELECT * FROM flights WHERE flight_id = ${safe(flightId)} LIMIT 1
+    `;
+    const flightR = await pool.query(flightQ);
+    if (flightR.rows.length === 0) return null;
+
+    // Última config
+    const cfgQ = `
+      SELECT controller_type, config, meta, timestamp
+      FROM controller_config
+      WHERE flight_id = ${safe(flightId)}
+      ORDER BY timestamp DESC
+      LIMIT 1
+    `;
+    const cfgR = await pool.query(cfgQ);
+    let cfg = null;
+    if (cfgR.rows.length) {
+      try {
+        cfg = {
+          controller_type: cfgR.rows[0].controller_type,
+          meta: JSON.parse(cfgR.rows[0].meta || "{}"),
+          config: JSON.parse(cfgR.rows[0].config || "{}"),
+          timestamp: cfgR.rows[0].timestamp,
+        };
+      } catch {
+        cfg = {
+          controller_type: cfgR.rows[0].controller_type,
+          raw: cfgR.rows[0].config,
+        };
+      }
+    }
+
+    // Muestras rápidas
+    const sensorQ = `
+      SELECT timestamp, angle_roll, angle_pitch, angle_yaw,
+             acc_x, acc_y, acc_z, input_throttle
+      FROM sensor_data
+      WHERE flight_id = ${safe(flightId)}
+      ORDER BY timestamp DESC
+      LIMIT 10
+    `;
+    const sensorR = await pool.query(sensorQ);
+
+    return {
+      flight: flightR.rows[0],
+      controller: cfg,
+      sensorData: sensorR.rows,
+    };
+  } catch (err) {
+    console.error("❌ getFlightData error:", err.message);
+    return null;
+  }
 }
 
 async function executeQueryWithRetry(query, retries = 5, delay = 1000) {
@@ -80,7 +309,7 @@ export async function finalizeStaleFlights(idleMs = 5000) {
     const { rows } = await pool.query(getStaleFlightsQuery);
     for (const { flight_id } of rows) {
       await pool.query(
-        `UPDATE flights SET end_time = now() WHERE flight_id = $1 AND end_time IS NULL`,
+        "UPDATE flights SET end_time = now() WHERE flight_id = $1 AND end_time IS NULL",
         [flight_id]
       );
     }
@@ -132,60 +361,6 @@ export async function updateFlightEndTime(flightId) {
     }
 
     return false;
-  }
-}
-
-export async function insertNewFlight(Kc, Ki, mass = null, armLength = null) {
-  // Ensure tables exist before inserting data
-  await ensureTableExists();
-
-  const flightId = uuidv4();
-  const startTime = new Date().toISOString();
-
-  const kc_array = [
-    Kc["Kc_at[0][0]"],
-    Kc["Kc_at[1][1]"],
-    Kc["Kc_at[2][2]"],
-    Kc["Kc_at[0][3]"],
-    Kc["Kc_at[1][4]"],
-    Kc["Kc_at[2][5]"],
-  ];
-
-  const ki_array = [Ki["Ki_at[0][0]"], Ki["Ki_at[1][1]"], Ki["Ki_at[2][2]"]];
-
-  const [kc_0_0, kc_1_1, kc_2_2, kc_0_3, kc_1_4, kc_2_5] = kc_array.map(safe);
-
-  const [ki_0_0, ki_1_1, ki_2_2] = ki_array.map(safe);
-
-  const query = `
-        INSERT INTO flights (
-            flight_id, start_time, mass, arm_length,
-            kc_0_0, kc_1_1, kc_2_2,
-            kc_0_3, kc_1_4, kc_2_5,
-            ki_0_0, ki_1_1, ki_2_2
-        ) VALUES (
-            '${flightId}', '${startTime}', ${safe(mass)}, ${safe(armLength)},
-            ${kc_0_0}, ${kc_1_1}, ${kc_2_2},
-            ${kc_0_3}, ${kc_1_4}, ${kc_2_5},
-            ${ki_0_0}, ${ki_1_1}, ${ki_2_2}
-        )
-    `;
-
-  try {
-    await executeQueryWithRetry(query);
-    console.log("\n" + "=".repeat(80));
-    console.log(`✅ FLIGHT CREATED SUCCESSFULLY`);
-    console.log("=".repeat(80));
-    console.log(`🚀 FLIGHT ID: ${flightId}`);
-    console.log("=".repeat(80));
-    console.log("🔍 To query this flight in QuestDB Web Console:");
-    console.log(`SELECT * FROM flights WHERE flight_id = '${flightId}';`);
-    console.log(`SELECT * FROM sensor_data WHERE flight_id = '${flightId}';`);
-    console.log("=".repeat(80) + "\n");
-    return flightId;
-  } catch (err) {
-    console.error("❌ Error when inserting new flight:", err);
-    throw err;
   }
 }
 
@@ -249,10 +424,6 @@ export async function insertSensorData(sensor, flightId) {
     P_pitch = null,
   } = sensor || {};
 
-  // 1) Timestamp correcto
-  //   - usa isoTime si viene en formato válido
-  //   - si no, intenta con telemetryTime/`timestamp` si fuera ISO (no lo es en tu caso)
-  //   - si nada válido, usa now()
   let tsExpr = "now()";
   if (typeof isoTime === "string" && !Number.isNaN(Date.parse(isoTime))) {
     tsExpr = `'${new Date(isoTime).toISOString()}'`;
@@ -301,7 +472,7 @@ export async function insertSensorData(sensor, flightId) {
   )}, ${safeWithPrecision(MotorInput3)}, ${safeWithPrecision(MotorInput4)},
         ${safeWithPrecision(Altura)},
         ${safeWithPrecision(modo)},
-        ${safe(deviceId)},
+        ${safeString(deviceId)},
         ${safeWithPrecision(roll)}, ${safeWithPrecision(
     pitch
   )}, ${safeWithPrecision(yaw)},
@@ -345,61 +516,6 @@ export async function insertControlState(modo, ledStatus, motorStatus) {
   }
 }
 
-export async function getFlightData(flightId) {
-  try {
-    await ensureTableExists();
-
-    // Get flight info
-    const flightQuery = `
-            SELECT * FROM flights 
-            WHERE flight_id = '${flightId}'
-            LIMIT 1`;
-
-    const flightResult = await pool.query(flightQuery);
-
-    if (flightResult.rows.length === 0) {
-      console.log(`❌ No flight found with ID: ${flightId}`);
-      return null;
-    }
-
-    // Get sensor data for this flight
-    const sensorQuery = `
-            SELECT timestamp, angle_roll, angle_pitch, angle_yaw, 
-                   acc_x, acc_y, acc_z, input_throttle
-            FROM sensor_data 
-            WHERE flight_id = '${flightId}'
-            ORDER BY timestamp DESC
-            LIMIT 10`;
-
-    const sensorResult = await pool.query(sensorQuery);
-
-    // Format the output
-    console.log("\n📋 Flight Information:");
-    console.log("----------------------------------------");
-    console.log(`ID: ${flightResult.rows[0].flight_id}`);
-    console.log(`Start Time: ${flightResult.rows[0].start_time}`);
-    console.log(`Mass: ${flightResult.rows[0].mass} kg`);
-    const st = flightResult.rows[0].end_time ? "completed" : "recording";
-    console.log(`Status: ${st}`);
-
-    console.log("\n📊 Latest Sensor Data:");
-    console.log("----------------------------------------");
-    if (sensorResult.rows.length > 0) {
-      console.table(sensorResult.rows);
-    } else {
-      console.log("No sensor data available for this flight yet.");
-    }
-
-    return {
-      flight: flightResult.rows[0],
-      sensorData: sensorResult.rows,
-    };
-  } catch (err) {
-    console.error("❌ Error retrieving flight data:", err.message);
-    return null;
-  }
-}
-
 export async function printLastSensorData(n = 10, returnRows = false) {
   try {
     // Ensure table exists before querying
@@ -416,134 +532,173 @@ export async function printLastSensorData(n = 10, returnRows = false) {
     if (returnRows) return [];
   }
 }
+export async function getLatestControllerSnapshot(flightId) {
+  const q = `
+    SELECT controller_type, config, meta, timestamp
+    FROM controller_config
+    WHERE flight_id = ${safeString(flightId)}
+    ORDER BY timestamp DESC
+    LIMIT 1
+  `;
+  const r = await pool.query(q);
+  if (!r.rows.length) return null;
+  return {
+    controller_type: r.rows[0].controller_type,
+    timestamp: r.rows[0].timestamp,
+    config: JSON.parse(r.rows[0].config || "{}"),
+    meta: JSON.parse(r.rows[0].meta || "{}"),
+  };
+}
 
 export async function ensureTableExists() {
   try {
-    // flights
+    // 1) flights
     const flightsExists = await pool.query(
       "SELECT table_name FROM tables() WHERE table_name = 'flights'"
     );
     if (flightsExists.rows.length === 0) {
       const createFlightsTable = `
-          CREATE TABLE flights (
-            flight_id SYMBOL,
-            start_time TIMESTAMP,
-            mass DOUBLE,
-            arm_length DOUBLE,
-            kc_0_0 DOUBLE,
-            kc_1_1 DOUBLE,
-            kc_2_2 DOUBLE,
-            kc_0_3 DOUBLE,
-            kc_1_4 DOUBLE,
-            kc_2_5 DOUBLE,
-            ki_0_0 DOUBLE,
-            ki_1_1 DOUBLE,
-            ki_2_2 DOUBLE,
-            end_time TIMESTAMP,
-            duration LONG,
-            status SYMBOL
-          ) TIMESTAMP(start_time) PARTITION BY DAY;
-        `;
+        CREATE TABLE flights (
+          flight_id SYMBOL,
+          start_time TIMESTAMP,
+          mass DOUBLE,
+          arm_length DOUBLE,
+          kc_0_0 DOUBLE,
+          kc_1_1 DOUBLE,
+          kc_2_2 DOUBLE,
+          kc_0_3 DOUBLE,
+          kc_1_4 DOUBLE,
+          kc_2_5 DOUBLE,
+          ki_0_0 DOUBLE,
+          ki_1_1 DOUBLE,
+          ki_2_2 DOUBLE,
+          end_time TIMESTAMP,
+          duration LONG,
+          status SYMBOL
+        ) TIMESTAMP(start_time) PARTITION BY DAY;
+      `;
       await executeQueryWithRetry(createFlightsTable);
       console.log("✅ flights table created");
-    } else {
+    }
+    // columna opcional (ignora si ya existe)
+    try {
+      await pool.query(`ALTER TABLE flights ADD COLUMN controller_type SYMBOL`);
+      console.log("✅ flights.controller_type added");
+    } catch {}
+
+    // 2) controller_config
+    const ccExists = await pool.query(
+      "SELECT table_name FROM tables() WHERE table_name = 'controller_config'"
+    );
+    if (ccExists.rows.length === 0) {
+      const createCfg = `
+        CREATE TABLE controller_config (
+          timestamp TIMESTAMP,
+          flight_id SYMBOL,
+          controller_type SYMBOL,   -- 'PID' | 'LQR' | 'CUSTOM'
+          config STRING,            -- JSON stringify
+          meta STRING               -- JSON (preset, version, notas)
+        ) TIMESTAMP(timestamp) PARTITION BY DAY;
+      `;
+      await executeQueryWithRetry(createCfg);
+      console.log("✅ controller_config table created");
     }
 
-    // sensor_data
+    // 3) sensor_data
     const sensorExists = await pool.query(
       "SELECT table_name FROM tables() WHERE table_name = 'sensor_data'"
     );
-    try {
-      await pool.query(`ALTER TABLE sensor_data ADD COLUMN innov_roll DOUBLE`);
-    } catch {}
-    try {
-      await pool.query(`ALTER TABLE sensor_data ADD COLUMN S_roll DOUBLE`);
-    } catch {}
-    try {
-      await pool.query(`ALTER TABLE sensor_data ADD COLUMN innov_pitch DOUBLE`);
-    } catch {}
-    try {
-      await pool.query(`ALTER TABLE sensor_data ADD COLUMN S_pitch DOUBLE`);
-    } catch {}
-    try {
-      await pool.query(`ALTER TABLE sensor_data ADD COLUMN P_roll DOUBLE`);
-    } catch {}
-    try {
-      await pool.query(`ALTER TABLE sensor_data ADD COLUMN P_pitch DOUBLE`);
-    } catch {}
-
-    // Add input_throttle column if it doesn't exist
-    if (sensorExists.rows.length > 0) {
+    if (sensorExists.rows.length === 0) {
+      const createSensorDataTable = `
+        CREATE TABLE sensor_data (
+          timestamp TIMESTAMP,
+          flight_id SYMBOL,
+          angle_roll_est DOUBLE,
+          angle_pitch_est DOUBLE,
+          angle_yaw DOUBLE,
+          gyro_rate_roll DOUBLE,
+          gyro_rate_pitch DOUBLE,
+          gyro_rate_yaw DOUBLE,
+          acc_x DOUBLE,
+          acc_y DOUBLE,
+          acc_z DOUBLE,
+          tau_x DOUBLE,
+          tau_y DOUBLE,
+          tau_z DOUBLE,
+          angle_roll DOUBLE,
+          angle_pitch DOUBLE,
+          error_phi DOUBLE,
+          error_theta DOUBLE,
+          input_roll DOUBLE,
+          input_pitch DOUBLE,
+          input_yaw DOUBLE,
+          input_throttle DOUBLE,
+          motor_1 DOUBLE,
+          motor_2 DOUBLE,
+          motor_3 DOUBLE,
+          motor_4 DOUBLE,
+          altura DOUBLE,
+          flight_mode INT,
+          device_id SYMBOL,
+          roll DOUBLE,
+          pitch DOUBLE,
+          yaw DOUBLE,
+          innov_roll DOUBLE,
+          S_roll DOUBLE,
+          innov_pitch DOUBLE,
+          S_pitch DOUBLE,
+          P_roll DOUBLE,
+          P_pitch DOUBLE
+        ) TIMESTAMP(timestamp) PARTITION BY DAY;
+      `;
+      await executeQueryWithRetry(createSensorDataTable);
+      console.log("✅ sensor_data table created");
+    } else {
+      // columnas nuevas (idempotentes)
       try {
         await pool.query(
           `ALTER TABLE sensor_data ADD COLUMN input_throttle DOUBLE`
         );
-        console.log("✅ sensor_data.input_throttle column added");
-      } catch (err) {
-        // Ignore if column already exists
-        if (!err.message.includes("already exists")) {
-          console.error("Error adding input_throttle column:", err);
-        }
-      }
+      } catch {}
+      try {
+        await pool.query(
+          `ALTER TABLE sensor_data ADD COLUMN innov_roll DOUBLE`
+        );
+      } catch {}
+      try {
+        await pool.query(`ALTER TABLE sensor_data ADD COLUMN S_roll DOUBLE`);
+      } catch {}
+      try {
+        await pool.query(
+          `ALTER TABLE sensor_data ADD COLUMN innov_pitch DOUBLE`
+        );
+      } catch {}
+      try {
+        await pool.query(`ALTER TABLE sensor_data ADD COLUMN S_pitch DOUBLE`);
+      } catch {}
+      try {
+        await pool.query(`ALTER TABLE sensor_data ADD COLUMN P_roll DOUBLE`);
+      } catch {}
+      try {
+        await pool.query(`ALTER TABLE sensor_data ADD COLUMN P_pitch DOUBLE`);
+      } catch {}
     }
 
-    if (sensorExists.rows.length === 0) {
-      const createSensorDataTable = `
-          CREATE TABLE sensor_data (
-            timestamp TIMESTAMP,
-            flight_id SYMBOL,
-            angle_roll_est DOUBLE,
-            angle_pitch_est DOUBLE,
-            angle_yaw DOUBLE,
-            gyro_rate_roll DOUBLE,
-            gyro_rate_pitch DOUBLE,
-            gyro_rate_yaw DOUBLE,
-            acc_x DOUBLE,
-            acc_y DOUBLE,
-            acc_z DOUBLE,
-            tau_x DOUBLE,
-            tau_y DOUBLE,
-            tau_z DOUBLE,
-            angle_roll DOUBLE,
-            angle_pitch DOUBLE,
-            error_phi DOUBLE,
-            error_theta DOUBLE,
-            input_roll DOUBLE,
-            input_pitch DOUBLE,
-            input_yaw DOUBLE,
-            motor_1 DOUBLE,
-            motor_2 DOUBLE,
-            motor_3 DOUBLE,
-            motor_4 DOUBLE,
-            altura DOUBLE,
-            flight_mode INT,
-            device_id SYMBOL,
-            roll DOUBLE,
-            pitch DOUBLE,
-            yaw DOUBLE
-          ) TIMESTAMP(timestamp) PARTITION BY DAY;
-        `;
-      await executeQueryWithRetry(createSensorDataTable);
-      console.log("✅ sensor_data table created");
-    } else {
-    }
-
-    // control_state (lo usas en insertControlState)
+    // 4) control_state
     const controlExists = await pool.query(
       "SELECT table_name FROM tables() WHERE table_name = 'control_state'"
     );
     if (controlExists.rows.length === 0) {
       const createControlTable = `
-          CREATE TABLE control_state (
-            timestamp TIMESTAMP,
-            modo INT,
-            led_status BOOLEAN,
-            motor_status BOOLEAN
-          ) TIMESTAMP(timestamp) PARTITION BY DAY;
-        `;
+        CREATE TABLE control_state (
+          timestamp TIMESTAMP,
+          modo INT,
+          led_status BOOLEAN,
+          motor_status BOOLEAN
+        ) TIMESTAMP(timestamp) PARTITION BY DAY;
+      `;
       await executeQueryWithRetry(createControlTable);
       console.log("✅ control_state table created");
-    } else {
     }
 
     return true;
@@ -552,6 +707,7 @@ export async function ensureTableExists() {
     return false;
   }
 }
+
 export async function listRecentFlights(limit = 10) {
   try {
     await ensureTableExists();

@@ -14,7 +14,22 @@ import {
   defaultPID,
   defaultLQR,
   defaultCustom,
+  PIDAxisSimple,
+  PIDAxisRate,
+  PIDAxisCascade,
 } from "../types/controller";
+
+type PIDAxis = PIDAxisSimple | PIDAxisRate | PIDAxisCascade;
+
+type KP = {
+  angle: number;
+  rate: number;
+};
+
+type KI = {
+  angle: number;
+  rate: number;
+};
 
 type RecordingStatus = {
   active: boolean;
@@ -143,32 +158,110 @@ export default function Settings() {
       const durationMs = indefiniteRecording
         ? undefined
         : recordingDuration * 1000;
-      const body = {
-        durationMs,
+      
+      let requestBody: {
+        mass: number;
+        armLength: number;
+        durationMs?: number;
+        Kc?: Record<string, number>;
+        Ki?: Record<string, number>;
+        [key: string]: unknown;
+      } = {
         mass,
         armLength,
-        controller: controllerConfig,
-        autoMetrics: false,
+        ...(durationMs !== undefined && { durationMs })
       };
 
-      let legacy: Record<string, unknown> = {};
+      // Format the controller parameters based on the controller type
       if (controllerConfig.type === "lqr") {
-        legacy = {
-          Kc: controllerConfig.params.Kc,
-          Ki: controllerConfig.params.Ki,
+        // For LQR, we need to send Kc and Ki directly in the root
+        requestBody = {
+          ...requestBody,
+          ...controllerConfig.params, // This will spread Kc and Ki
         };
       } else if (controllerConfig.type === "pid") {
-        legacy = {
-          PID: controllerConfig.params,
+        // Map PID parameters to Kc and Ki structures
+        const { roll, pitch, yaw } = controllerConfig.params;
+        
+        // Helper function to get Kp value based on axis type
+        const getKp = (axis: PIDAxis): KP => {
+          if (axis.kind === 'cascade') {
+            const cascadeAxis = axis as PIDAxisCascade;
+            return {
+              angle: cascadeAxis.angle?.kp || 0,
+              rate: cascadeAxis.rate?.kp || 0
+            };
+          } else if (axis.kind === 'simple' || axis.kind === 'rate') {
+            const simpleAxis = axis as PIDAxisSimple | PIDAxisRate;
+            return {
+              angle: 0,
+              rate: simpleAxis.kp || 0
+            };
+          }
+          return { angle: 0, rate: 0 };
+        };
+        
+        // Helper function to get Ki value based on axis type
+        const getKi = (axis: PIDAxis): KI => {
+          if (axis.kind === 'cascade') {
+            const cascadeAxis = axis as PIDAxisCascade;
+            return {
+              angle: cascadeAxis.angle?.ki || 0,
+              rate: cascadeAxis.rate?.ki || 0
+            };
+          } else if (axis.kind === 'simple' || axis.kind === 'rate') {
+            const simpleAxis = axis as PIDAxisSimple | PIDAxisRate;
+            return {
+              angle: 0,
+              rate: simpleAxis.ki || 0
+            };
+          }
+          return { angle: 0, rate: 0 };
+        };
+        
+        // Get Kp and Ki for each axis
+        const rollKp = getKp(roll as PIDAxis);
+        const pitchKp = getKp(pitch as PIDAxis);
+        const yawKp = getKp(yaw as PIDAxis);
+        
+        const rollKi = getKi(roll as PIDAxis);
+        const pitchKi = getKi(pitch as PIDAxis);
+        
+        // Build Kc and Ki objects
+        const Kc = {
+          roll_angle_kp: rollKp.angle,
+          roll_rate_kp: rollKp.rate,
+          pitch_angle_kp: pitchKp.angle,
+          pitch_rate_kp: pitchKp.rate,
+          yaw_angle_kp: yawKp.angle,
+          yaw_rate_kp: yawKp.rate,
+        };
+        
+        const Ki = {
+          roll_angle_ki: rollKi.angle,
+          roll_rate_ki: rollKi.rate,
+          pitch_angle_ki: pitchKi.angle,
+          pitch_rate_ki: pitchKi.rate,
+        };
+        
+        requestBody = {
+          ...requestBody,
+          Kc,
+          Ki,
         };
       } else if (controllerConfig.type === "custom") {
-        legacy = { custom: controllerConfig.params };
+        // For custom controller, you'll need to map the parameters appropriately
+        requestBody = {
+          ...requestBody,
+          ...controllerConfig.params,
+        };
+        console.warn('Custom controller support may need additional configuration');
       }
 
       const response = await fetch(`${API_BASE}/recording/start-recording`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, ...legacy }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {

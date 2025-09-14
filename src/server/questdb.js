@@ -449,7 +449,7 @@ export async function insertSensorData(sensor, flightId) {
         roll, pitch, yaw,
         innov_roll, S_roll, innov_pitch, S_pitch, P_roll, P_pitch
       ) VALUES (
-    ${tsExpr}, '${flightId}',
+    ${tsExpr}, ${safeString(flightId)},
         ${safeWithPrecision(KalmanAngleRoll)}, ${safeWithPrecision(
     KalmanAnglePitch
   )}, ${safeWithPrecision(AngleYaw)},

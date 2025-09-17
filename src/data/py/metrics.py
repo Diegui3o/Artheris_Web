@@ -86,7 +86,7 @@ def first_not_none(seq, default=None):
 def trapz_integral(y: np.ndarray, t: np.ndarray) -> float:
     if len(y) < 2 or len(t) < 2:
         return 0.0
-    return float(np.trapz(y, x=t))
+    return float(np.trapezoid(y, t))
 
 def estimate_fs(t: np.ndarray) -> float:
     """Estimación robusta de frecuencia de muestreo [Hz]."""
@@ -147,7 +147,6 @@ def fft_power(y: np.ndarray, fs: float):
     y = nan_clean(y - np.mean(y), 0.0)
     if len(y) < 4 or fs <= 0:
         return 0.0, 0.0, 0.0, 0.0
-    # Preferir Welch si está disponible para estimación más estable
     if _welch is not None and len(y) >= 16:
         nper = min(256, (len(y)//2)*2) if len(y) >= 32 else len(y)
         freqs, power = _welch(y, fs=fs, nperseg=max(8, nper), noverlap=None)
@@ -157,12 +156,10 @@ def fft_power(y: np.ndarray, fs: float):
         freqs = np.fft.rfftfreq(n, d=1.0/fs)
         power = (np.abs(yf)**2) / n
     total = float(np.sum(power))
-    # potencia HF
-    cutoff = min(NOISE_CUTOFF_HZ, 0.45*fs)  # si fs es baja, limita a Nyquist*0.45
+    cutoff = min(NOISE_CUTOFF_HZ, 0.45*fs)
     hf_mask = freqs >= cutoff
     hf_power = float(np.sum(power[hf_mask]))
-    # pico dominante (excluye DC)
-    dom_mask = freqs >= max(0.1, 1.0/len(y))  # evita DC
+    dom_mask = freqs >= max(0.1, 1.0/len(y))
     if np.any(dom_mask):
         idx = int(np.argmax(power[dom_mask]))
         dom_freq = float(freqs[dom_mask][idx])
@@ -185,14 +182,10 @@ def kalman_effectiveness(raw: np.ndarray, kal: np.ndarray, fs: float) -> Dict[st
     tot_r, hf_r, _, _ = fft_power(raw, fs)
     tot_k, hf_k, _, _ = fft_power(kal, fs)
 
-    # reducción de ruido HF (dB)
     hf_red_db = 10.0 * math.log10((hf_r + 1e-12) / (hf_k + 1e-12)) if hf_k>0 else 0.0
-    # SNR ~ (pot_total - pot_HF) / pot_HF
     snr_r = (tot_r - hf_r) / max(hf_r, 1e-12)
     snr_k = (tot_k - hf_k) / max(hf_k, 1e-12)
     snr_imp_db = 10.0 * math.log10((snr_k + 1e-12) / (snr_r + 1e-12)) if snr_r>0 else 0.0
-    # retardo (kal respecto a raw) por correlación cruzada
-    # Convención: lag > 0 => kal RETRASADO respecto a raw => delay_s > 0
     raw_z = raw - np.mean(raw)
     kal_z = kal - np.mean(kal)
     corr = np.correlate(kal_z, raw_z, mode="full")
@@ -281,7 +274,6 @@ def control_effort(tau: np.ndarray, t: np.ndarray) -> Dict[str, float]:
     tau_rms = float(np.sqrt(np.mean(tau*tau)))
     tau_energy = trapz_integral(tau*tau, t)
     tau_avg_abs = trapz_integral(np.abs(tau), t) / max(dur, 1e-9)
-    # jerk ~ derivada de tau
     dt = np.diff(t); dt[~np.isfinite(dt)] = np.median(dt[np.isfinite(dt)]) if np.any(np.isfinite(dt)) else 1.0
     dt[dt<=0] = np.median(dt[dt>0]) if np.any(dt>0) else 1.0
     if tau_std < 1e-9:
@@ -315,13 +307,9 @@ def stabilization_score(err: Dict[str,float],
     if math.isfinite(settle_s):
         score -= 0.8 * max(0.0, settle_s)
     score -= 3.0 * max(0, osc_cycles - 1)
-    # penaliza esfuerzo de control (normalizado por duración si está disponible)
     tau_energy = float(effort.get("tau_energy", 0.0))
     tau_const  = bool(effort.get("tau_constant", False))
-    # si tau es constante, no penalices (no confiable)
     if not tau_const:
-        # heurística: penaliza energía densa (por segundo)
-        # El caller no pasa duración aquí; usamos una escala idempotente
         score -= 0.0005 * tau_energy
         score -= 0.5 * effort.get("jerk_rms", 0.0)
     return float(max(0.0, min(100.0, score)))
@@ -355,7 +343,6 @@ def axis_metrics(name: str,
 
     # Asentamiento desde 24° a ±5°
     settle_s = settling_from_excursion(y_kal, t, entry_deg=ENTRY_DEG, band_deg=SETTLE_BAND_DEG, hold_s=HOLD_S)
-    # Oscilaciones
     osc = count_oscillations(y_kal, t, crossing_deg=SETTLE_BAND_DEG)
 
     # Errores (si err no viene, usa y_kal respecto a 0°)
@@ -365,11 +352,7 @@ def axis_metrics(name: str,
     if np.nanstd(tau) < 1e-6:
         pass
     eff_tau = control_effort(tau, t)
-
-    # Puntaje
     sc = stabilization_score(em, settle_s if math.isfinite(settle_s) else 0.0, int(osc["cycles"]), eff_tau)
-
-    # Dominant freq de señal (coherente con fft_power/Welch)
     _, _, fdom, _ = fft_power(y_kal, fs)
 
     return {
@@ -379,7 +362,7 @@ def axis_metrics(name: str,
         "signal": { "raw": sig_raw, "kalman": sig_kal, "dominant_freq_hz": fdom },
         "kalman_effectiveness": eff,
         "response": {
-            "settling_from_%dd_to_pm%dd_s" % (int(ENTRY_DEG), int(SETTLE_BAND_DEG)): float(settle_s) if math.isfinite(settle_s) else None,
+            "settling_s": float(settle_s) if math.isfinite(settle_s) else None,
             "oscillations": osc,
         },
         "error": {
@@ -408,14 +391,18 @@ def legacy_roll_pitch_fields(roll_axis: Dict[str,Any], pitch_axis: Dict[str,Any]
     over_pitch = max(0.0, pitch_axis["signal"]["kalman"]["peak_deg"] / max(1e-6, abs(pitch_axis["signal"]["kalman"]["peak_deg"])) * 0.0)
     settle_keys = [k for k in roll_axis["response"].keys() if k.startswith("settling_from_")]
     st_key = settle_keys[0] if settle_keys else None
-    st_roll = roll_axis["response"].get(st_key, 0.0) if st_key else 0.0
-    st_pitch = pitch_axis["response"].get(st_key, 0.0) if st_key else 0.0
+    st_roll = roll_axis["response"].get("settling_s")
+    if st_roll is None and st_key:
+        st_roll = roll_axis["response"].get(st_key)
+    st_pitch = pitch_axis["response"].get("settling_s")
+    if st_pitch is None and st_key:
+        st_pitch = pitch_axis["response"].get(st_key)
 
     return {
-        "rmse_roll": float(rmse_roll),
-        "rmse_pitch": float(rmse_pitch),
-        "overshoot_roll_pct": float(over_roll),   # 0.0 por defecto
-        "overshoot_pitch_pct": float(over_pitch), # 0.0 por defecto
+        "rmse_roll": float(roll_axis["error"]["rmse_deg"]),
+        "rmse_pitch": float(pitch_axis["error"]["rmse_deg"]),
+        "overshoot_roll_pct": 0.0,
+        "overshoot_pitch_pct": 0.0,
         "settling_time_roll_s": float(st_roll or 0.0),
         "settling_time_pitch_s": float(st_pitch or 0.0),
     }
@@ -449,10 +436,10 @@ def compute(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
             "warning": "no_valid_timestamps",
         }
 
-    parsed.sort(key=lambda x: x[0])          # <— ordena por tiempo ASC
+    parsed.sort(key=lambda x: x[0])
     rows_sorted = [r for _, r in parsed]
     t_abs = np.array([tv for tv, _ in parsed], dtype=float)
-    t = t_abs - t_abs[0]                     # <— segundos desde el inicio (>=0)
+    t = t_abs - t_abs[0]
 
     # ==== 2) Señales usando filas ORDENADAS ====
     roll_raw, _  = series_from_cols(rows_sorted, ["angle_roll", "AngleRoll", "roll"])

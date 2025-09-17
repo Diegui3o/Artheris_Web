@@ -1,7 +1,7 @@
 import os, sys, json, math, argparse
 import numpy as np
 import pandas as pd
-from typing import Optional
+from typing import Dict, Any, Optional
 from pathlib import Path
 import metrics as M
 from pro import run_pro_analysis
@@ -61,6 +61,73 @@ def _psd_export(y, fs):
     freqs = np.fft.rfftfreq(yw.size, d=1.0/fs)
     psd = (np.abs(yf) ** 2) / (U * fs)  # densidad unilateral aprox
     return {"freq_hz": _decimate(freqs).tolist(), "power": _decimate(psd).tolist()}
+
+def _validate_result(res: Dict[str, Any]) -> Dict[str, Any]:
+    warnings = []
+    errors = []
+    inp = res.get("inputs", {})
+    m = res.get("metrics", {})
+
+    dur = float(inp.get("duration_s", 0.0) or 0.0)
+    fs  = float(inp.get("fs_hz_est", 0.0) or 0.0)
+    if dur <= 0:
+        errors.append("duration_s <= 0")
+    if not (1.0 <= fs <= 1000.0):
+        warnings.append(f"fs_hz_est out of expected range: {fs:.3f} Hz")
+
+    def _axis_checks(axis_name: str):
+        ax = m.get(axis_name, {})
+        err = ax.get("error", {}) or {}
+        resp = ax.get("response", {}) or {}
+        sig  = ax.get("signal", {}) or {}
+
+        rmse = err.get("rmse_deg")
+        mae  = err.get("mae_deg")
+        ise  = err.get("ise_deg2_s")
+        fdom = sig.get("dominant_freq_hz")
+        osc  = (resp.get("oscillations") or {}).get("cycles")
+        keff = ax.get("kalman_effectiveness", {}) or {}
+        vr   = keff.get("variance_ratio")
+        delay= keff.get("delay_s")
+
+        if rmse is not None and mae is not None and (rmse + 1e-9) < mae:
+            errors.append(f"{axis_name}: RMSE < MAE")
+
+        if dur > 0 and rmse is not None and ise is not None:
+            exp_ise = (rmse**2) * dur
+            if abs(ise - exp_ise) / max(1.0, exp_ise) > 0.5:
+                warnings.append(f"{axis_name}: ISE deviates >50% from RMSE^2*duration")
+
+        if dur > 0 and fdom and osc is not None and fdom > 0:
+            exp_cycles = fdom * dur
+            if abs(osc - exp_cycles) / max(1.0, exp_cycles) > 0.6:
+                warnings.append(f"{axis_name}: cycles {osc} inconsistent with fdom {fdom:.3f}Hz")
+
+        if vr is not None and vr < 1.0 and (keff.get("hf_noise_reduction_db", 0) > 3 or keff.get("snr_improvement_db", 0) > 3):
+            warnings.append(f"{axis_name}: variance_ratio < 1 (filter increases total variance but improves HF/SNR)")
+
+        if delay is not None and abs(delay) > 0.5:
+            errors.append(f"{axis_name}: |delay_s| > 0.5 s")
+
+        # Consistencia tau
+        ce = ax.get("control", {}) or {}
+        tau_const = bool(ce.get("tau_constant", False))
+        jerk = ce.get("jerk_rms")
+        if tau_const and (jerk is not None) and (jerk > 1e-6):
+            errors.append(f"{axis_name}: tau_constant=True but jerk_rms>0")
+
+        tau_rms = ce.get("tau_rms")
+        tau_energy = ce.get("tau_energy")
+        if not tau_const and dur > 0 and tau_rms is not None and tau_energy is not None:
+            exp_energy = (tau_rms**2) * dur
+            if abs(tau_energy - exp_energy) / max(1.0, exp_energy) > 0.5:
+                warnings.append(f"{axis_name}: tau_energy deviates >50% from tau_rms^2*duration")
+
+    for axis in ("roll", "pitch"):
+        _axis_checks(axis)
+
+    res["validation"] = {"ok": len(errors) == 0, "errors": errors, "warnings": warnings}
+    return res
 
 # ---------- helpers de export para las gráficas ----------
 def save_plot_payloads(df: pd.DataFrame, outdir: str, pro_payload=None):
@@ -369,8 +436,8 @@ def main():
         # 3) métricas -> flight_metrics.json (usando tu metrics.py)
         try:
             rows = df.to_dict(orient="records")
-            metrics = M.compute(rows)  # llama a metrics.compute(...)
-            # adjunta PRO si existe (no rompe tu UI)
+            metrics = M.compute(rows)
+            metrics = _validate_result(metrics)
             if pro_metrics:
                 if isinstance(metrics, dict) and isinstance(metrics.get("metrics"), dict):
                     metrics["metrics"]["pro"] = pro_metrics

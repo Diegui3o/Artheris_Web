@@ -3,15 +3,16 @@ import path from "path";
 import express from "express";
 import { spawn } from "node:child_process";
 import { exportFlightToCSV } from "./export_csv.js";
+import { TMP_DIR } from "./config.js";
 
 export default function createAnalysisRouter({
   pool,
-  outDir = "analysis_out",
+  outDir = TMP_DIR,
   pythonBin = process.platform === "win32" ? "python" : "python3",
   analyzerPy = "src/data/py/analyze_flight.py",
 } = {}) {
   const router = express.Router();
-  const absOut = path.resolve(process.cwd(), outDir);
+  const absOut = path.resolve(outDir);
   if (!fs.existsSync(absOut)) fs.mkdirSync(absOut, { recursive: true });
   const outBase = absOut;
 

@@ -74,9 +74,7 @@ def estimate_latency_ms(ref, est, fs, max_abs_ms=1000.0):
     # Guardas: referencia/estimado sin energía útil → no hay latencia confiable
     if np.nanstd(a) < 1e-6 or np.nanstd(b) < 1e-6:
         return None
-
-    # Correlación lineal (sin wrap-around)
-    corr = np.correlate(a, b, mode='full')
+    corr = np.correlate(b, a, mode='full')
     lags = np.arange(-n + 1, n)
 
     # Limitar ventana de latencia plausible (p.ej. ±1 s)
@@ -89,7 +87,7 @@ def estimate_latency_ms(ref, est, fs, max_abs_ms=1000.0):
         lags = lags[keep]
 
     i = int(np.argmax(corr))
-    lag = int(lags[i])
+    lag = int(lags[i])  # lag>0 => est (kal) retrasado vs ref
 
     # Si el máximo cae en el borde de la ventana -> sospechoso/degenerado
     if i == 0 or i == len(lags) - 1:
@@ -117,9 +115,9 @@ def _analyze_channel(df, ref_col, est_col, t, fs, label):
     lat_ms = None
     frf_obj = {"freq_hz": [], "mag": [], "mag_db": [], "phase_deg": []}
 
-    if has_ref and est is not None:
-        # pasos (más sensible por si tus escalones son pequeños)
-        events = detect_steps(ref, t, min_amp_deg=0.5, min_separation_s=0.3)
+    if has_ref and est is not None and np.nanstd(ref) > 1e-3 and np.nanstd(est) > 1e-3:
+        thr = max(0.05, 0.15*np.nanstd(ref))
+        events = detect_steps(ref, t, min_amp_deg=thr, min_separation_s=0.25)
         steps = [
             dict(channel=label, **step_metrics(est, t, ev["idx"], ev["amp_deg"]))
             for ev in events
@@ -137,7 +135,8 @@ def _analyze_channel(df, ref_col, est_col, t, fs, label):
             "mag_db": mag_db.tolist(),
             "phase_deg": ph.tolist(),
         }
-
+    else:
+       frf_obj = {"freq_hz": [], "mag": [], "mag_db": [], "phase_deg": [], "note": "ref/est sin variación suficiente"}
     # métricas del canal
     track = {"overshoot_pct": (max([s["overshoot_pct"] for s in steps]) if steps else None)}
     return {
@@ -165,8 +164,10 @@ def frf_ref_to_est(ref, est, fs, seglen=2048, overlap=0.5):
     if k == 0: 
         return np.array([]), np.array([]), np.array([])
     H = Sxy / np.maximum(Sxx, 1e-12)
+    Coh = (np.abs(Sxy)**2) / (np.maximum(Sxx,1e-12)*np.maximum(Syy,1e-12))
     f = np.fft.rfftfreq(seglen, 1.0/fs)
-    return f, np.abs(H), np.angle(H, deg=True)
+    mask = Coh > 0.6
+    return f[mask], np.abs(H[mask]), np.angle(H[mask], deg=True)
 
 def ekf_consistency(residual, sigma_est=None, dof=1):
     r = np.asarray(residual, float)

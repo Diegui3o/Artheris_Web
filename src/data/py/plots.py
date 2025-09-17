@@ -4,7 +4,7 @@ import os
 
 def _ensure_1d(a):
     import numpy as _np
-    return _np.asarray(a).reshape(-1)
+    return _np.asarray(a, dtype=float).reshape(-1)
 
 def _savefig(path, fig):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -13,11 +13,13 @@ def _savefig(path, fig):
     plt.close(fig)
 
 def plot_ref_meas_error(t, ref, meas, title, outpath):
-    t, ref, meas = map(_ensure_1d, (t, ref, meas))
+    t = _ensure_1d(t)
+    meas = _ensure_1d(meas)
+    ref = _ensure_1d(ref) if ref is not None else np.full_like(meas, 0.0)
     e = ref - meas
     fig, ax = plt.subplots()
     ax.plot(t, ref, label="ref")
-    ax.plot(t, meas, label="est")
+    ax.plot(t, meas, label="meas/est")
     ax.plot(t, e, label="error")
     ax.set_xlabel("Time [s]"); ax.set_title(title); ax.legend()
     _savefig(outpath, fig)
@@ -26,8 +28,8 @@ def _welch(x, fs, nperseg=256, noverlap=128):
     x = _ensure_1d(x) - np.mean(x)
     n = len(x)
     if n < 8 or fs <= 0: return np.array([]), np.array([])
-    nperseg = min(nperseg, n)
-    noverlap = min(noverlap, nperseg-1)
+    nperseg = min(nperseg, n if n >= 32 else max(16, n//2*2))
+    noverlap = min(noverlap, max(0, nperseg-2))
     step = nperseg - noverlap
     if step <= 0: return np.array([]), np.array([])
     w = np.hanning(nperseg)
@@ -67,8 +69,11 @@ def plot_tracking_axis(t, xhat, u_input=None, ref_value=0.0,
     title = f"{axis_name.capitalize()} – Tracking (x̂ vs ref)"
     if u_input is not None:
         u = _ensure_1d(u_input).astype(float)
-        # Normaliza input para que quepa en la gráfica (p.ej. 1000-2000 → -1..1)
-        u_norm = (u - np.nanmedian(u)) / (np.nanpercentile(np.abs(u - np.nanmedian(u)), 95) + 1e-9)
+        med = np.nanmedian(u)
+        denom = np.nanpercentile(np.abs(u - med), 95)
+        if not np.isfinite(denom) or denom < 1e-9:
+            denom = 1.0
+        u_norm = (u - med) / denom
         ax2 = ax1.twinx()
         ax2.plot(t, u_norm, alpha=0.5, label="input (norm)", linestyle=":")
         ax2.set_ylabel("input (norm)")
@@ -176,7 +181,9 @@ def plot_rolling_correlations(t, fs, xhat, ref_value, tau_x, tau_y, u_input=None
     if tc1.size:
       ax.plot(tc1, c1, label="corr(|error|, |τ|)")
     if u_input is not None:
-      u = np.abs(_ensure_1d(u_input).astype(float) - np.nanmedian(u_input))
+      u_arr = _ensure_1d(u_input).astype(float)
+      med = np.nanmedian(u_arr)
+      u = np.abs(u_arr - med)
       tc2, c2 = _rolling_corr(err_mag, u, fs, win_s=win_s)
       if tc2.size: ax.plot(tc2, c2, label="corr(|error|, |input|)")
     ax.axhline(0, color="k", linewidth=0.5)

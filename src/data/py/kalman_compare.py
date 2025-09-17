@@ -78,11 +78,12 @@ def load_csv(path: str) -> List[Dict[str, Any]]:
     logger.info(f"Loading CSV file: {path}")
     with open(path, "r", newline="", encoding="utf-8") as f:
         data = list(csv.DictReader(f))
-    logger.info(f"Loaded {len(data)} rows; cols={list(data[0].keys()) if data else []}")
+    cols = list(data[0].keys()) if data else []
+    logger.info(f"Loaded {len(data)} rows; cols={cols}")
     return data
 
 def series(rows, names):
-    cols = set(rows[0].keys()) if rows else set()
+    cols = set().union(*(r.keys() for r in rows)) if rows else set()
     for n in names:
         if n in cols:
             vals = [safe_float(r.get(n)) for r in rows]
@@ -108,7 +109,7 @@ def nis_series(innov: np.ndarray, S_var: np.ndarray, alpha=0.05):
     from math import isfinite
     innov = nan_clean(innov, 0.0)
     S_var = nan_clean(S_var, np.nan)
-    mask = np.isfinite(S_var) & (S_var > 0)
+    mask = np.isfinite(S_var) & (S_var > 1e-12)
     if not np.any(mask):
         return {"available": False}
 
@@ -141,7 +142,10 @@ def whiteness(innov: np.ndarray, lags=20, alpha=0.05):
     v = np.asarray(innov, dtype=float)
     v = v[np.isfinite(v)]
     if len(v) < max(30, lags + 5):
-        return {"available": False}
+        if len(v) >= 20:
+            lags = min(lags, max(5, len(v)//3))
+        else:
+            return {"available": False}
 
     if acorr_ljungbox is not None:
         try:
@@ -213,7 +217,8 @@ def top_freq(y: np.ndarray, fs: float):
     if len(y) < 8 or fs <= 0:
         return {"available": False}
     if welch is not None:
-        f, Pxx = welch(y, fs=fs, nperseg=min(256, len(y)//2*2), noverlap=None)
+        nper = min(256, (len(y)//2)*2) if len(y) >= 32 else max(16, (len(y)//2)*2)
+        f, Pxx = welch(y, fs=fs, nperseg=nper, noverlap=nper//2)
     else:
         # fallback FFT simple
         Y = np.fft.rfft(y)
@@ -259,12 +264,13 @@ def compute(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     fs = estimate_fs(t)
     dur = float(t[-1]-t[0]) if len(t) else 0.0
 
+    cols_present = sorted(set().union(*(r.keys() for r in rows))) if rows else []
     out = {
         "ok": True,
         "mode": "batch",
         "inputs": {
             "num_samples": len(rows),
-            "columns_present": list(rows[0].keys()),
+            "columns_present": cols_present,
             "fs_hz_est": fs,
             "duration_s": dur,
         },
@@ -304,8 +310,8 @@ def compute(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
             wht = whiteness(innov)
 
         nis = nis_series(innov, Svar)
-        if nis.get("available") and nis_is_synth:
-            nis["synthetic"] = True
+        if nis.get("available"):
+            nis["synthetic"] = bool(nis_is_synth)
             
         # Normaliza 'pass' si no vino:
         if wht.get("available"):

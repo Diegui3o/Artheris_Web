@@ -1,9 +1,7 @@
-# src/data/py/metrics.py
-import sys, json, argparse, csv, logging, math, statistics
-from typing import List, Dict, Any, Optional
+import sys, json, argparse, csv, logging, math, os
+from typing import List, Dict, Any
 from datetime import datetime, timezone
-
-import numpy as np
+import numpy as np, pandas as pd
 
 # =========================
 # Config ajustable (umbral)
@@ -13,6 +11,10 @@ SETTLE_BAND_DEG = 2.5
 HOLD_S = 0.10             # tiempo que debe mantenerse dentro de la banda
 NOISE_CUTOFF_HZ = 8.0     # frecuencia para "ruido" (HF) en análisis FFT
 
+try:
+    from scipy.signal import welch as _welch
+except Exception:
+    _welch = None
 # Logging
 logging.basicConfig(
     level=logging.INFO,
@@ -81,10 +83,10 @@ def first_not_none(seq, default=None):
             return v
     return default
 
-def trapz(y: np.ndarray, t: np.ndarray) -> float:
+def trapz_integral(y: np.ndarray, t: np.ndarray) -> float:
     if len(y) < 2 or len(t) < 2:
         return 0.0
-    return float(np.trapezoid(y, t))
+    return float(np.trapz(y, x=t))
 
 def estimate_fs(t: np.ndarray) -> float:
     """Estimación robusta de frecuencia de muestreo [Hz]."""
@@ -127,11 +129,11 @@ def error_metrics(e: np.ndarray, t: np.ndarray) -> Dict[str, float]:
     dur = float(t[-1]-t[0]) if len(t) else 0.0
     rmse = float(np.sqrt(np.mean(e*e))) if len(e) else 0.0
     mae = float(np.mean(np.abs(e))) if len(e) else 0.0
-    ise = trapz(e*e, t) if len(e) else 0.0
-    iae = trapz(np.abs(e), t) if len(e) else 0.0
+    ise = trapz_integral(e*e, t) if len(e) else 0.0
+    iae = trapz_integral(np.abs(e), t) if len(e) else 0.0
     tr = t - (t[0] if len(t) else 0.0)
-    itae = trapz(tr*np.abs(e), t) if len(e) else 0.0
-    itse = trapz(tr*(e*e), t) if len(e) else 0.0
+    itae = trapz_integral(tr*np.abs(e), t) if len(e) else 0.0
+    itse = trapz_integral(tr*(e*e), t) if len(e) else 0.0
     maxabs = float(np.max(np.abs(e))) if len(e) else 0.0
     return {
         "rmse": rmse, "mae": mae, "ise": ise, "iae": iae,
@@ -145,10 +147,15 @@ def fft_power(y: np.ndarray, fs: float):
     y = nan_clean(y - np.mean(y), 0.0)
     if len(y) < 4 or fs <= 0:
         return 0.0, 0.0, 0.0, 0.0
-    n = len(y)
-    yf = np.fft.rfft(y)
-    freqs = np.fft.rfftfreq(n, d=1.0/fs)
-    power = (np.abs(yf)**2) / n
+    # Preferir Welch si está disponible para estimación más estable
+    if _welch is not None and len(y) >= 16:
+        nper = min(256, (len(y)//2)*2) if len(y) >= 32 else len(y)
+        freqs, power = _welch(y, fs=fs, nperseg=max(8, nper), noverlap=None)
+    else:
+        n = len(y)
+        yf = np.fft.rfft(y)
+        freqs = np.fft.rfftfreq(n, d=1.0/fs)
+        power = (np.abs(yf)**2) / n
     total = float(np.sum(power))
     # potencia HF
     cutoff = min(NOISE_CUTOFF_HZ, 0.45*fs)  # si fs es baja, limita a Nyquist*0.45
@@ -184,14 +191,21 @@ def kalman_effectiveness(raw: np.ndarray, kal: np.ndarray, fs: float) -> Dict[st
     snr_r = (tot_r - hf_r) / max(hf_r, 1e-12)
     snr_k = (tot_k - hf_k) / max(hf_k, 1e-12)
     snr_imp_db = 10.0 * math.log10((snr_k + 1e-12) / (snr_r + 1e-12)) if snr_r>0 else 0.0
-
-    # retardo (kalman respecto a raw) por correlación cruzada
+    # retardo (kal respecto a raw) por correlación cruzada
+    # Convención: lag > 0 => kal RETRASADO respecto a raw => delay_s > 0
     raw_z = raw - np.mean(raw)
     kal_z = kal - np.mean(kal)
-    corr = np.correlate(raw_z, kal_z, mode="full")
+    corr = np.correlate(kal_z, raw_z, mode="full")
     lags = np.arange(-m+1, m)
-    lag = int(lags[np.argmax(corr)])  # >0 significa kal adelantado
-    delay_s = -lag/fs  # retardo de kal respecto a raw (positivo = kal retrasado)
+    # Limita ventana a ±0.5 s para evitar matches espurios
+    max_lag = max(1, int(0.5 * fs))
+    keep = (lags >= -max_lag) & (lags <= max_lag)
+    corr = corr[keep]; lags = lags[keep]
+    if len(lags) == 0:
+        delay_s = 0.0
+    else:
+        lag = int(lags[np.argmax(corr)])
+        delay_s = float(lag)/float(fs)
 
     return {
         "variance_ratio": float(variance_ratio),
@@ -263,15 +277,27 @@ def control_effort(tau: np.ndarray, t: np.ndarray) -> Dict[str, float]:
     tau = nan_clean(tau, 0.0); t = nan_clean(t, 0.0)
     if len(tau) < 2: return {"tau_rms": 0.0, "tau_energy": 0.0, "tau_avg_abs": 0.0, "jerk_rms": 0.0}
     dur = float(t[-1]-t[0]) if len(t) else 0.0
+    tau_std = float(np.std(tau)) if len(tau) else 0.0
     tau_rms = float(np.sqrt(np.mean(tau*tau)))
-    tau_energy = trapz(tau*tau, t)  # ∫ tau^2 dt
-    tau_avg_abs = trapz(np.abs(tau), t) / max(dur, 1e-9)
+    tau_energy = trapz_integral(tau*tau, t)
+    tau_avg_abs = trapz_integral(np.abs(tau), t) / max(dur, 1e-9)
     # jerk ~ derivada de tau
     dt = np.diff(t); dt[~np.isfinite(dt)] = np.median(dt[np.isfinite(dt)]) if np.any(np.isfinite(dt)) else 1.0
     dt[dt<=0] = np.median(dt[dt>0]) if np.any(dt>0) else 1.0
-    jerk = np.diff(tau) / dt
-    jerk_rms = float(np.sqrt(np.mean(jerk*jerk))) if len(jerk) else 0.0
-    return {"tau_rms": tau_rms, "tau_energy": tau_energy, "tau_avg_abs": tau_avg_abs, "jerk_rms": jerk_rms}
+    if tau_std < 1e-9:
+        jerk_rms = 0.0
+        tau_constant = True
+    else:
+        jerk = np.diff(tau) / dt
+        jerk_rms = float(np.sqrt(np.mean(jerk*jerk))) if len(jerk) else 0.0
+        tau_constant = False
+    return {
+        "tau_rms": tau_rms,
+        "tau_energy": tau_energy,
+        "tau_avg_abs": tau_avg_abs,
+        "jerk_rms": jerk_rms,
+        "tau_constant": tau_constant
+    }
 
 # -----------------------------
 # Puntaje de estabilización 0-100
@@ -289,9 +315,15 @@ def stabilization_score(err: Dict[str,float],
     if math.isfinite(settle_s):
         score -= 0.8 * max(0.0, settle_s)
     score -= 3.0 * max(0, osc_cycles - 1)
-    # penaliza esfuerzo de control
-    score -= 0.002 * effort.get("tau_energy", 0.0)          # energía (ajusta escala)
-    score -= 0.5 * effort.get("jerk_rms", 0.0)
+    # penaliza esfuerzo de control (normalizado por duración si está disponible)
+    tau_energy = float(effort.get("tau_energy", 0.0))
+    tau_const  = bool(effort.get("tau_constant", False))
+    # si tau es constante, no penalices (no confiable)
+    if not tau_const:
+        # heurística: penaliza energía densa (por segundo)
+        # El caller no pasa duración aquí; usamos una escala idempotente
+        score -= 0.0005 * tau_energy
+        score -= 0.5 * effort.get("jerk_rms", 0.0)
     return float(max(0.0, min(100.0, score)))
 
 # ------------------
@@ -330,16 +362,14 @@ def axis_metrics(name: str,
     if not np.any(np.isfinite(err)):
         err = y_kal.copy()
     em = error_metrics(err, t)
-
-    # Esfuerzo de control
-    # Mapea eje -> tau correspondiente
-    #   roll -> tau_x, pitch -> tau_y (cuando esté disponible individualmente)
+    if np.nanstd(tau) < 1e-6:
+        pass
     eff_tau = control_effort(tau, t)
 
     # Puntaje
     sc = stabilization_score(em, settle_s if math.isfinite(settle_s) else 0.0, int(osc["cycles"]), eff_tau)
 
-    # Dominant freq de señal
+    # Dominant freq de señal (coherente con fft_power/Welch)
     _, _, fdom, _ = fft_power(y_kal, fs)
 
     return {
@@ -376,11 +406,10 @@ def legacy_roll_pitch_fields(roll_axis: Dict[str,Any], pitch_axis: Dict[str,Any]
     # “overshoot” simple vs valor final (no referencia) -> usa pico relativo a 0
     over_roll = max(0.0, roll_axis["signal"]["kalman"]["peak_deg"] / max(1e-6, abs(roll_axis["signal"]["kalman"]["peak_deg"])) * 0.0)  # no significativo sin ref
     over_pitch = max(0.0, pitch_axis["signal"]["kalman"]["peak_deg"] / max(1e-6, abs(pitch_axis["signal"]["kalman"]["peak_deg"])) * 0.0)
-
-    # usamos asentamiento por excursión como “settling_time”
-    settle_key = [k for k in roll_axis["response"].keys() if k.startswith("settling_from_")][0]
-    st_roll = roll_axis["response"][settle_key]
-    st_pitch = pitch_axis["response"][settle_key]
+    settle_keys = [k for k in roll_axis["response"].keys() if k.startswith("settling_from_")]
+    st_key = settle_keys[0] if settle_keys else None
+    st_roll = roll_axis["response"].get(st_key, 0.0) if st_key else 0.0
+    st_pitch = pitch_axis["response"].get(st_key, 0.0) if st_key else 0.0
 
     return {
         "rmse_roll": float(rmse_roll),
@@ -437,6 +466,12 @@ def compute(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     tau_x = np.asarray([_sf(r.get("tau_x")) for r in rows_sorted], dtype=float)
     tau_y = np.asarray([_sf(r.get("tau_y")) for r in rows_sorted], dtype=float)
     tau_z = np.asarray([_sf(r.get("tau_z")) for r in rows_sorted], dtype=float)
+    # Diagnóstico: advierte si τ parece constante (mapea columnas mal / PWM fijo)
+    for name, v in (("tau_x", tau_x), ("tau_y", tau_y), ("tau_z", tau_z)):
+        if np.isfinite(v).any():
+            stdv = float(np.nanstd(v))
+            if stdv < 1e-9:
+                logger.warning(f"{name} appears constant (std≈0). Check CSV mapping/source.")
 
     # ==== 3) Métricas por eje (igual que tenías) ====
     roll_axis = axis_metrics("roll",
@@ -482,6 +517,12 @@ def compute(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
 # ---------- CLI / API ----------
 def do_batch(csv_path: str):
     rows = load_csv(csv_path)
+    df_dbg = pd.DataFrame(rows)
+    for col in ["ref_roll","ref_pitch","angle_roll_est","angle_pitch_est"]:
+        if col in df_dbg.columns:
+            v = pd.to_numeric(df_dbg[col], errors="coerce")
+            logger.info("%s std=%s min=%s max=%s",
+                        col, float(np.nanstd(v)), float(np.nanmin(v)), float(np.nanmax(v)))
     return compute(rows)
 
 def do_live(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -508,7 +549,9 @@ def do_live(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 if __name__ == "__main__":
     import argparse, sys, json
+
     parser = argparse.ArgumentParser(description="Flight metrics CLI")
+    parser.add_argument("--verbose", action="store_true", help="Mostrar logs INFO en stderr")  # <— NUEVO
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_batch = sub.add_parser("batch", help="Calcular métricas desde CSV")
@@ -517,16 +560,19 @@ if __name__ == "__main__":
     sub.add_parser("live", help="Leer JSON por stdin (samples)")
 
     args = parser.parse_args()
+
+    # <— NUEVO: sube/baja el nivel en tiempo de ejecución
+    logging.getLogger().setLevel(logging.INFO if args.verbose else logging.WARNING)
+
     try:
         if args.command == "batch":
             res = do_batch(args.csv)
-        else:  # live
+        elif args.command == "live":
             payload_raw = sys.stdin.read() or "{}"
             res = do_live(json.loads(payload_raw))
         print(json.dumps(res))
         sys.exit(0)
     except Exception as e:
         logger.exception("metrics.py failed")
-        # Imprime JSON de error para que el backend lo capture si quiere
         print(json.dumps({"ok": False, "error": str(e)}))
         sys.exit(1)

@@ -124,21 +124,24 @@ def series_from_cols(rows, names):
 # Métricas de error clásicas
 # --------------------------
 def error_metrics(e: np.ndarray, t: np.ndarray) -> Dict[str, float]:
-    e = nan_clean(e, 0.0)
-    t = nan_clean(t, 0.0)
-    dur = float(t[-1]-t[0]) if len(t) else 0.0
-    rmse = float(np.sqrt(np.mean(e*e))) if len(e) else 0.0
-    mae = float(np.mean(np.abs(e))) if len(e) else 0.0
-    ise = trapz_integral(e*e, t) if len(e) else 0.0
-    iae = trapz_integral(np.abs(e), t) if len(e) else 0.0
-    tr = t - (t[0] if len(t) else 0.0)
-    itae = trapz_integral(tr*np.abs(e), t) if len(e) else 0.0
-    itse = trapz_integral(tr*(e*e), t) if len(e) else 0.0
-    maxabs = float(np.max(np.abs(e))) if len(e) else 0.0
-    return {
-        "rmse": rmse, "mae": mae, "ise": ise, "iae": iae,
-        "itae": itae, "itse": itse, "max_abs": maxabs, "duration_s": dur
-    }
+    e = np.asarray(e, dtype=float)
+    t = np.asarray(t, dtype=float)
+    m = np.isfinite(e) & np.isfinite(t)
+    e = e[m]; t = t[m]
+    if len(e) < 2:
+        return {"rmse": 0.0, "mae": 0.0, "ise": 0.0, "iae": 0.0,
+                "itae": 0.0, "itse": 0.0, "max_abs": 0.0, "duration_s": 0.0}
+    dur = float(t[-1]-t[0])
+    rmse = float(np.sqrt(np.mean(e*e)))
+    mae  = float(np.mean(np.abs(e)))
+    ise  = trapz_integral(e*e, t)
+    iae  = trapz_integral(np.abs(e), t)
+    tr   = t - t[0]
+    itae = trapz_integral(tr*np.abs(e), t)
+    itse = trapz_integral(tr*(e*e), t)
+    maxabs = float(np.max(np.abs(e)))
+    return {"rmse": rmse, "mae": mae, "ise": ise, "iae": iae,
+            "itae": itae, "itse": itse, "max_abs": maxabs, "duration_s": dur}
 
 # ---------------------------------
 # Ruido HF / SNR / retraso Kalman
@@ -235,6 +238,72 @@ def settling_from_excursion(y: np.ndarray, t: np.ndarray,
                 return float(max(0.0, t[j] - t[idx_entry]))
     return float("nan")
 
+def time_to_zero_after_excursion(y: np.ndarray, t: np.ndarray,
+                                 entry_deg=ENTRY_DEG,
+                                 zero_band_deg=1.0,
+                                 hold_s=0.04) -> float:
+    """
+    Tiempo desde la primera excursión |y|>=entry_deg hasta el primer cruce por 0°,
+    con pequeña histéresis (zero_band_deg) y una retención corta (hold_s) para evitar jitter.
+    Devuelve NaN si no hay excursión o no hay cruce claro.
+    """
+    y = nan_clean(y, 0.0); t = nan_clean(t, 0.0)
+    if len(y) < 3 or len(t) < 3:
+        return float("nan")
+
+    fs = estimate_fs(t)
+    hold_pts = max(1, int(round(hold_s * fs))) if fs > 0 else 1
+
+    # 1) Buscar primera excursión grande
+    idx_entry = None
+    for i, v in enumerate(y):
+        if abs(v) >= entry_deg:
+            idx_entry = i
+            break
+    if idx_entry is None:
+        return float("nan")
+
+    # Signo de la excursión inicial (si es 0, busca el próximo no-cero)
+    s = np.sign(y[idx_entry])
+    if s == 0.0:
+        for k in range(idx_entry + 1, len(y)):
+            if y[k] != 0.0:
+                s = np.sign(y[k]); break
+    if s == 0.0:
+        return float("nan")
+
+    # 2) Buscar el primer cruce por 0 (cambio de signo frente a s) después de la entrada
+    for k in range(idx_entry, len(y) - 1):
+        yk, yk1 = y[k], y[k+1]
+
+        # ¿hay cambio de signo respecto al signo inicial?
+        crossed = (yk * s > 0.0) and (yk1 * s <= 0.0)
+        entered_zero_band = (abs(yk1) <= zero_band_deg) and (abs(yk) > zero_band_deg) and (yk * s > 0.0)
+
+        if crossed or entered_zero_band:
+            # Interpola tiempo exacto de cruce si hay dos signos
+            if (yk1 - yk) != 0:
+                frac = (0.0 - yk) / (yk1 - yk)
+                frac = float(np.clip(frac, 0.0, 1.0))
+                t_zero = t[k] + frac * (t[k+1] - t[k])
+            else:
+                t_zero = t[k+1]
+
+            # 3) Pequeño hold: que se mantenga del otro lado de 0 o dentro de la banda
+            end = min(len(y), k + 1 + hold_pts)
+            seg = y[k+1:end]
+            if len(seg) == 0:
+                return float(t_zero - t[idx_entry])
+
+            ok_opposite = np.all(seg * s <= 0.0)   # se queda del otro lado
+            ok_in_band  = np.all(np.abs(seg) <= zero_band_deg)  # o se queda pegado a 0
+
+            if ok_opposite or ok_in_band:
+                return float(t_zero - t[idx_entry])
+
+    return float("nan")
+
+
 # -------------------
 # Conteo oscilaciones
 # -------------------
@@ -294,25 +363,59 @@ def control_effort(tau: np.ndarray, t: np.ndarray) -> Dict[str, float]:
 # -----------------------------
 # Puntaje de estabilización 0-100
 # -----------------------------
-def stabilization_score(err: Dict[str,float],
-                        settle_s: float,
-                        osc_cycles: int,
-                        effort: Dict[str,float]) -> float:
-    # Heurística simple y estable (ajusta pesos a gusto)
+def stabilization_score(err, settle_s, osc_cycles, effort, duration_s=None, fs=None):
     score = 100.0
-    # penaliza error
-    score -= 2.0 * max(0.0, err.get("rmse", 0.0))           # por cada deg de RMSE
-    score -= 0.5 * max(0.0, err.get("mae", 0.0))
-    # penaliza asentamiento y oscilaciones
+    # Error (cap suave)
+    score -= min(40.0, 2.0 * max(0.0, err.get("rmse", 0.0)))
+    score -= min(20.0, 0.5 * max(0.0, err.get("mae", 0.0)))
+
+    # Asentamiento / oscilaciones
     if math.isfinite(settle_s):
-        score -= 0.8 * max(0.0, settle_s)
-    score -= 3.0 * max(0, osc_cycles - 1)
+        score -= min(20.0, 0.8 * max(0.0, settle_s))
+    score -= min(15.0, 3.0 * max(0, osc_cycles - 1))
+
     tau_energy = float(effort.get("tau_energy", 0.0))
+    tau_rms    = float(effort.get("tau_rms", 0.0))
+    jerk_rms   = float(effort.get("jerk_rms", 0.0))
     tau_const  = bool(effort.get("tau_constant", False))
+
+    # Normalizaciones
+    if duration_s and duration_s > 0:
+        tau_power = tau_energy / duration_s
+    else:
+        tau_power = tau_energy  # fallback
+
+    if fs and fs > 0 and tau_rms > 0:
+        jerk_rms_norm = jerk_rms / (fs * (tau_rms + 1e-9))
+    else:
+        jerk_rms_norm = 0.0
+
     if not tau_const:
-        score -= 0.0005 * tau_energy
-        score -= 0.5 * effort.get("jerk_rms", 0.0)
+        score -= min(15.0, 0.01 * tau_power)        # antes 0.0005 * energy
+        score -= min(15.0, 5.0  * jerk_rms_norm)    # antes 0.5 * jerk_rms
+
     return float(max(0.0, min(100.0, score)))
+
+def time_to_zero_nogate(y: np.ndarray, t: np.ndarray,
+                        zero_band_deg=1.0, hold_s=0.04) -> float:
+    y = nan_clean(y, 0.0); t = nan_clean(t, 0.0)
+    if len(y) < 3: return float("nan")
+    fs = estimate_fs(t); hold_pts = max(1, int(round(hold_s*fs))) if fs>0 else 1
+
+    # Busca el primer cruce por cero (o entrada a la banda cero) desde el principio
+    s0 = np.sign(y[0]) if y[0] != 0 else np.sign(next((v for v in y if v!=0), 0.0))
+    for k in range(0, len(y)-1):
+        yk, yk1 = y[k], y[k+1]
+        crossed = (s0 != 0.0) and (yk*s0 > 0.0) and (yk1*s0 <= 0.0)
+        entered = (abs(yk1) <= zero_band_deg) and (abs(yk) > zero_band_deg)
+        if crossed or entered:
+            frac = 0.0 if (yk1 - yk) == 0 else float(np.clip((0.0 - yk)/(yk1 - yk), 0.0, 1.0))
+            t0 = t[k] + frac*(t[k+1]-t[k])
+            end = min(len(y), k + 1 + hold_pts)
+            seg = y[k+1:end]
+            if len(seg)==0 or np.all(seg*s0 <= 0.0) or np.all(np.abs(seg) <= zero_band_deg):
+                return float(t0 - t[0])
+    return float("nan")
 
 # ------------------
 # Cálculo por eje
@@ -323,6 +426,10 @@ def axis_metrics(name: str,
                  tau: np.ndarray) -> Dict[str, Any]:
     t = nan_clean(t, 0.0)
     y_raw, y_kal, err, tau = align_minlen(y_raw, y_kal, err, tau)
+    min_len = min(len(y_raw), len(y_kal), len(err), len(tau), len(t))
+    t = np.asarray(t[:min_len], dtype=float)
+    y_raw = y_raw[:min_len]; y_kal = y_kal[:min_len]; err = err[:min_len]; tau = tau[:min_len]
+
     fs = estimate_fs(t)
     dur = float(t[-1]-t[0]) if len(t) else 0.0
 
@@ -344,10 +451,16 @@ def axis_metrics(name: str,
     # Asentamiento desde 24° a ±5°
     settle_s = settling_from_excursion(y_kal, t, entry_deg=ENTRY_DEG, band_deg=SETTLE_BAND_DEG, hold_s=HOLD_S)
     osc = count_oscillations(y_kal, t, crossing_deg=SETTLE_BAND_DEG)
+    t_to_zero = time_to_zero_after_excursion(
+        y_kal, t,
+        entry_deg=ENTRY_DEG,
+        zero_band_deg=min(SETTLE_BAND_DEG, 1.0),  # histéresis pequeña alrededor de 0
+        hold_s=0.04                                # ~2 muestras a fs≈45–50 Hz
+    )
 
     # Errores (si err no viene, usa y_kal respecto a 0°)
     if not np.any(np.isfinite(err)):
-        err = y_kal.copy()
+        err = -y_kal.copy()
     em = error_metrics(err, t)
     if np.nanstd(tau) < 1e-6:
         pass
@@ -363,6 +476,7 @@ def axis_metrics(name: str,
         "kalman_effectiveness": eff,
         "response": {
             "settling_s": float(settle_s) if math.isfinite(settle_s) else None,
+            "time_to_zero_s": float(t_to_zero) if math.isfinite(t_to_zero) else None,
             "oscillations": osc,
         },
         "error": {
@@ -425,15 +539,15 @@ def compute(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         # sin timestamps válidos → devuelve mínimos pero explícalo
         return {
             "ok": True,
-            "inputs": {
-                "num_samples": len(rows),
-                "columns_present": sorted({k for rr in rows for k in rr.keys()}),
-                "fs_hz_est": 0.0,
-                "duration_s": 0.0,
+            "inputs": { ... },
+            "metrics": { ... },
+            "params": {
+                "entry_deg": float(ENTRY_DEG),
+                "settle_band_deg": float(SETTLE_BAND_DEG),
+                "hold_s": float(HOLD_S),
+                "noise_cutoff_hz": float(NOISE_CUTOFF_HZ)
             },
-            "metrics": {},
-            "mode": "batch",
-            "warning": "no_valid_timestamps",
+            "mode": "batch"
         }
 
     parsed.sort(key=lambda x: x[0])
@@ -446,7 +560,27 @@ def compute(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     roll_kal, _  = series_from_cols(rows_sorted, ["angle_roll_est", "KalmanAngleRoll"])
     pitch_raw, _ = series_from_cols(rows_sorted, ["angle_pitch", "AnglePitch", "pitch"])
     pitch_kal, _ = series_from_cols(rows_sorted, ["angle_pitch_est", "KalmanAnglePitch"])
+    # Referencias (si no existen, estabilidad -> 0)
+    ref_roll_vals, _  = series_from_cols(rows_sorted, ["ref_roll", "roll_ref"])
+    ref_pitch_vals, _ = series_from_cols(rows_sorted, ["ref_pitch", "pitch_ref"])
 
+    roll_kal_arr  = np.asarray(roll_kal,  dtype=float)
+    pitch_kal_arr = np.asarray(pitch_kal, dtype=float)
+
+    # Si no hay columnas de referencia, usa 0 explícito (misma longitud)
+    if not any(v is not None for v in ref_roll_vals):
+        ref_roll_arr = np.zeros_like(roll_kal_arr)
+    else:
+        ref_roll_arr = np.asarray([_sf(v) for v in ref_roll_vals], dtype=float)
+
+    if not any(v is not None for v in ref_pitch_vals):
+        ref_pitch_arr = np.zeros_like(pitch_kal_arr)
+    else:
+        ref_pitch_arr = np.asarray([_sf(v) for v in ref_pitch_vals], dtype=float)
+
+    # Error físico canónico: e = ref - estimado
+    err_roll  = ref_roll_arr  - roll_kal_arr
+    err_pitch = ref_pitch_arr - pitch_kal_arr
     err_phi  = np.asarray([_sf(r.get("error_phi"))  for r in rows_sorted], dtype=float)
     err_theta= np.asarray([_sf(r.get("error_theta"))for r in rows_sorted], dtype=float)
 
@@ -463,12 +597,13 @@ def compute(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     # ==== 3) Métricas por eje (igual que tenías) ====
     roll_axis = axis_metrics("roll",
                              np.asarray(roll_raw, dtype=float),
-                             np.asarray(roll_kal, dtype=float),
-                             err_phi, t, tau_x)
+                             roll_kal_arr,
+                             err_roll, t, tau_x)
+
     pitch_axis = axis_metrics("pitch",
                               np.asarray(pitch_raw, dtype=float),
-                              np.asarray(pitch_kal, dtype=float),
-                              err_theta, t, tau_y)
+                              pitch_kal_arr,
+                              err_pitch, t, tau_y)
 
     # combinado y legacy (igual que tenías) ...
     kal_eff_roll  = roll_axis["kalman_effectiveness"]

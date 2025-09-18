@@ -50,7 +50,8 @@ type AxisControl = {
   tau_avg_abs: number;
   jerk_rms: number;
 };
-type AxisMetrics = {
+// Base AxisMetrics type
+type AxisMetricsBase = {
   name: "roll" | "pitch";
   duration_s: number;
   fs_hz: number;
@@ -58,18 +59,27 @@ type AxisMetrics = {
   kalman_effectiveness: KalEff;
   response: {
     // p.ej. settling_from_24d_to_pm5d_s puede venir null si no hubo excursión ≥ 24°
-    [k: string]: number | Osc | null;
+    [k: string]: number | Osc | null | undefined;
     oscillations: Osc;
   };
   error: AxisError;
   control: AxisControl;
   stabilization_score: number;
 };
+
+// Extended AxisMetrics with additional response fields
+type AxisMetrics = AxisMetricsBase & {
+  response: AxisMetricsBase["response"] & {
+    settling_s?: number | null;
+    time_to_zero_s?: number | null;
+  };
+};
 type Combined = {
   stabilization_score: number;
   kalman_effectiveness_avg: KalEff;
 };
-type PyMetricsPayload = {
+// Base PyMetricsPayload type
+type PyMetricsPayloadBase = {
   ok: boolean;
   inputs?: {
     duration_s: number;
@@ -93,6 +103,18 @@ type PyMetricsPayload = {
   mode: "batch" | "live";
 };
 
+// NUEVO: parámetros que puede devolver Python (opcional)
+type Params = {
+  entry_deg: number;
+  settle_band_deg: number;
+  hold_s: number;
+  noise_cutoff_hz: number;
+};
+
+// Extended PyMetricsPayload with optional params
+type PyMetricsPayload = PyMetricsPayloadBase & {
+  params?: Params; // ← NUEVO
+};
 interface BatchMetadata {
   flightId: string;
   csvPath: string;
@@ -124,7 +146,7 @@ function parseQuestDate(v: unknown): Date | null {
     if (!isNaN(d.getTime())) return d;
   }
   if (typeof v === "number" && Number.isFinite(v)) {
-    const ms = v > 1e12 ? Math.floor(v / 1000) : v;
+    const ms = v > 1e12 ? v : v * 1000;
     const d = new Date(ms);
     if (!isNaN(d.getTime())) return d;
   }
@@ -167,6 +189,8 @@ export default function MetricsLastFlight() {
 
   const [batch, setBatch] = useState<BatchResponse | null>(null);
   const cols = batch?.inputs?.columns_present ?? [];
+  const entry = batch?.params?.entry_deg ?? 9;
+  const band = batch?.params?.settle_band_deg ?? 2.5;
   const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const REFRESH_MS = 20000;
@@ -574,29 +598,32 @@ export default function MetricsLastFlight() {
 
                 {/* Respuesta / asentamiento / oscilaciones */}
                 <Metric
-                  label="Asentamiento (9° → ±2.5°)"
-                  value={
-                    pick(
-                      batch.metrics,
-                      "roll.response.settling_from_24d_to_pm5d_s"
-                    ) == null
-                      ? null
-                      : fmt(
-                          pick(
-                            batch.metrics,
-                            "roll.response.settling_from_24d_to_pm5d_s"
-                          ) as number
-                        )
-                  }
+                  label={`Asentamiento (${entry}° → ±${band}°)`}
+                  value={fmt(
+                    pick(batch.metrics, "roll.response.settling_s") as number
+                  )}
                   suffix=" s"
                   note={
-                    pick(
-                      batch.metrics,
-                      "roll.response.settling_from_24d_to_pm5d_s"
-                    ) == null
-                      ? "sin excursión ≥ 9° en este vuelo"
+                    pick(batch.metrics, "roll.response.settling_s") == null
+                      ? ((pick(
+                          batch.metrics,
+                          "roll.signal.kalman.peak_deg"
+                        ) as number) ?? 0) < entry
+                        ? `sin excursión ≥ ${entry}° en este vuelo`
+                        : undefined
                       : undefined
                   }
+                />
+
+                <Metric
+                  label="Tiempo a cero"
+                  value={fmt(
+                    pick(
+                      batch.metrics,
+                      "roll.response.time_to_zero_s"
+                    ) as number
+                  )}
+                  suffix=" s"
                 />
                 <Metric
                   label="Oscilaciones (ciclos)"
@@ -774,29 +801,32 @@ export default function MetricsLastFlight() {
                 />
 
                 <Metric
-                  label="Asentamiento (24° → ±5°)"
-                  value={
-                    pick(
-                      batch.metrics,
-                      "pitch.response.settling_from_24d_to_pm5d_s"
-                    ) == null
-                      ? null
-                      : fmt(
-                          pick(
-                            batch.metrics,
-                            "pitch.response.settling_from_24d_to_pm5d_s"
-                          ) as number
-                        )
-                  }
+                  label={`Asentamiento (${entry}° → ±${band}°)`}
+                  value={fmt(
+                    pick(batch.metrics, "pitch.response.settling_s") as number
+                  )}
                   suffix=" s"
                   note={
-                    pick(
-                      batch.metrics,
-                      "pitch.response.settling_from_24d_to_pm5d_s"
-                    ) == null
-                      ? "sin excursión ≥ 24° en este vuelo"
+                    pick(batch.metrics, "pitch.response.settling_s") == null
+                      ? ((pick(
+                          batch.metrics,
+                          "pitch.signal.kalman.peak_deg"
+                        ) as number) ?? 0) < entry
+                        ? `sin excursión ≥ ${entry}° en este vuelo`
+                        : undefined
                       : undefined
                   }
+                />
+
+                <Metric
+                  label="Tiempo a cero"
+                  value={fmt(
+                    pick(
+                      batch.metrics,
+                      "pitch.response.time_to_zero_s"
+                    ) as number
+                  )}
+                  suffix=" s"
                 />
                 <Metric
                   label="Oscilaciones (ciclos)"

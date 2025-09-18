@@ -1,4 +1,3 @@
-// Helper function to download canvas as PNG
 function downloadCanvasPNG(canvas: HTMLCanvasElement | null, filename: string) {
   if (!canvas) return;
   const link = document.createElement("a");
@@ -132,6 +131,55 @@ function sanitizeJsonNumbers(raw: string): string {
     out += ch;
   }
   return out;
+}
+
+interface FRFData {
+  freq_hz: number[];
+  mag_db?: number[] | null;
+  mag?: number[] | null;
+  phase_deg?: number[] | null;
+  phase?: number[] | null;
+  coh?: number[];
+}
+
+function normalizeFRF(fr?: FRFData | null) {
+  if (!fr || !fr.freq_hz) return null;
+  const f = fr.freq_hz.map(Number);
+
+  const mag_db = fr.mag_db?.length
+    ? fr.mag_db
+    : fr.mag?.length
+    ? fr.mag.map((m) => 20 * Math.log10(Math.max(Number(m), 1e-12)))
+    : null;
+
+  const phase_deg = fr.phase_deg?.length
+    ? fr.phase_deg
+    : fr.phase?.length
+    ? fr.phase.map((p) => (Number(p) * 180) / Math.PI)
+    : null;
+
+  // filtra triples coherentes y finitos
+  const outF: number[] = [];
+  const outMag: number[] = [];
+  const outPh: number[] = [];
+  for (let i = 0; i < f.length; i++) {
+    const okF = Number.isFinite(f[i]);
+    const okM = !mag_db || Number.isFinite(mag_db[i]);
+    const okP = !phase_deg || Number.isFinite(phase_deg[i]);
+    if (okF && okM && okP) {
+      outF.push(f[i]);
+      if (mag_db) outMag.push(mag_db[i]);
+      if (phase_deg) outPh.push(phase_deg[i]);
+    }
+  }
+  if (outF.length < 2) return null;
+
+  return {
+    freq_hz: outF,
+    mag_db: mag_db ? outMag : undefined,
+    phase_deg: phase_deg ? outPh : undefined,
+    coh: (fr.coh || []).slice(0, outF.length),
+  };
 }
 
 const API_BASE =
@@ -461,16 +509,11 @@ export default function AnalysisPanel({
   const [plotData, setPlotData] = useState<PlotData | null>(null);
   const [files, setFiles] = useState<AnalysisFile[]>([]);
 
-  // Helper functions for labels and units
-  useMemo(() => {
-    const labels = plotData?.meta?.labels || {};
-    const units = plotData?.meta?.units || {};
-
-    return {
-      lbl: (k: string, fallback: string) => labels[k] ?? fallback,
-      unit: (k: string, fallback = "") =>
-        units[k] ? ` (${units[k]})` : fallback,
-    };
+  // Calculate FRF data when plotData changes
+  const { frRoll, frPitch } = useMemo(() => {
+    const frRoll = normalizeFRF(plotData?.pro?.frf?.ref_to_est);
+    const frPitch = normalizeFRF(plotData?.pro?.frf_pitch?.ref_to_est);
+    return { frRoll, frPitch };
   }, [plotData]);
   interface MetricsData {
     metrics?: {
@@ -821,44 +864,61 @@ export default function AnalysisPanel({
         )}
       </div>
       {/* Tabla de respuesta a escalón */}
-      {plotData?.pro?.step_responses &&
-      plotData.pro.step_responses.length > 0 ? (
-        <PlotCard title="Respuesta a escalón (detectada)">
-          <StepTable steps={plotData.pro.step_responses} />
-        </PlotCard>
-      ) : plotData?.pro ? (
-        <div className="text-sm text-gray-400 mb-4">
-          No se detectaron escalones en la referencia.
-        </div>
-      ) : null}
+      {(() => {
+        const steps = plotData?.pro?.step_responses;
+        const events = plotData?.pro?.events;
+
+        // Count steps per channel if events exist
+        const rollEvents =
+          events?.filter((e) => e.channel === "roll").length ?? 0;
+        const pitchEvents =
+          events?.filter((e) => e.channel === "pitch").length ?? 0;
+
+        if (!Array.isArray(steps)) {
+          return null; // No step data available
+        }
+
+        if (steps.length > 0) {
+          return (
+            <PlotCard title="Respuesta a escalón (detectada)">
+              <StepTable steps={steps} />
+            </PlotCard>
+          );
+        }
+
+        // Show message with event counts if no steps were found
+        return (
+          <div className="text-sm text-gray-400 mb-4">
+            No se detectaron escalones en la referencia.
+            {events && (
+              <span className="block mt-1 text-gray-500 text-xs">
+                (Eventos detectados: roll={rollEvents}, pitch={pitchEvents})
+              </span>
+            )}
+          </div>
+        );
+      })()}
       {/* Bode (FRF ref→est) ROLL */}
-      {plotData?.pro?.frf?.ref_to_est &&
-        ((plotData.pro.frf.ref_to_est.freq_hz?.length ?? 0) > 3 ? (
-          <div className="grid md:grid-cols-2 gap-6">
-            <PlotCard title="Bode Roll (|H|) ref→est">
-              <BodeMagCanvas fr={plotData.pro.frf.ref_to_est} />
-            </PlotCard>
-            <PlotCard title="Bode Roll (∠H) ref→est">
-              <BodePhaseCanvas fr={plotData.pro.frf.ref_to_est} />
-            </PlotCard>
-          </div>
-        ) : null)}
-
-      {plotData?.pro?.frf_pitch?.ref_to_est &&
-        ((plotData.pro.frf_pitch.ref_to_est.freq_hz?.length ?? 0) > 3 ? (
-          <div className="grid md:grid-cols-2 gap-6 mt-6">
-            <PlotCard title="Bode Pitch (|H|) ref→est">
-              <BodeMagCanvas fr={plotData.pro.frf_pitch.ref_to_est} />
-            </PlotCard>
-            <PlotCard title="Bode Pitch (∠H) ref→est">
-              <BodePhaseCanvas fr={plotData.pro.frf_pitch.ref_to_est} />
-            </PlotCard>
-          </div>
-        ) : null)}
-
-      {/* PSD visualization will be added in a future update */}
-
-      {/* NUEVO: Gráficas interactivas (puntos + línea) */}
+      {frRoll && (
+        <div className="grid md:grid-cols-2 gap-6">
+          <PlotCard title="Bode Roll (|H|) ref→est">
+            <BodeMagCanvas fr={frRoll} />
+          </PlotCard>
+          <PlotCard title="Bode Roll (∠H) ref→est">
+            <BodePhaseCanvas fr={frRoll} />
+          </PlotCard>
+        </div>
+      )}
+      {frPitch && (
+        <div className="grid md:grid-cols-2 gap-6 mt-6">
+          <PlotCard title="Bode Pitch (|H|) ref→est">
+            <BodeMagCanvas fr={frPitch} />
+          </PlotCard>
+          <PlotCard title="Bode Pitch (∠H) ref→est">
+            <BodePhaseCanvas fr={frPitch} />
+          </PlotCard>
+        </div>
+      )}
       {plotData ? (
         <div className="mb-6 space-y-6">
           <PlotCard title="Roll — seguimiento (est vs ref)">

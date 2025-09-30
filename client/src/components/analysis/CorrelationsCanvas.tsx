@@ -16,7 +16,7 @@ interface CorrelationsCanvasProps {
 export function CorrelationsCanvas({
   time,
   corrSeries = [],
-  yLabel = "Correlación",
+  yLabel = "Correlation",
 }: CorrelationsCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mousePos = useRef({ x: -1, y: -1 });
@@ -392,7 +392,7 @@ export function CorrelationsCanvas({
   if (validSeries.length === 0) {
     return (
       <div className="flex items-center justify-center h-full bg-gray-900 rounded-lg border border-gray-800">
-        <p className="text-gray-500">No hay datos de correlación disponibles</p>
+        <p className="text-gray-500">No available correlation data</p>
       </div>
     );
   }
@@ -444,7 +444,7 @@ export function CorrelationsCanvas({
           }
           className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-2 py-1 rounded border border-gray-700"
         >
-          Descargar PNG
+          Download PNG
         </button>
       </div>
     </div>

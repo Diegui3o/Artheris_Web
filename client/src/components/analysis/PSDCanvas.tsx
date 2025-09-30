@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect, useMemo } from "react";
 import { downloadCanvasPNG } from "../../utils/canvasUtils";
 
 interface PSDSeries {
@@ -449,7 +449,7 @@ export function PSDCanvas({
   if (validSeries.length === 0) {
     return (
       <div className="flex items-center justify-center h-full bg-gray-900 rounded-lg border border-gray-800">
-        <p className="text-gray-500">No hay datos de PSD disponibles</p>
+        <p className="text-gray-500">No available PSD data</p>
       </div>
     );
   }
@@ -468,7 +468,7 @@ export function PSDCanvas({
           }
           className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-2 py-1 rounded border border-gray-700"
         >
-          Descargar PNG
+          Download PNG
         </button>
       </div>
     </div>

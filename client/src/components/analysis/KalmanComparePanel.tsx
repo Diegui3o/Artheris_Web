@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-/* ===== Tipos del endpoint /metrics/compare ===== */
+/* ===== Types of endpoint /metrics/compare ===== */
 type NIS = {
   available: boolean;
   mean?: number;
@@ -66,7 +66,7 @@ type CompareResponse = {
   metadata?: { flightId: string; csvPath: string; processedAt: string };
 };
 
-/* ===== Helpers UI locales ===== */
+/* ===== UI Helpers ===== */
 function fmt(v?: number | null, digits = 3) {
   if (v === null || v === undefined) return "—";
   if (!Number.isFinite(v)) return "—";
@@ -93,10 +93,10 @@ function Metric({ label, value, suffix = "", note }: MetricProps) {
   );
 }
 
-/* ===== Props del componente ===== */
+/* ===== Component Props ===== */
 type KalmanComparePanelProps = {
   flightId?: string | null;
-  endpoint?: string; // por si quieres customizar, default al localhost
+  endpoint?: string;
   className?: string;
 };
 
@@ -142,16 +142,16 @@ export default function KalmanComparePanel({
   return (
     <div className={`bg-gray-800 p-4 rounded-lg ${className}`}>
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xl font-semibold">Comparación Kalman</h2>
+        <h2 className="text-xl font-semibold">Kalman comparison</h2>
         <button
           onClick={runCompare}
           disabled={disabled}
           className={`px-4 py-2 rounded ${
             disabled ? "bg-gray-600" : "bg-purple-600 hover:bg-purple-700"
           }`}
-          title={!flightId ? "Selecciona un vuelo" : "Ejecutar comparación"}
+          title={!flightId ? "Select a flight" : "Run comparison"}
         >
-          {loading ? "Comparando…" : "Comparar Kalman (NIS/Whiteness)"}
+          {loading ? "Comparing... " : "Compare Kalman (NIS/Whiteness)"}
         </button>
       </div>
 
@@ -181,7 +181,7 @@ export default function KalmanComparePanel({
             value={wRoll?.available ? (rollWhiteOK ? "OK" : "NO") : "—"}
             note={
               wRoll?.available && wRoll.pass_rate != null
-                ? `${Math.round(100 * wRoll.pass_rate)}% dentro de banda`
+                ? `${Math.round(100 * wRoll.pass_rate)}% within band`
                 : undefined
             }
           />
@@ -210,14 +210,12 @@ export default function KalmanComparePanel({
             value={wPitch?.available ? (pitchWhiteOK ? "OK" : "NO") : "—"}
             note={
               wPitch?.available && wPitch.pass_rate != null
-                ? `${Math.round(
-                    100 * (wPitch.pass_rate || 0)
-                  )}% dentro de banda`
+                ? `${Math.round(100 * (wPitch.pass_rate || 0))}% within band`
                 : undefined
             }
           />
 
-          {/* Frecuencias pico x̂ */}
+          {/* Peak frequencies x̂ */}
           <Metric
             label="fₚ pico roll (x̂)"
             value={

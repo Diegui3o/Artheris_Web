@@ -194,10 +194,9 @@ export default function Settings() {
       if (controllerConfig.type === "lqr") {
         requestBody = {
           ...requestBody,
-          ...controllerConfig.params, // This will spread Kc and Ki
+          ...controllerConfig.params,
         };
       } else if (controllerConfig.type === "pid") {
-        // Map PID parameters to Kc and Ki structures
         const { roll, pitch, yaw } = controllerConfig.params;
 
         // Helper function to get Kp value based on axis type
@@ -358,7 +357,7 @@ export default function Settings() {
       <header className="sticky top-0 z-20 border-b border-gray-800 bg-gray-950/70 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold">Grabación</h1>
+            <h1 className="text-xl font-semibold">Recording</h1>
             <span
               className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${
                 recordingStatus.active
@@ -392,19 +391,17 @@ export default function Settings() {
                   : "bg-gray-700 text-gray-300 cursor-not-allowed"
               }`}
             >
-              📊 Métricas último vuelo
+              📊 Metrics last flight
             </Link>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-6 space-y-6">
-        {/* Controles de grabación */}
+        {/* Recording controls */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 rounded-2xl border border-gray-800 bg-gray-900/40 p-5">
-            <h2 className="mb-3 text-lg font-semibold">
-              Controles de grabación
-            </h2>
+            <h2 className="mb-3 text-lg font-semibold">Recording controls</h2>
             <div className="flex flex-col gap-3">
               <label className="inline-flex items-center gap-2">
                 <input
@@ -414,13 +411,13 @@ export default function Settings() {
                   className="h-4 w-4 accent-blue-500"
                 />
                 <span className="text-sm text-gray-300">
-                  Grabación indefinida
+                  Indefinite recording
                 </span>
               </label>
               {!indefiniteRecording && (
                 <div className="flex items-center gap-3">
                   <label className="text-sm text-gray-300 w-48">
-                    Duración (segundos)
+                    Duration (second)
                   </label>
                   <input
                     type="number"
@@ -444,42 +441,42 @@ export default function Settings() {
                   }`}
                 >
                   <span className="h-2 w-2 rounded-full bg-white" />
-                  {recording ? "Detener" : "Iniciar grabación"}
+                  {recording ? "Stop" : "Start recording"}
                 </button>
                 <div className="text-sm text-gray-400">
                   {recordingStatus.active ? (
                     <span>
                       {indefiniteRecording ? (
-                        "Grabando (indefinido)"
+                        "Recording (indefinite)"
                       ) : (
                         <>
-                          Restante: {formatTime(recordingStatus.remainingMs)} /{" "}
+                          Remaining: {formatTime(recordingStatus.remainingMs)} /{" "}
                           {formatTime(recordingStatus.durationMs)}
                         </>
                       )}
                     </span>
                   ) : (
-                    <span>Listo para grabar</span>
+                    <span>Ready to record</span>
                   )}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Modo (SwitchControl) */}
+          {/* Mode (SwitchControl) */}
           <div className="rounded-2xl border border-gray-800 bg-gray-900/40 p-5">
-            <h2 className="mb-3 text-lg font-semibold">Modo</h2>
+            <h2 className="mb-3 text-lg font-semibold">Mode</h2>
             <div className="rounded-xl border border-gray-800 bg-gray-900 p-4">
               <SwitchControl />
             </div>
           </div>
         </section>
 
-        {/* Parámetros y Controlador */}
+        {/* Parameters and Controller */}
         <section className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Parámetros de vuelo - Reduced width */}
+          {/* Flight parameters - Reduced width */}
           <div className="lg:col-span-1 rounded-2xl border border-gray-800 bg-gray-900/40 p-4 text-base">
-            <h2 className="mb-3 font-semibold">✈️ Parámetros</h2>
+            <h2 className="mb-3 font-semibold">✈️ Parameters</h2>
             <div className="space-y-3">
               <Field
                 label="Mass (kg)"
@@ -494,9 +491,9 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* Selector + Panel controlador - Increased width */}
+          {/* Selector + Controller panel - Increased width */}
           <div className="lg:col-span-4 rounded-2xl border border-gray-800 bg-gray-900/40 p-5">
-            <h2 className="mb-3 text-lg font-semibold">🧮 Controlador</h2>
+            <h2 className="mb-3 text-lg font-semibold">🧮 Controller</h2>
             <ControllerSelector
               value={controllerType}
               onChange={setControllerType}

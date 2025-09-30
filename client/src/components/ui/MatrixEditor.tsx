@@ -134,7 +134,7 @@ export const MatrixEditor: React.FC<MatrixEditorProps> = ({
           Editable
         </span>
         <span className="inline-block rounded border border-dashed border-gray-800 bg-gray-900/60 px-2 py-[2px]">
-          No usado
+          Not used
         </span>
       </div>
     </div>

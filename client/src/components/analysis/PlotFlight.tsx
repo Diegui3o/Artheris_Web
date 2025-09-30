@@ -1,4 +1,3 @@
-// src/components/FlightPlots.tsx
 import React, {
   useCallback,
   useEffect,
@@ -28,7 +27,7 @@ function roundRect(
   ctx.stroke();
 }
 
-// ========== 1) Seguimiento por eje: est vs ref (+ raw opcional) ==========
+// Axis monitoring: EST vs REF (+ optional RAW)
 interface TrackingAxisCanvasProps {
   time: number[];
   est: number[] | null | undefined;
@@ -60,7 +59,7 @@ export function TrackingAxisCanvas({
     null
   );
 
-  // rangos
+  // ranges
   const { tMin, tMax, yMin, yMax } = useMemo(() => {
     const tMin = Math.min(...time);
     const tMax = Math.max(...time);
@@ -80,7 +79,7 @@ export function TrackingAxisCanvas({
     if (!c) return;
     const dpr = window.devicePixelRatio || 1;
 
-    // tamaño
+    // size
     const cssW = c.clientWidth || 800;
     const cssH = 320;
     c.width = Math.floor(cssW * dpr);
@@ -92,7 +91,7 @@ export function TrackingAxisCanvas({
     ctx.resetTransform();
     ctx.scale(dpr, dpr);
 
-    // paddings (en CSS px)
+    // paddings (CSS px)
     const padding = { l: 55, r: 15, t: 12, b: 28 };
     const x0 = padding.l;
     const y0 = padding.t;
@@ -106,7 +105,7 @@ export function TrackingAxisCanvas({
     const yScale = (v: number) =>
       y1 - ((v - yMin) / Math.max(1e-12, yMax - yMin)) * h;
 
-    // fondo
+    // background
     ctx.clearRect(0, 0, cssW, cssH);
     ctx.fillStyle = "rgba(17,24,39,0.9)";
     ctx.fillRect(0, 0, cssW, cssH);
@@ -129,7 +128,7 @@ export function TrackingAxisCanvas({
       ctx.stroke();
     }
 
-    // ejes
+    // axes
     ctx.strokeStyle = "rgba(148,163,184,0.6)";
     ctx.lineWidth = 1.2;
     ctx.beginPath();
@@ -149,7 +148,7 @@ export function TrackingAxisCanvas({
       ctx.fillText(titleRight, x1, cssH - 8);
     }
 
-    // referencia o baseline
+    // Reference or baseline
     if (refSeries?.length) {
       ctx.strokeStyle = "rgba(250,204,21,0.9)";
       ctx.lineWidth = 1;
@@ -166,7 +165,6 @@ export function TrackingAxisCanvas({
       }
       ctx.stroke();
     } else {
-      // y=0
       const y0line = yScale(0);
       if (y0line >= y0 && y0line <= y1) {
         ctx.strokeStyle = "rgba(250,204,21,0.5)";
@@ -232,7 +230,7 @@ export function TrackingAxisCanvas({
       ctx.setLineDash([]);
     }
 
-    // hover & tooltip (si existe)
+    // hover & tooltip (if exists)
     if (hover && mousePos) {
       const xh = xScale(hover.t);
       const yh = yScale(hover.v);
@@ -250,7 +248,6 @@ export function TrackingAxisCanvas({
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // punto resaltado
       const color =
         hover.kind === "Estimation"
           ? "#10B981"
@@ -277,13 +274,12 @@ export function TrackingAxisCanvas({
       if (by < y0) by = y0 + 4;
       if (by + th + pad * 2 > y1) by = y1 - th - pad * 2;
 
-      // fondo redondeado
       ctx.fillStyle = "rgba(31,41,55,0.95)";
       ctx.strokeStyle = "rgba(255,255,255,0.2)";
       ctx.lineWidth = 1;
       roundRect(ctx, bx, by, tw + pad * 2, th + pad * 2, 6);
 
-      // texto
+      // text
       ctx.fillStyle = "#fff";
       lines.forEach((s, i) => {
         ctx.fillText(s, bx + pad, by + pad + 14 + i * 16);
@@ -310,8 +306,6 @@ export function TrackingAxisCanvas({
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const c = canvasRef.current;
       if (!c) return;
-
-      // dimensiones y paddings en px CSS
       const rect = c.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
@@ -323,19 +317,19 @@ export function TrackingAxisCanvas({
       const y0 = padding.t;
       const y1 = rect.height - padding.b;
 
-      // fuera del área de plot
+      // outside plot area
       if (x < x0 || x > x1 || y < y0 || y > y1) {
         setHover(null);
         return;
       }
 
-      // escala inversa
+      // inverse scale
       const tMouse =
         tMin + ((x - x0) / Math.max(1e-12, x1 - x0)) * (tMax - tMin);
       const vMouse =
         yMax - ((y - y0) / Math.max(1e-12, y1 - y0)) * (yMax - yMin);
 
-      // índice cercano por posición temporal
+      // closest index by time
       let idx = 0;
       if (time.length > 1) {
         const pos = Math.floor(
@@ -355,7 +349,7 @@ export function TrackingAxisCanvas({
         idx = best;
       }
 
-      // valores en ese índice
+      // values at that index
       const candidates: Array<{ v: number; kind: HoverKind }> = [];
       if (est && Number.isFinite(est[idx]!))
         candidates.push({ v: est[idx]!, kind: "Estimation" });
@@ -369,7 +363,7 @@ export function TrackingAxisCanvas({
         return;
       }
 
-      // más cercano verticalmente al mouse
+      // closest vertically to mouse
       let best = candidates[0];
       let bestDist = Math.abs(candidates[0].v - vMouse);
       for (let i = 1; i < candidates.length; i++) {
@@ -404,7 +398,7 @@ export function TrackingAxisCanvas({
           }
           className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1 hover:bg-gray-700 text-xs"
         >
-          Descargar PNG
+          Download PNG
         </button>
       </div>
       <div className="mt-2 flex items-center gap-3 text-xs text-gray-400">
@@ -414,7 +408,7 @@ export function TrackingAxisCanvas({
               className="inline-block w-3 h-3 rounded-full"
               style={{ background: "rgba(59,130,246,0.85)" }}
             />
-            raw (puntos)
+            raw (points)
           </span>
         ) : null}
         <span className="inline-flex items-center gap-1">
@@ -422,7 +416,7 @@ export function TrackingAxisCanvas({
             className="inline-block w-3 h-0.5"
             style={{ background: "rgba(16,185,129,0.95)" }}
           />
-          est (línea)
+          est (line)
         </span>
         <span className="inline-flex items-center gap-1">
           <span

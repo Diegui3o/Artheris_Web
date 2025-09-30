@@ -94,12 +94,11 @@ function sanitizeJsonNumbers(raw: string): string {
     }
 
     if (raw.startsWith("-Infinity", i)) {
-      // borde anterior no alfanumérico
       const beforeOk = i === 0 || /[^A-Za-z0-9_$]/.test(raw[i - 1]);
       const afterOk = i + 9 >= raw.length || /[^A-Za-z0-9_$]/.test(raw[i + 9]);
       if (beforeOk && afterOk) {
         out += "null";
-        i += 8; // consumimos "-Infinity"
+        i += 8;
         continue;
       }
     }
@@ -108,7 +107,7 @@ function sanitizeJsonNumbers(raw: string): string {
       const afterOk = i + 8 >= raw.length || /[^A-Za-z0-9_$]/.test(raw[i + 8]);
       if (beforeOk && afterOk) {
         out += "null";
-        i += 7; // consumimos "Infinity"
+        i += 7;
         continue;
       }
     }
@@ -158,7 +157,7 @@ function normalizeFRF(fr?: FRFData | null) {
     ? fr.phase.map((p) => (Number(p) * 180) / Math.PI)
     : null;
 
-  // filtra triples coherentes y finitos
+  // Filter Coherent and finite filters
   const outF: number[] = [];
   const outMag: number[] = [];
   const outPh: number[] = [];
@@ -236,8 +235,8 @@ type PlotData = {
   pro?: {
     events?: ProEvent[];
     step_responses?: ProStep[];
-    frf?: ProFRF; // roll
-    frf_pitch?: ProFRF; // ✅ pitch
+    frf?: ProFRF;
+    frf_pitch?: ProFRF;
     latency?: ProLatency;
   };
 };
@@ -253,12 +252,12 @@ function normalizeStatus(s?: string): JobStatus {
     case "cancelled":
       return "error";
     case "pending":
-      return "running"; // si quieres mostrar spinner
+      return "running";
     default:
       return "idle";
   }
 }
-/* ========== 4) Estimación de movimiento 2D (desde ángulos) ========== */
+// 2D movement estimate (from angles)
 
 export function Motion2DCanvas({
   time,
@@ -281,7 +280,7 @@ export function Motion2DCanvas({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Suavizado opcional simple (media móvil)
+  // Simple optional smoothing (moving average)
   const smooth = useCallback(
     (arr: number[] | null | undefined) => {
       if (!arr || !arr.length || smoothWin <= 1) return arr || [];
@@ -298,7 +297,7 @@ export function Motion2DCanvas({
     [smoothWin]
   );
 
-  // Cálculo de trayectoria (no uniforme en tiempo)
+  // Path calculation (non-uniform in time)
   const { path, bbox } = useMemo(() => {
     const phi =
       (smooth((rollDeg ?? []).filter(Number.isFinite)) as number[]).length ===
@@ -315,14 +314,14 @@ export function Motion2DCanvas({
     const path: { x: number; y: number; t: number }[] = [];
     if (n < 3) return { path, bbox: { xmin: 0, xmax: 1, ymin: 0, ymax: 1 } };
 
-    // estados
+    // States
     let vx = 0,
       vy = 0;
     let x = 0,
       y = 0;
 
     const deg2rad = (d: number) => (d * Math.PI) / 180;
-    const kLeak = (dt: number) => Math.max(0, 1 - leak * Math.max(0, dt)); // factor [0..1]
+    const kLeak = (dt: number) => Math.max(0, 1 - leak * Math.max(0, dt));
 
     for (let i = 1; i < n; i++) {
       const dt = Math.max(0, time[i] - time[i - 1]);
@@ -334,7 +333,7 @@ export function Motion2DCanvas({
       const ax = g * Math.tan(deg2rad(theta[i] || 0));
       const ay = -g * Math.tan(deg2rad(phi[i] || 0));
 
-      // integración con fuga (leaky) para v y s
+      // Integration with escape (Leaky) for V and S
       vx = vx * kLeak(dt) + ax * dt;
       vy = vy * kLeak(dt) + ay * dt;
 
@@ -369,7 +368,7 @@ export function Motion2DCanvas({
     c.height = Math.floor(cssH * dpr);
     c.style.height = cssH + "px";
 
-    // fondo
+    // Background
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.fillStyle = "rgba(17,24,39,0.9)";
     ctx.fillRect(0, 0, c.width, c.height);
@@ -382,7 +381,7 @@ export function Motion2DCanvas({
     const w = x1 - x0,
       h = y1 - y0;
 
-    // grid + ejes
+    // Grid + axes
     ctx.strokeStyle = "rgba(255,255,255,0.06)";
     ctx.lineWidth = 1;
     for (let i = 0; i <= 6; i++) {
@@ -408,7 +407,7 @@ export function Motion2DCanvas({
     ctx.lineTo(x1, y1);
     ctx.stroke();
 
-    // etiquetas
+    // Labels
     ctx.fillStyle = "rgba(203,213,225,0.9)";
     ctx.font = `${12 * dpr}px ui-sans-serif, system-ui`;
     ctx.textAlign = "left";
@@ -416,7 +415,7 @@ export function Motion2DCanvas({
     ctx.textAlign = "right";
     ctx.fillText(scaleLabel, x1, (cssH - 10) * dpr);
 
-    // nada para dibujar
+    // Nothing to draw
     if (!path.length) {
       ctx.textAlign = "center";
       ctx.fillStyle = "rgba(148,163,184,0.8)";
@@ -424,19 +423,18 @@ export function Motion2DCanvas({
       return;
     }
 
-    // escalado con aspecto 1:1 (mismo factor en X e Y)
+    // Aspect ratio 1:1 (same factor in X and Y)
     const { xmin, xmax, ymin, ymax } = bbox;
     const cx = (xmin + xmax) / 2;
     const cy = (ymin + ymax) / 2;
     // padding 10%
     const sx = (xmax - xmin) * 1.1 || 1;
     const sy = (ymax - ymin) * 1.1 || 1;
-    // usa mismo factor para mantener aspecto
     const scale = Math.min(w / sx, h / sy);
     const xToPx = (x: number) => x0 + (x - (cx - sx / 2)) * scale;
     const yToPx = (y: number) => y1 - (y - (cy - sy / 2)) * scale;
 
-    // trayectoria
+    // Path
     ctx.strokeStyle = "rgba(16,185,129,0.95)";
     ctx.lineWidth = Math.max(1.6 * dpr, 1.2);
     ctx.beginPath();
@@ -454,15 +452,15 @@ export function Motion2DCanvas({
     }
     ctx.stroke();
 
-    // punto inicio y fin
+    // Start and end points
     const p0 = path[0],
       pN = path[path.length - 1];
-    // inicio (círculo)
+    // Start (circle)
     ctx.fillStyle = "rgba(59,130,246,0.9)";
     ctx.beginPath();
     ctx.arc(xToPx(p0.x), yToPx(p0.y), 4 * dpr, 0, Math.PI * 2);
     ctx.fill();
-    // fin (cuadrado)
+    // End (square)
     ctx.fillStyle = "rgba(250,204,21,0.95)";
     ctx.fillRect(
       xToPx(pN.x) - 3 * dpr,
@@ -487,11 +485,11 @@ export function Motion2DCanvas({
           onClick={onDownload}
           className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1 hover:bg-gray-700 text-xs"
         >
-          Descargar PNG
+          Download PNG
         </button>
       </div>
       <div className="mt-1 text-[11px] text-gray-400">
-        Modelo simplificado: a_x≈g·tan(θ), a_y≈−g·tan(φ), integración con fuga
+        Simplified model: a_x≈g·tan(θ), a_y≈−g·tan(φ), integration with escape
         (leak={leak} s⁻¹).
       </div>
     </div>
@@ -550,13 +548,10 @@ export default function AnalysisPanel({
       }));
       setFiles(fs);
 
-      // 1) localizar archivos
       const metricsFile = fs.find((f) =>
         f.name.endsWith("flight_metrics.json")
       );
       const plotDataFile = fs.find((f) => f.name.endsWith("plot_data.json"));
-
-      // 2) cargar métricas (como ya hacías)
       if (metricsFile) {
         try {
           const r = await fetch(metricsFile.url);
@@ -565,24 +560,18 @@ export default function AnalysisPanel({
           console.error("Error loading metrics:", e);
         }
       }
-
-      // 3) cargar plot_data con fallback robusto
       let plotJsonOk = false;
-
-      // a) si viene en la lista
       if (plotDataFile) {
         try {
           const response = await fetch(plotDataFile.url, {
             headers: { Accept: "application/json" },
           });
           if (response.ok) {
-            // Clonar la respuesta para poder leerla dos veces si es necesario
             const responseClone = response.clone();
             try {
               setPlotData(parseJsonWithNaN(await response.text()));
               plotJsonOk = true;
             } catch {
-              // fallback por si el servidor no marca application/json
               try {
                 setPlotData(parseJsonWithNaN(await responseClone.text()));
                 plotJsonOk = true;
@@ -596,7 +585,6 @@ export default function AnalysisPanel({
         }
       }
 
-      // b) fallback por ruta directa (por si la lista no trajo el archivo con URL correcta)
       if (!plotJsonOk) {
         const direct = `${API_BASE}/analysis/assets/${jid}/plot_data.json`;
         try {
@@ -604,7 +592,6 @@ export default function AnalysisPanel({
             headers: { Accept: "application/json" },
           });
           if (response.ok) {
-            // Clonar la respuesta para poder leerla dos veces si es necesario
             const responseClone = response.clone();
             try {
               setPlotData(parseJsonWithNaN(await response.text()));
@@ -660,7 +647,7 @@ export default function AnalysisPanel({
           }
         } catch (e: unknown) {
           setStatus("error");
-          setError(e instanceof Error ? e.message : "Fallo consultando estado");
+          setError(e instanceof Error ? e.message : "Failed to poll status");
           if (pollRef.current) window.clearInterval(pollRef.current);
         }
       };
@@ -691,9 +678,7 @@ export default function AnalysisPanel({
         pollStatus(jid);
       } catch (e: unknown) {
         setStatus("error");
-        setError(
-          e instanceof Error ? e.message : "No se pudo iniciar el análisis"
-        );
+        setError(e instanceof Error ? e.message : "Failed to start analysis");
       }
     },
     [pollStatus]
@@ -738,7 +723,7 @@ export default function AnalysisPanel({
     <section className="rounded-2xl border border-gray-800 bg-gray-900/40 p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">📈 Graficas de vuelo</h2>
+          <h2 className="text-lg font-semibold">📈 Flight graphics</h2>
           <p className="text-sm text-gray-400">
             {effectiveFlightId ? (
               <>
@@ -746,7 +731,7 @@ export default function AnalysisPanel({
                 <code className="text-gray-300">{effectiveFlightId}</code>
               </>
             ) : (
-              <>Selecciona un vuelo o graba uno nuevo.</>
+              <>Select a flight or record a new.</>
             )}
           </p>
         </div>
@@ -772,39 +757,35 @@ export default function AnalysisPanel({
               }
               className="rounded-lg px-3 py-2 text-sm font-semibold bg-amber-600 hover:bg-amber-700"
             >
-              Reintentar
+              Retry
             </button>
           )}
         </div>
       </div>
-      {/* Estado / errores */}
+      {/* State / errors */}
       {error && (
         <div className="mb-4 rounded-lg border border-red-800/60 bg-red-950/40 p-3 text-sm text-red-300">
           {String(error)}
         </div>
       )}
-      {/* Resumen rápido de métricas */}
+      {/* Quick metrics summary */}
       {metricsJson && (
         <div className="mb-5 grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat
-            label="Score Estabilización"
+            label="Score Stabilization"
             value={fmt(metricsQuick.stabScore, 1)}
             suffix="/100"
           />
+          <Stat label="fs dear" value={fmt(metricsQuick.fsHz, 2)} suffix="Hz" />
+          <Stat label="Duration" value={fmt(metricsQuick.durS, 2)} suffix="s" />
           <Stat
-            label="fs estimada"
-            value={fmt(metricsQuick.fsHz, 2)}
-            suffix="Hz"
-          />
-          <Stat label="Duración" value={fmt(metricsQuick.durS, 2)} suffix="s" />
-          <Stat
-            label="Mejora SNR (avg)"
+            label="SNR Improvement (avg)"
             value={fmt(metricsQuick.kalmanAvgDb, 2)}
             suffix="dB"
           />
         </div>
       )}
-      {/* Enlaces útiles */}
+      {/* Useful links */}
       <div className="mb-4 flex flex-wrap items-center gap-3 text-sm">
         {csvLink && (
           <a
@@ -812,7 +793,7 @@ export default function AnalysisPanel({
             target="_blank"
             className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1 hover:bg-gray-700"
           >
-            Descargar CSV
+            Download CSV
           </a>
         )}
         {files.find((f) => f.name.endsWith("flight_metrics.json")) && (
@@ -823,7 +804,7 @@ export default function AnalysisPanel({
             target="_blank"
             className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1 hover:bg-gray-700"
           >
-            Ver JSON de métricas
+            View metrics JSON
           </a>
         )}
         {plotJsonLink && (
@@ -832,7 +813,7 @@ export default function AnalysisPanel({
             target="_blank"
             className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1 hover:bg-gray-700"
           >
-            Ver plot_data.json
+            View plot_data.json
           </a>
         )}
         {files.find((f) => f.name === "roll_points.csv") && (
@@ -863,7 +844,7 @@ export default function AnalysisPanel({
           </a>
         )}
       </div>
-      {/* Tabla de respuesta a escalón */}
+      {/* Step response table */}
       {(() => {
         const steps = plotData?.pro?.step_responses;
         const events = plotData?.pro?.events;
@@ -875,12 +856,12 @@ export default function AnalysisPanel({
           events?.filter((e) => e.channel === "pitch").length ?? 0;
 
         if (!Array.isArray(steps)) {
-          return null; // No step data available
+          return null;
         }
 
         if (steps.length > 0) {
           return (
-            <PlotCard title="Respuesta a escalón (detectada)">
+            <PlotCard title="Step response (detected)">
               <StepTable steps={steps} />
             </PlotCard>
           );
@@ -889,10 +870,10 @@ export default function AnalysisPanel({
         // Show message with event counts if no steps were found
         return (
           <div className="text-sm text-gray-400 mb-4">
-            No se detectaron escalones en la referencia.
+            No step responses were detected.
             {events && (
               <span className="block mt-1 text-gray-500 text-xs">
-                (Eventos detectados: roll={rollEvents}, pitch={pitchEvents})
+                (Events detected: roll={rollEvents}, pitch={pitchEvents})
               </span>
             )}
           </div>
@@ -930,35 +911,35 @@ export default function AnalysisPanel({
                 plotData?.roll?.ref ??
                 Array((plotData?.time_s ?? []).length).fill(0)
               }
-              yLabel="Ángulo (deg)"
+              yLabel="Angle (deg)"
               markers={(plotData.pro?.events || [])
                 .filter(
                   (ev: ProEvent) =>
                     ev.channel === "roll" && Number.isFinite(ev.t)
                 )
                 .map((ev: ProEvent) => ev.t)}
-              titleRight="est (verde) · ref (ámbar)"
+              titleRight="est (green) · ref (amber)"
             />
           </PlotCard>
-          <PlotCard title="Pitch — seguimiento (est vs ref)">
+          <PlotCard title="Pitch — follow-up (est vs ref)">
             <TrackingAxisCanvas
               time={plotData.time_s}
               est={plotData.pitch.est}
-              raw={plotData.pitch.raw} // opcional
+              raw={plotData.pitch.raw}
               refSeries={
                 plotData.pitch.ref ?? Array(plotData.time_s.length).fill(0)
               }
-              yLabel="Ángulo (deg)"
+              yLabel="Angle (deg)"
               markers={(plotData.pro?.events || [])
                 .filter(
                   (ev: ProEvent) =>
                     ev.channel === "pitch" && Number.isFinite(ev.t)
                 )
                 .map((ev: ProEvent) => ev.t)}
-              titleRight="est (verde) · ref (ámbar)"
+              titleRight="est (green) · ref (amber)"
             />
           </PlotCard>
-          <PlotCard title="Esfuerzo y motores">
+          <PlotCard title="Effort and motors">
             <TauMotorsCanvas
               time={plotData.time_s}
               tauX={plotData.control.tau_x ?? undefined}
@@ -968,24 +949,24 @@ export default function AnalysisPanel({
               motorDiff13={plotData.control.motors?.diff_13}
               motorDiff24={plotData.control.motors?.diff_24}
               yLabelLeft="τ (arb)"
-              yLabelRight="motores (arb)"
+              yLabelRight="motors (arb)"
             />
           </PlotCard>
           {plotData && (
-            <PlotCard title="Estimación de movimiento (derivado de ángulos)">
+            <PlotCard title="Motion estimation (derived from angles)">
               <Motion2DCanvas
                 time={plotData.time_s}
                 rollDeg={plotData.roll.est} // φ estimado (deg)
                 pitchDeg={plotData.pitch.est} // θ estimado (deg)
                 g={9.81}
-                leak={0.02} // puedes subir a 0.05 si ves deriva
-                smoothWin={7} // opcional: suaviza ángulos
+                leak={0.02}
+                smoothWin={7}
                 scaleLabel="m"
                 title="Recorrido estimado (vista superior)"
               />
             </PlotCard>
           )}
-          {/* Enlaces útiles extra (CSV de puntos) */}
+          {/* Extra useful links (points CSV) */}
           {files
             .filter((f) => /_(points)\.csv$/i.test(f.name))
             .map((f) => (
@@ -995,14 +976,14 @@ export default function AnalysisPanel({
                 target="_blank"
                 className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1 hover:bg-gray-700"
               >
-                Descargar {f.name}
+                Download {f.name}
               </a>
             ))}
         </div>
       ) : status === "done" ? (
         <div className="text-sm text-gray-400 mb-6">
-          No se encontró <code>plot_data.json</code>. Asegúrate de haber
-          agregado la exportación de datos en tu script Python.
+          It was not found <code> plot_data.json </code>. Make sure you have
+          added data export in your Python script.
         </div>
       ) : null}
     </section>

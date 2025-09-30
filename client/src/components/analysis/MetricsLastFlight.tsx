@@ -2,7 +2,7 @@ import KalmanComparePanel from "./KalmanComparePanel";
 import AnalysisPanel from "./GraphData";
 import { useEffect, useRef, useState } from "react";
 
-/* ===== Tipos de backend/QuestDB ===== */
+// Types of Backend/Questdb
 interface FlightRecord {
   flight_id: string;
   start_time: string;
@@ -14,7 +14,7 @@ interface FlightRecord {
   message?: string;
 }
 
-// Respuesta /recording/recent-flights (array plano)
+// RECORDING /RECENT-FLIGHTS (ARRAY PLANO)
 type FlightsApiRow = {
   flight_id: string;
   start_time: string;
@@ -22,7 +22,7 @@ type FlightsApiRow = {
   mass: number | null;
 };
 
-/* ===== Tipos del JSON de metrics.py ===== */
+// Metrics.py Json Types
 type Osc = { half_cycles: number; cycles: number; dominant_freq_hz: number };
 type KalEff = {
   variance_ratio: number;
@@ -58,7 +58,6 @@ type AxisMetricsBase = {
   signal: AxisSignal;
   kalman_effectiveness: KalEff;
   response: {
-    // p.ej. settling_from_24d_to_pm5d_s puede venir null si no hubo excursión ≥ 24°
     [k: string]: number | Osc | null | undefined;
     oscillations: Osc;
   };
@@ -88,14 +87,12 @@ type PyMetricsPayloadBase = {
     num_samples: number;
   };
   metrics: {
-    // legacy (si quieres seguir mostrando algo viejo)
     rmse_roll?: number;
     rmse_pitch?: number;
     overshoot_roll_pct?: number;
     overshoot_pitch_pct?: number;
     settling_time_roll_s?: number;
     settling_time_pitch_s?: number;
-    // nuevos
     roll: AxisMetrics;
     pitch: AxisMetrics;
     combined: Combined;
@@ -103,7 +100,6 @@ type PyMetricsPayloadBase = {
   mode: "batch" | "live";
 };
 
-// NUEVO: parámetros que puede devolver Python (opcional)
 type Params = {
   entry_deg: number;
   settle_band_deg: number;
@@ -113,7 +109,7 @@ type Params = {
 
 // Extended PyMetricsPayload with optional params
 type PyMetricsPayload = PyMetricsPayloadBase & {
-  params?: Params; // ← NUEVO
+  params?: Params;
 };
 interface BatchMetadata {
   flightId: string;
@@ -173,7 +169,7 @@ function Metric({ label, value, suffix = "", note }: MetricProps) {
   );
 }
 
-/* ===== Componente principal ===== */
+/* ===== Main component ===== */
 export default function MetricsLastFlight() {
   const [currentFlightId, setCurrentFlightId] = useState<string | null>(null);
   const [recordingStatus, setRecordingStatus] = useState<{
@@ -204,7 +200,6 @@ export default function MetricsLastFlight() {
     const tick = async () => {
       if (!alive) return;
 
-      // Cancela pedidos anteriores si siguen en vuelo
       inFlightAbort?.abort();
       inFlightAbort = new AbortController();
 
@@ -231,13 +226,12 @@ export default function MetricsLastFlight() {
             status.lastFlightId ||
             localStorage.getItem("lastFlightId");
 
-          // solo setea si no hay uno ya (usa el ref espejo)
           if (fid && !currentFlightIdRef.current) {
             setCurrentFlightId(fid);
             currentFlightIdRef.current = fid;
             setError(null);
           } else if (!fid && !currentFlightIdRef.current) {
-            setError("No hay flightId reciente. Graba un vuelo primero.");
+            setError("There is no recent flights. Record a flight first.");
           }
         }
 
@@ -262,19 +256,16 @@ export default function MetricsLastFlight() {
           });
 
           setRecentFlights(flightsWithDuration);
-          // solo autoselecciona si aún no hay uno elegido
           setSelectedFlight((prev) => prev ?? flightsWithDuration[0] ?? null);
         }
       } catch (e: unknown) {
-        // ignora abortos
         if (e instanceof DOMException && e.name === "AbortError") return;
         console.error("Error loading flight data:", e);
 
         if (!currentFlightIdRef.current) {
           const fid = localStorage.getItem("lastFlightId");
           if (fid) setCurrentFlightId(fid);
-          else
-            setError("Error al cargar los vuelos. Intenta recargar la página.");
+          else setError("Error loading flights. Try to recharge the page.");
         }
       } finally {
         if (alive && !document.hidden) {
@@ -283,7 +274,6 @@ export default function MetricsLastFlight() {
       }
     };
 
-    // Pausa/reanuda según visibilidad
     const onVis = () => {
       if (!alive) return;
       if (document.hidden) {
@@ -295,7 +285,6 @@ export default function MetricsLastFlight() {
     };
     document.addEventListener("visibilitychange", onVis);
 
-    // Arranque
     tick();
 
     return () => {
@@ -304,7 +293,6 @@ export default function MetricsLastFlight() {
       if (timer) clearTimeout(timer);
       inFlightAbort?.abort();
     };
-    // 👇 sin dependencias; mantenemos un único poller
   }, []);
 
   useEffect(() => {
@@ -333,7 +321,6 @@ export default function MetricsLastFlight() {
     return () => ac.abort();
   }, [selectedFlight?.flight_id]);
 
-  // Ejecutar análisis batch (usa tu endpoint real /metrics/batch)
   const runBatch = async () => {
     setLoadingBatch(true);
     setError(null);
@@ -348,8 +335,7 @@ export default function MetricsLastFlight() {
         currentFlightId ??
         localStorage.getItem("lastFlightId");
 
-      if (!fid) throw new Error("No hay un vuelo completado para analizar.");
-      // Asegura que el ref quede actualizado si decidimos este fid
+      if (!fid) throw new Error("There is no completed flight to analyze.");
       currentFlightIdRef.current = fid;
 
       const r = await fetch("http://localhost:3002/metrics/batch", {
@@ -357,7 +343,6 @@ export default function MetricsLastFlight() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ flightId: fid }),
       });
-      // Caso esperado: el backend devuelve 404 si no hay muestras
       if (r.status === 404) {
         let payload: { message?: string } | null = null;
         try {
@@ -368,7 +353,7 @@ export default function MetricsLastFlight() {
         setBatch(null);
         setError(
           payload?.message ??
-            "Este vuelo no tiene muestras en sensor_data. Graba un vuelo y verifica que llegue telemetría."
+            "This flight has no samples at sensor_data. Record a flight and verify that telemetry arrives."
         );
         return;
       }
@@ -382,7 +367,7 @@ export default function MetricsLastFlight() {
       setBatch(batchData);
     } catch (e: unknown) {
       const msg =
-        e instanceof Error ? e.message : "Error calculando métricas batch";
+        e instanceof Error ? e.message : "Error calculating batch metrics";
       setError(msg);
     } finally {
       setLoadingBatch(false);
@@ -391,7 +376,7 @@ export default function MetricsLastFlight() {
 
   return (
     <div className="p-6 text-white max-w-5xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">📊 Análisis de Vuelos</h1>
+      <h1 className="text-2xl font-bold">📊 Flight analysis</h1>
 
       {error && (
         <div className="bg-red-900/50 border border-red-500 text-red-200 p-4 rounded-lg">
@@ -399,20 +384,20 @@ export default function MetricsLastFlight() {
         </div>
       )}
 
-      {/* Detalles del vuelo seleccionado */}
+      {/* Selected flight details */}
       {selectedFlight && (
         <div className="bg-gray-800 p-4 rounded-lg">
-          <h2 className="text-xl font-semibold mb-3">Detalles del Vuelo</h2>
+          <h2 className="text-xl font-semibold mb-3">Flight details</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-gray-700 p-3 rounded">
-              <p className="text-sm text-gray-400">ID de Vuelo</p>
+              <p className="text-sm text-gray-400">Flight ID</p>
               <p className="font-mono text-sm break-all">
                 {selectedFlight.flight_id}
               </p>
             </div>
 
             <div className="bg-gray-700 p-3 rounded">
-              <p className="text-sm text-gray-400">Hora de Inicio</p>
+              <p className="text-sm text-gray-400">Start time</p>
               {(() => {
                 const d = parseQuestDate(selectedFlight.start_time);
                 return (
@@ -428,7 +413,7 @@ export default function MetricsLastFlight() {
             </div>
 
             <div className="bg-gray-700 p-3 rounded">
-              <p className="text-sm text-gray-400">Duración Total</p>
+              <p className="text-sm text-gray-400">Total duration</p>
               <p>
                 {selectedFlight.duration_seconds
                   ? `${selectedFlight.duration_seconds.toFixed(1)} seg`
@@ -438,7 +423,7 @@ export default function MetricsLastFlight() {
 
             <div className="bg-gray-700 p-3 rounded">
               <p className="text-sm text-gray-400">
-                Tiempo de Vuelo (throttle 1300-2000)
+                Flight time (throttle 1300-2000)
               </p>
               <p>
                 {selectedFlight.flight_time_seconds !== undefined
@@ -448,16 +433,16 @@ export default function MetricsLastFlight() {
             </div>
 
             <div className="bg-gray-700 p-3 rounded">
-              <p className="text-sm text-gray-400">Masa</p>
+              <p className="text-sm text-gray-400">Mass</p>
               <p>
                 {selectedFlight.mass
                   ? `${selectedFlight.mass} kg`
-                  : "No especificada"}
+                  : "Not specified"}
               </p>
             </div>
 
             <div className="bg-gray-700 p-3 rounded">
-              <p className="text-sm text-gray-400">Estado</p>
+              <p className="text-sm text-gray-400">Status</p>
               <span
                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   selectedFlight.status === "recording"
@@ -481,13 +466,13 @@ export default function MetricsLastFlight() {
       {/* Procesamiento gráfico */}
       <div className="bg-gray-800 p-4 rounded-lg">
         <div className="flex items-center justify-between mb-3">
-          <AnalysisPanel autoRun={false} />
+          <AnalysisPanel autoRun={true} />
         </div>
 
         {/* Procesamiento batch */}
         <div className="bg-gray-800 p-4 rounded-lg mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-semibold">Procesamiento de Vuelo</h2>
+            <h2 className="text-xl font-semibold">Flight processing</h2>
             <button
               onClick={runBatch}
               disabled={loadingBatch || !selectedFlight}
@@ -497,19 +482,19 @@ export default function MetricsLastFlight() {
                   : "bg-blue-600 hover:bg-blue-700"
               }`}
             >
-              {loadingBatch ? "Calculando…" : "Calcular métricas completas"}
+              {loadingBatch ? "Calculated…" : "Calculate complete metrics"}
             </button>
           </div>
         </div>
 
         {batch?.metrics && (
           <div className="space-y-6 mt-4">
-            {/* RESUMEN / COMBINADO */}
+            {/* SUMMARY / COMBINED */}
             <div className="bg-gray-800 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-3">Resumen</h3>
+              <h3 className="text-lg font-semibold mb-3">Summary</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Metric
-                  label="Score de Estabilización (avg)"
+                  label="Stabilization score (avg)"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -519,7 +504,7 @@ export default function MetricsLastFlight() {
                   suffix="/100"
                 />
                 <Metric
-                  label="Mejora SNR Kalman (avg)"
+                  label="Kalman SNR improvement (avg)"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -529,7 +514,7 @@ export default function MetricsLastFlight() {
                   suffix=" dB"
                 />
                 <Metric
-                  label="Reducción HF Kalman (avg)"
+                  label="Kalman HF noise reduction (avg)"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -539,12 +524,12 @@ export default function MetricsLastFlight() {
                   suffix=" dB"
                 />
                 <Metric
-                  label="Duración (inputs)"
+                  label="Duration (inputs)"
                   value={batch?.inputs?.duration_s}
                   suffix=" s"
                 />
                 <Metric
-                  label="fs estimada"
+                  label="fs estimated"
                   value={batch?.inputs?.fs_hz_est}
                   suffix=" Hz"
                 />
@@ -553,11 +538,11 @@ export default function MetricsLastFlight() {
 
             {/* ROLL */}
             <div className="bg-gray-800 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-3">Eje Roll</h3>
+              <h3 className="text-lg font-semibold mb-3">Roll axis</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Kalman effectiveness */}
                 <Metric
-                  label="Varianza raw/kal"
+                  label="Variance ratio raw/kal"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -566,7 +551,7 @@ export default function MetricsLastFlight() {
                   )}
                 />
                 <Metric
-                  label="Mejora SNR Kalman"
+                  label="Kalman SNR improvement"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -576,7 +561,7 @@ export default function MetricsLastFlight() {
                   suffix=" dB"
                 />
                 <Metric
-                  label="Reducción HF Kalman"
+                  label="Kalman HF noise reduction"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -586,7 +571,7 @@ export default function MetricsLastFlight() {
                   suffix=" dB"
                 />
                 <Metric
-                  label="Retardo Kalman"
+                  label="Kalman delay"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -596,9 +581,9 @@ export default function MetricsLastFlight() {
                   suffix=" s"
                 />
 
-                {/* Respuesta / asentamiento / oscilaciones */}
+                {/* Response / settling / oscillations */}
                 <Metric
-                  label={`Asentamiento (${entry}° → ±${band}°)`}
+                  label={`Settling (${entry}° → ±${band}°)`}
                   value={fmt(
                     pick(batch.metrics, "roll.response.settling_s") as number
                   )}
@@ -616,7 +601,7 @@ export default function MetricsLastFlight() {
                 />
 
                 <Metric
-                  label="Tiempo a cero"
+                  label="Time to zero"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -626,7 +611,7 @@ export default function MetricsLastFlight() {
                   suffix=" s"
                 />
                 <Metric
-                  label="Oscilaciones (ciclos)"
+                  label="Oscillations (cycles)"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -635,7 +620,7 @@ export default function MetricsLastFlight() {
                   )}
                 />
                 <Metric
-                  label="Frecuencia dominante"
+                  label="Dominant frequency"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -645,7 +630,7 @@ export default function MetricsLastFlight() {
                   suffix=" Hz"
                 />
 
-                {/* Error clásico */}
+                {/* Classic error */}
                 <Metric
                   label="RMSE error (φ)"
                   value={fmt(
@@ -689,7 +674,7 @@ export default function MetricsLastFlight() {
                   suffix=" °²·s²"
                 />
                 <Metric
-                  label="|e| máx"
+                  label="Max absolute error (φ)"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -699,7 +684,7 @@ export default function MetricsLastFlight() {
                   suffix=" °"
                 />
 
-                {/* Esfuerzo de control */}
+                {/* Control effort */}
                 <Metric
                   label="τ RMS (τx)"
                   value={fmt(
@@ -712,7 +697,7 @@ export default function MetricsLastFlight() {
                   }
                 />
                 <Metric
-                  label="Energía ∫τ²dt"
+                  label="Energy ∫τ²dt"
                   value={fmt(
                     pick(batch.metrics, "roll.control.tau_energy") as number
                   )}
@@ -729,7 +714,7 @@ export default function MetricsLastFlight() {
                   )}
                   note={
                     !cols.includes("tau_x")
-                      ? "columna 'tau_x' no presente"
+                      ? "column 'tau_x' not present"
                       : undefined
                   }
                 />
@@ -740,7 +725,7 @@ export default function MetricsLastFlight() {
                   )}
                   note={
                     !cols.includes("tau_x")
-                      ? "columna 'tau_x' no presente"
+                      ? "column 'tau_x' not present"
                       : undefined
                   }
                 />
@@ -758,10 +743,10 @@ export default function MetricsLastFlight() {
 
             {/* PITCH */}
             <div className="bg-gray-800 p-4 rounded-lg">
-              <h3 className="text-lg font-semibold mb-3">Eje Pitch</h3>
+              <h3 className="text-lg font-semibold mb-3">Pitch axis</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Metric
-                  label="Varianza raw/kal"
+                  label="Variance raw/kal"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -770,7 +755,7 @@ export default function MetricsLastFlight() {
                   )}
                 />
                 <Metric
-                  label="Mejora SNR Kalman"
+                  label="SNR Kalman improvement"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -780,7 +765,7 @@ export default function MetricsLastFlight() {
                   suffix=" dB"
                 />
                 <Metric
-                  label="Reducción HF Kalman"
+                  label="Kalman HF noise reduction"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -790,7 +775,7 @@ export default function MetricsLastFlight() {
                   suffix=" dB"
                 />
                 <Metric
-                  label="Retardo Kalman"
+                  label="Kalman delay"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -801,7 +786,7 @@ export default function MetricsLastFlight() {
                 />
 
                 <Metric
-                  label={`Asentamiento (${entry}° → ±${band}°)`}
+                  label={`Settling (${entry}° → ±${band}°)`}
                   value={fmt(
                     pick(batch.metrics, "pitch.response.settling_s") as number
                   )}
@@ -819,7 +804,7 @@ export default function MetricsLastFlight() {
                 />
 
                 <Metric
-                  label="Tiempo a cero"
+                  label="Time to zero"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -829,7 +814,7 @@ export default function MetricsLastFlight() {
                   suffix=" s"
                 />
                 <Metric
-                  label="Oscilaciones (ciclos)"
+                  label="Oscillations (cycles)"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -838,7 +823,7 @@ export default function MetricsLastFlight() {
                   )}
                 />
                 <Metric
-                  label="Frecuencia dominante"
+                  label="Dominant frequency"
                   value={fmt(
                     pick(
                       batch.metrics,
@@ -908,18 +893,18 @@ export default function MetricsLastFlight() {
                   )}
                   note={
                     !cols.includes("tau_y")
-                      ? "columna 'tau_y' no presente"
+                      ? "column 'tau_y' not present"
                       : undefined
                   }
                 />
                 <Metric
-                  label="Energía ∫τ²dt"
+                  label="Energy ∫τ²dt"
                   value={fmt(
                     pick(batch.metrics, "pitch.control.tau_energy") as number
                   )}
                   note={
                     !cols.includes("tau_y")
-                      ? "columna 'tau_y' no presente"
+                      ? "column 'tau_y' not present"
                       : undefined
                   }
                 />
@@ -930,7 +915,7 @@ export default function MetricsLastFlight() {
                   )}
                   note={
                     !cols.includes("tau_y")
-                      ? "columna 'tau_y' no presente"
+                      ? "column 'tau_y' not present"
                       : undefined
                   }
                 />
@@ -941,7 +926,7 @@ export default function MetricsLastFlight() {
                   )}
                   note={
                     !cols.includes("tau_y")
-                      ? "columna 'tau_y' no presente"
+                      ? "column 'tau_y' not present"
                       : undefined
                   }
                 />
@@ -965,28 +950,28 @@ export default function MetricsLastFlight() {
         )}
       </div>
 
-      {/* Lista de vuelos */}
+      {/* Flight list */}
       <div className="bg-gray-800 p-4 rounded-lg">
-        <h2 className="text-xl font-semibold mb-3">Lista de Vuelos</h2>
+        <h2 className="text-xl font-semibold mb-3">Flight list</h2>
         {recentFlights.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-700">
               <thead>
                 <tr>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-300">
-                    ID de Vuelo
+                    Flight ID
                   </th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-300">
-                    Inicio
+                    Start
                   </th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-300">
-                    Duración
+                    Duration
                   </th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-300">
-                    Tiempo de Vuelo
+                    Flight time
                   </th>
                   <th className="px-4 py-2 text-left text-sm font-medium text-gray-300">
-                    Estado
+                    State
                   </th>
                 </tr>
               </thead>
@@ -1035,9 +1020,9 @@ export default function MetricsLastFlight() {
                         }`}
                       >
                         {flight.status === "recording"
-                          ? "Grabando"
+                          ? "Recording"
                           : flight.status === "completed"
-                          ? "Completado"
+                          ? "Completed"
                           : "Error"}
                       </span>
                     </td>
@@ -1047,7 +1032,7 @@ export default function MetricsLastFlight() {
             </table>
           </div>
         ) : (
-          <p className="text-gray-400">No hay vuelos recientes</p>
+          <p className="text-gray-400">There are no recent flights</p>
         )}
       </div>
 
@@ -1056,7 +1041,7 @@ export default function MetricsLastFlight() {
           href="/"
           className="inline-block px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded"
         >
-          ← Volver al Inicio
+          ← Back to Home
         </a>
       </div>
     </div>

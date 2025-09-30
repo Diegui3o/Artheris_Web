@@ -415,7 +415,7 @@ export function TauMotorsCanvas({
           }
           className="bg-gray-800 hover:bg-gray-700 text-white text-xs px-2 py-1 rounded border border-gray-700"
         >
-          Descargar PNG
+          Download PNG
         </button>
       </div>
     </div>

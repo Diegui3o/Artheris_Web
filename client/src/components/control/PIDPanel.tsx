@@ -114,9 +114,7 @@ function CascadeEditor({
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-gray-800 bg-gray-900 p-3">
-        <h5 className="mb-3 font-medium text-gray-100">
-          Lazo Externo (Ángulo)
-        </h5>
+        <h5 className="mb-3 font-medium text-gray-100">External tie (angle)</h5>
         <div className="grid grid-cols-3 gap-3">
           <Field label="Kp">
             <Num
@@ -143,7 +141,7 @@ function CascadeEditor({
       </div>
 
       <div className="rounded-lg border border-gray-800 bg-gray-900 p-3">
-        <h5 className="mb-3 font-medium text-gray-100">Lazo Interno (Rate)</h5>
+        <h5 className="mb-3 font-medium text-gray-100">Internal loop (rate)</h5>
         <div className="grid grid-cols-3 gap-3">
           <Field label="Kp">
             <Num
@@ -188,7 +186,7 @@ function CascadeEditor({
   );
 }
 
-/* ---- Tarjeta por eje ---- */
+/* ---- Axis card ---- */
 function AxisCard({
   title,
   axis,
@@ -251,7 +249,7 @@ function AxisCard({
             onClick={() => setMode("simple")}
           />
           <ModeBtn
-            label="Cascada"
+            label="Cascade"
             active={isCascade(vAxis)}
             onClick={() => setMode("cascade")}
           />
@@ -284,7 +282,7 @@ function AxisCard({
   );
 }
 
-/* ---- Panel principal (sin altitude) ---- */
+// Main panel (without altitude)
 export default function PIDPanel({
   value,
   onChange,
@@ -314,7 +312,7 @@ export default function PIDPanel({
   );
 }
 
-/* ---- UI helpers ---- */
+// UI helpers
 function ModeBtn({
   label,
   active,

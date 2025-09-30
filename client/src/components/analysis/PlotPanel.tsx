@@ -19,7 +19,7 @@ function fmt(n: number | string | null | undefined, d = 2) {
   return Number(n).toFixed(d);
 }
 
-/* ========= Pequeños componentes para graficar ========= */
+/* ========= Small components to graph ========= */
 
 export function PlotCard({
   title,
@@ -76,7 +76,7 @@ export function BodeMagCanvas({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // NO filtres mag suelta; arma pares por índice para no desalinear
+  // No Mag Filtres Loose; pairs per index to not misalign
   const pts = useMemo(() => {
     const f = Array.isArray(fr?.freq_hz) ? fr.freq_hz : [];
     const magRaw = Array.isArray(fr?.mag) ? fr.mag : [];
@@ -110,7 +110,7 @@ export function BodeMagCanvas({
     c.height = Math.floor(cssH * dpr);
     c.style.height = cssH + "px";
 
-    // fondo + grid + ejes
+    // Background + grid + axes
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.fillStyle = "rgba(17,24,39,0.9)";
     ctx.fillRect(0, 0, c.width, c.height);
@@ -161,7 +161,7 @@ export function BodeMagCanvas({
       return;
     }
 
-    // dominio/escala robustos (evita log10 de <=0 y rangos nulos)
+    // Robust domain/axis (avoids log10 of <=0 and null ranges)
     let fMin = Math.min(...pts.map((p) => p.f));
     let fMax = Math.max(...pts.map((p) => p.f));
     if (!(fMax > fMin)) {
@@ -185,7 +185,7 @@ export function BodeMagCanvas({
     const yScale = (m: number) =>
       y1 - ((m - yMin) / Math.max(1e-12, yMax - yMin)) * h;
 
-    // trazo
+    // Tracing
     ctx.strokeStyle = "rgba(139,92,246,0.9)";
     ctx.lineWidth = Math.max(1.3 * dpr, 1);
     ctx.beginPath();
@@ -245,7 +245,7 @@ export function BodePhaseCanvas({
     c.height = Math.floor(cssH * dpr);
     c.style.height = cssH + "px";
 
-    // fondo + grid + ejes (igual que arriba) ...
+    // Background + grid + axes (same as above) ...
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.fillStyle = "rgba(17,24,39,0.9)";
     ctx.fillRect(0, 0, c.width, c.height);
@@ -291,7 +291,7 @@ export function BodePhaseCanvas({
     if (!pts.length) {
       ctx.textAlign = "center";
       ctx.fillStyle = "rgba(148,163,184,0.8)";
-      ctx.fillText("Sin datos de FRF", (x0 + x1) / 2, (y0 + y1) / 2);
+      ctx.fillText("No available FRF data", (x0 + x1) / 2, (y0 + y1) / 2);
       return;
     }
 

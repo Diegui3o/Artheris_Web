@@ -51,7 +51,7 @@ export default function CustomPanel({
           Reset
         </button>
         <button onClick={exportJson} className="btn">
-          Exportar JSON
+          Export JSON
         </button>
         <input
           ref={fileRef}
@@ -61,17 +61,16 @@ export default function CustomPanel({
           onChange={(e) => importJson(e.target.files?.[0])}
         />
         <button className="btn" onClick={() => fileRef.current?.click()}>
-          Importar JSON
+          Import JSON
         </button>
         <span className="text-xs text-gray-400 ml-auto">
-          Consejos: pon *i_limit* y *output_limit* para evitar saturaciones.
+          Tips: set *i_limit* and *output_limit* to avoid saturation.
         </span>
       </div>
-
-      {/* FILTROS */}
+      {/* Filters and measurement */}
       <Section
-        title="Filtros y Medición"
-        hint="Suaviza ruido e integra D sobre medición si quieres mayor robustez."
+        title="Filters and measurement"
+        hint="Smooths noise and integrates D on measurement if you want more robustness."
       >
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Num
@@ -107,21 +106,20 @@ export default function CustomPanel({
             onChange={(x) => upd("notch_q", x)}
           />
           <Switch
-            label="D en medición"
+            label="D on measurement"
             checked={!!v.d_on_measurement}
             onChange={(x) => upd("d_on_measurement", x)}
           />
         </div>
       </Section>
-
-      {/* FEEDFORWARD / MODELO */}
+      {/* Feedforward / Model */}
       <Section
-        title="Feedforward / Modelo"
-        hint="Acelera respuesta reduciendo trabajo del feedback."
+        title="Feedforward / Model"
+        hint="Accelerates response reducing feedback work."
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Num
-            label="FF Ángulo"
+            label="FF Angle"
             value={v.ff_angle}
             step={0.01}
             min={0}
@@ -146,11 +144,10 @@ export default function CustomPanel({
           />
         </div>
       </Section>
-
       {/* SETPOINT SHAPING */}
       <Section
-        title="Shaping del Setpoint"
-        hint="Suaviza órdenes del piloto/auto para evitar picos."
+        title="Setpoint Shaping"
+        hint="Smooths pilot/auto orders to avoid spikes."
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Num
@@ -179,11 +176,10 @@ export default function CustomPanel({
           />
         </div>
       </Section>
-
-      {/* ANTI-WINDUP / LÍMITES */}
+      {/* ANTI-WINDUP / LIMITS */}
       <Section
-        title="Anti-windup y Límites"
-        hint="Protege el lazo ante saturación y acumulación integral."
+        title="Anti-windup and Limits"
+        hint="Protects the loop from saturation and integral accumulation."
       >
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Num
@@ -220,11 +216,10 @@ export default function CustomPanel({
           />
         </div>
       </Section>
-
       {/* MIXER / MOTOR */}
       <Section
-        title="Mixer y Motor"
-        hint="Ajusta envolvente de los motores y punto de flotación."
+        title="Mixer and Motor"
+        hint="Adjusts motor envelope and hover throttle."
       >
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Num
@@ -266,13 +261,12 @@ export default function CustomPanel({
           />
         </div>
       </Section>
-
-      {/* NOTAS */}
-      <Section title="Notas">
+      {/* NOTES */}
+      <Section title="Notes">
         <textarea
           value={v.notes ?? ""}
           onChange={(e) => upd("notes", e.target.value)}
-          placeholder="Apunta cambios, pruebas y observaciones…"
+          placeholder="Note changes, tests and observations…"
           className="w-full min-h-[90px] rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-green-500"
         />
       </Section>
@@ -395,10 +389,4 @@ function clamp(n: number, min?: number, max?: number) {
   if (typeof min === "number" && n < min) return min;
   if (typeof max === "number" && n > max) return max;
   return n;
-}
-
-/* Tailwind helper for small buttons */
-declare global {
-  // eslint-disable-next-line no-var
-  var __dummy: unknown;
 }
